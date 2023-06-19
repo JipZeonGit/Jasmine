@@ -17,5 +17,4 @@ class JasmineApplicationTests {
 		List<User> users = userMapper.selectList(null);
 		users.forEach(System.out::println);
 	}
-
 }

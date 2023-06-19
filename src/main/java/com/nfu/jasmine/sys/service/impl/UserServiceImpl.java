@@ -10,6 +10,7 @@ import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import kotlin.jvm.internal.Lambda;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
 import java.util.HashMap;
@@ -30,17 +31,18 @@ import java.util.concurrent.TimeUnit;
 public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements IUserService {
     @Autowired
     private RedisTemplate redisTemplate;
+    @Autowired
+    private PasswordEncoder passwordEncoder;
 
     //用户登录
     @Override
     public Map<String, Object> login(User user) {
-        //根据用户名和密码查询
+        //根据用户名查询
         LambdaQueryWrapper<User> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(User::getUsername,user.getUsername());
-        wrapper.eq(User::getPassword,user.getPassword());
         User loginUser = this.baseMapper.selectOne(wrapper);
-        //查询结果不为空则生成一个token，并将用户信息存入Redis
-        if(loginUser != null){
+        //查询结果不为空，并且传入密码和数据库的密码进行匹配，则生成一个token，并将用户信息存入Redis
+        if(loginUser != null && passwordEncoder.matches(user.getPassword(), loginUser.getPassword())){
             //UUID生成key
             String key = "user:" + UUID.randomUUID();
             //去除密码，存入Redis，时效为30分钟
