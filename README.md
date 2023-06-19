@@ -9,6 +9,8 @@ JWT (Json Web Token) 0.9.1 <br>
 Lombok <br>
 FreeMarker <br>
 Fast Json 2.0.7 <br>
+Node.js 16.12.0 <br>
+vue-admin-template-4.4.0（VUE和ElementUI集成） <br>
 
 
 ## 数据库<br>
