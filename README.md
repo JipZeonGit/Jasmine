@@ -18,4 +18,4 @@ Redis (On Windows) 3.0.504 <br>
 MySQL 5.7.18 <br>
 
 ## 额外说明
-项目在本地部署根据实际环境进行修改 application.yml 的 MySQL 和 Redis 的数据库链接以及用户名和密码等
+项目在本地部署根据实际环境进行修改 application.yml 的 后端端口号 、 MySQL 、 Redis 的数据库链接以及用户名和密码等
