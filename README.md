@@ -1,5 +1,5 @@
 # Jasmine
-一个基于SpringBoot和VUE的花店管理系统
+一个基于 SpringBoot 和 VUE 的 花店管理系统
 
 ## 技术选型
 |         技术         |          类型          |   版本    |
