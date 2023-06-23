@@ -1,6 +1,6 @@
 <template>
     <div>
-        功能三
+        销售管理
     </div>
 </template>
 

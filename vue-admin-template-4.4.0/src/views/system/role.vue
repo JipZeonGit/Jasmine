@@ -30,9 +30,9 @@
                 </el-table-column>
                 <el-table-column label="操作" width="180">
                     <template slot-scope="scope">
-                        <el-button @click="openEditUI(scope.row.roleId)" type="primary" icon="el-icon-edit" circle
+                        <el-button @click="openEditUI(scope.row.roleId)" type="primary" icon="el-icon-edit"
                             size="mini"></el-button>
-                        <el-button @click="deleteRole(scope.row)" type="danger" icon="el-icon-delete" circle
+                        <el-button @click="deleteRole(scope.row)" type="danger" icon="el-icon-delete"
                             size="mini"></el-button>
                     </template>
                 </el-table-column>
@@ -54,6 +54,11 @@
                 <el-form-item prop="roleDesc" label="角色描述" :label-width="formLabelWidth">
                     <el-input v-model="roleForm.roleDesc" autocomplete="off"></el-input>
                 </el-form-item>
+
+                <el-form-item prop="menuIdList" label="权限设置" :label-width="formLabelWidth">
+                    <el-tree :data="menuList" :props="menuProps" show-checkbox default-expand-all style="width: 85%"></el-tree>
+                </el-form-item>
+
             </el-form>
             <div slot="footer" class="dialog-footer">
                 <el-button @click="dialogFormVisible = false">取 消</el-button>
@@ -66,10 +71,16 @@
 
 <script>
 import roleApi from '@/api/roleManage'
+import menuApi from '@/api/menuManage'
 export default {
     data() {
 
         return {
+            menuList: [],
+            menuProps: {
+                children: 'children',
+                label: 'title'
+            },
             formLabelWidth: '130px',
             roleForm: {},
             dialogFormVisible: false,
@@ -93,6 +104,11 @@ export default {
         }
     },
     methods: {
+        getAllMenu(){
+            menuApi.getAllMenu().then(response => {
+                this.menuList = response.data;
+            });
+        },
         deleteRole(role) {
             this.$confirm(`您确定删除角色 ${role.roleName} ？`, '提示', {
                 confirmButtonText: '确定',
@@ -171,6 +187,7 @@ export default {
     },
     created() {
         this.getRoleList();
+        this.getAllMenu();
     }
 };
 </script>

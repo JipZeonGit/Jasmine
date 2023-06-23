@@ -64,13 +64,13 @@ export const constantRoutes = [
     children: [
       {
         path: 'user',
-        name: 'user',
+        name: 'userList',
         component: () => import('@/views/system/user'),
         meta: { title: '用户管理', icon: 'icon-user-1' }
       },
       {
         path: 'role',
-        name: 'role',
+        name: 'roleList',
         component: () => import('@/views/system/role'),
         meta: { title: '角色管理', icon: 'icon-user' }
       }
@@ -78,29 +78,41 @@ export const constantRoutes = [
   },
 
   {
-    path: '/test',
+    path: '/custom',
     component: Layout,
-    redirect: '/test/test1',
-    name: 'sysManage',
-    meta: { title: '功能模块', icon: 'el-icon-s-help' },
+    redirect: '/custom/appointment',
+    name: 'cusManage',
+    meta: { title: '门店功能', icon: 'el-icon-s-help' },
     children: [
       {
-        path: 'test1',
-        name: 'test1',
-        component: () => import('@/views/test/test1'),
-        meta: { title: '功能一', icon: 'tree' }
+        path: 'appointment',
+        name: '用户预约',
+        component: () => import('@/views/custom/appointment'),
+        meta: { title: '用户预约', icon: 'tree' }
       },
       {
-        path: 'test2',
-        name: 'test2',
-        component: () => import('@/views/test/test2'),
-        meta: { title: '功能二', icon: 'tree' }
+        path: 'VIP',
+        name: '会员管理',
+        component: () => import('@/views/custom/VIP'),
+        meta: { title: '会员管理', icon: 'tree' }
       },
       {
-        path: 'test3',
-        name: 'test3',
-        component: () => import('@/views/test/test3'),
-        meta: { title: '功能三', icon: 'tree' }
+        path: 'flowerManage',
+        name: '花卉管理',
+        component: () => import('@/views/custom/flowerManage'),
+        meta: { title: '花卉管理', icon: 'tree' }
+      },
+      {
+        path: 'salesManage',
+        name: '销售管理',
+        component: () => import('@/views/custom/salesManage'),
+        meta: { title: '销售管理', icon: 'tree' }
+      },
+      {
+        path: 'inventoryManage',
+        name: '库存管理',
+        component: () => import('@/views/custom/inventoryManage'),
+        meta: { title: '库存管理', icon: 'tree' }
       }
     ]
   },

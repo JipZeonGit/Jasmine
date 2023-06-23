@@ -1,6 +1,6 @@
 module.exports = {
 
-  title: '茉莉管理系统',
+  title: '小茉莉花店管理系统',
 
   /**
    * @type {boolean} true | false

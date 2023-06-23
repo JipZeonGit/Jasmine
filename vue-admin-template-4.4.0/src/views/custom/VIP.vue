@@ -1,6 +1,6 @@
 <template>
     <div>
-        功能一
+        会员管理
     </div>
 </template>
 

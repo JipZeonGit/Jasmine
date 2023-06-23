@@ -1,6 +1,6 @@
 <template>
     <div>
-        功能二
+        花卉管理
     </div>
 </template>
 
