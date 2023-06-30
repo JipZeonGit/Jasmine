@@ -55,28 +55,28 @@ public class RoleController {
     @ApiOperation("新增角色")
     @PostMapping
     public Result<?> addRole(@RequestBody Role role){
-        roleService.save(role);
+        roleService.addRole(role);
         return Result.success("新增角色成功");
     }
 
     @ApiOperation("修改角色")
     @PutMapping
     public Result<?> updateRole(@RequestBody Role role){
-        roleService.updateById(role);
+        roleService.updateRole(role);
         return Result.success("修改角色成功");
     }
 
     @ApiOperation("根据ID查询单个角色")
     @GetMapping("/{id}")
     public Result<Role> getRoleById(@PathVariable("id") Integer id){
-        Role role = roleService.getById(id);
+        Role role = roleService.getRoleById(id);
         return Result.success(role);
     }
 
     @ApiOperation("根据ID逻辑删除角色数据")
     @DeleteMapping("/{id}")
     public Result<Role> deleteRoleById(@PathVariable("id") Integer id){
-        roleService.removeById(id);
+        roleService.deleteRoleById(id);
         return Result.success("删除角色数据成功");
     }
 

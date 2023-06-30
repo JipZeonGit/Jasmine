@@ -56,7 +56,7 @@
                 </el-form-item>
 
                 <el-form-item prop="menuIdList" label="权限设置" :label-width="formLabelWidth">
-                    <el-tree :data="menuList" :props="menuProps" show-checkbox default-expand-all style="width: 85%"></el-tree>
+                    <el-tree :data="menuList" :props="menuProps" show-checkbox default-expand-all node-key="menuId" ref="menuRef" style="width: 85%"></el-tree>
                 </el-form-item>
 
             </el-form>
@@ -135,6 +135,10 @@ export default {
             // 触发表单验证
             this.$refs.roleFormRef.validate((valid) => {
                 if (valid) {
+                    //树叶节点和子节点
+                    let checkedKeys = this.$refs.menuRef.getCheckedKeys();
+                    let halfCheckedKeys = this.$refs.menuRef.getHalfCheckedKeys();
+                    this.roleForm.menuIdList = checkedKeys.concat(halfCheckedKeys);
                     // 提交保存请求
                     roleApi.saveRole(this.roleForm).then(response => {
                         // 成功提示
@@ -158,6 +162,7 @@ export default {
         clearForm() {
             this.roleForm = {};
             this.$refs.roleFormRef.clearValidate();
+            this.$refs.menuRef.setCheckedKeys([]);
         },
         openEditUI(id) {
             if (id == null) {
@@ -166,6 +171,7 @@ export default {
                 this.title = '修改角色';
                 roleApi.getRoleById(id).then(response => {
                     this.roleForm = response.data;
+                    this.$refs.menuRef.setCheckedKeys(response.data.menuIdList);
                 });
             }
             this.dialogFormVisible = true;
