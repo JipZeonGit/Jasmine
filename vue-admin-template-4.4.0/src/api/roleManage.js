@@ -50,5 +50,12 @@ export default{
       method: 'delete'
     });
   },
+  //获取全部角色
+  getAllRoleList(){
+    return request({
+      url: '/role/all',
+      method: 'get'
+    });
+  }
 
 }

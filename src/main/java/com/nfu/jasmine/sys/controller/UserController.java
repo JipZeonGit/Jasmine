@@ -95,7 +95,7 @@ public class UserController {
     @PostMapping("")
     public Result<?> addUser(@RequestBody User user){
         user.setPassword(passwordEncoder.encode(user.getPassword())); //用户密码加密
-        userService.save(user);
+        userService.addUser(user);
         return Result.success("新增用户成功！");
     }
 
@@ -103,21 +103,21 @@ public class UserController {
     @PutMapping("")
     public Result<?> updateUser(@RequestBody User user){
         user.setPassword(null);
-        userService.updateById(user);
+        userService.updateUser(user);
         return Result.success("修改用户成功！");
     }
 
     @ApiOperation("根据ID查询单个用户")
     @GetMapping("/{id}")
     public Result<User> getUserById(@PathVariable("id") Integer id){
-        User user = userService.getById(id);
+        User user = userService.getUserById(id);
         return Result.success(user);
     }
 
     @ApiOperation("根据ID逻辑删除用户数据")
     @DeleteMapping("/{id}")
     public Result<User> deleteUserById(@PathVariable("id") Integer id){
-        userService.removeById(id);
+        userService.deleteUserById(id);
         return Result.success("删除用户数据成功！");
     }
 }

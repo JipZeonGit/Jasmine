@@ -5,7 +5,9 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.nfu.jasmine.common.utils.JwtUtil;
 import com.nfu.jasmine.config.MyRedisConfig;
 import com.nfu.jasmine.sys.entity.User;
+import com.nfu.jasmine.sys.entity.UserRole;
 import com.nfu.jasmine.sys.mapper.UserMapper;
+import com.nfu.jasmine.sys.mapper.UserRoleMapper;
 import com.nfu.jasmine.sys.service.IUserService;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import kotlin.jvm.internal.Lambda;
@@ -13,12 +15,14 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
 /**
  * <p>
@@ -36,6 +40,8 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements IU
     private PasswordEncoder passwordEncoder;
     @Autowired
     private JwtUtil jwtUtil;
+    @Autowired
+    private UserRoleMapper userRoleMapper;
 
     //用户登录
     @Override
@@ -99,5 +105,59 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements IU
     @Override
     public void logout(String token) {
         // redisTemplate.delete(token);
+    }
+
+    @Override
+    @Transactional
+    public void addUser(User user) {
+        // 新增用户
+        // 写入用户表
+        this.baseMapper.insert(user);
+        // 写入角色表
+        List<Integer> roleIdList = user.getRoleIdList();
+        if(roleIdList != null){
+            for(Integer roleId : roleIdList){
+                userRoleMapper.insert(new UserRole(null, user.getId(), roleId));
+            }
+        }
+    }
+
+    @Override
+    public User getUserById(Integer id) {
+        User user = this.baseMapper.selectById(id);
+        LambdaQueryWrapper<UserRole> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(UserRole::getUserId,id);
+        List<UserRole> userRoleList = userRoleMapper.selectList(wrapper);
+        List<Integer> roleIdList = userRoleList.stream().map(userRole -> {return userRole.getRoleId();}).collect(Collectors.toList());
+        user.setRoleIdList(roleIdList);
+        return user;
+    }
+
+    @Override
+    @Transactional
+    public void updateUser(User user) {
+        // 更新用户表
+        this.baseMapper.updateById(user);
+        // 清除原有的角色
+        LambdaQueryWrapper<UserRole> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(UserRole::getUserId,user.getId());
+        userRoleMapper.delete(wrapper);
+        // 设置新的角色
+        List<Integer> roleIdList = user.getRoleIdList();
+        if(roleIdList != null){
+            for(Integer roleId : roleIdList){
+                userRoleMapper.insert(new UserRole(null, user.getId(),roleId));
+            }
+        }
+    }
+
+    @Override
+    public void deleteUserById(Integer id) {
+        // 删除用户
+        this.baseMapper.deleteById(id);
+        // 清除原有角色
+        LambdaQueryWrapper<UserRole> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(UserRole::getUserId,id);
+        userRoleMapper.delete(wrapper);
     }
 }

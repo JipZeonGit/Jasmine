@@ -80,4 +80,10 @@ public class RoleController {
         return Result.success("删除角色数据成功");
     }
 
+    @ApiOperation("查询所有角色")
+    @GetMapping("/all")
+    public Result<List<Role>> getAllRole(){
+        List<Role> roleList = roleService.list();
+        return Result.success(roleList);
+    }
 }
