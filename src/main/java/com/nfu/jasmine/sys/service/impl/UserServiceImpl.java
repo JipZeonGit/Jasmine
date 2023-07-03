@@ -4,10 +4,12 @@ import com.alibaba.fastjson2.JSON;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.nfu.jasmine.common.utils.JwtUtil;
 import com.nfu.jasmine.config.MyRedisConfig;
+import com.nfu.jasmine.sys.entity.Menu;
 import com.nfu.jasmine.sys.entity.User;
 import com.nfu.jasmine.sys.entity.UserRole;
 import com.nfu.jasmine.sys.mapper.UserMapper;
 import com.nfu.jasmine.sys.mapper.UserRoleMapper;
+import com.nfu.jasmine.sys.service.IMenuService;
 import com.nfu.jasmine.sys.service.IUserService;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import kotlin.jvm.internal.Lambda;
@@ -42,6 +44,8 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements IU
     private JwtUtil jwtUtil;
     @Autowired
     private UserRoleMapper userRoleMapper;
+    @Autowired
+    private IMenuService menuService;
 
     //用户登录
     @Override
@@ -52,17 +56,17 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements IU
         User loginUser = this.baseMapper.selectOne(wrapper);
         //查询结果不为空，并且传入密码和数据库的密码进行匹配，则生成一个token，并将用户信息存入Redis
         if(loginUser != null && passwordEncoder.matches(user.getPassword(), loginUser.getPassword())){
-            //UUID生成key
-            //String key = "user:" + UUID.randomUUID();
+            // UUID生成key
+            // String key = "user:" + UUID.randomUUID();
 
-            //去除密码，存入Redis，时效为30分钟
+            // 去除密码，存入Redis，时效为30分钟
             loginUser.setPassword(null);
-            //redisTemplate.opsForValue().set(key,loginUser,30, TimeUnit.MINUTES);
+            // redisTemplate.opsForValue().set(key,loginUser,30, TimeUnit.MINUTES);
 
-            //创建JWT
+            // 创建JWT
             String token = jwtUtil.createToken(loginUser);
 
-            //返回数据
+            // 返回数据
             Map<String,Object> data = new HashMap<>();
             data.put("token",token);
             return data;
@@ -73,8 +77,8 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements IU
     //获取用户信息
     @Override
     public Map<String, Object> getUserInfo(String token) {
-        //根据token获取用户信息
-        //Object obj = redisTemplate.opsForValue().get(token);
+        // 根据token获取用户信息
+        // Object obj = redisTemplate.opsForValue().get(token);
 
         User loginUser = null;
         try {
@@ -84,17 +88,21 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements IU
         }
 
         if(loginUser != null){
-            //fastjson2 反序列化
-            //User loginUser = JSON.parseObject(JSON.toJSONString(obj),User.class);
+            // fastjson2 反序列化
+            // User loginUser = JSON.parseObject(JSON.toJSONString(obj),User.class);
 
             Map<String, Object> data = new HashMap<>();
 
             data.put("name",loginUser.getUsername());//取用户名
             data.put("avatar",loginUser.getAvatar());//取头像
 
-            //获取用户角色
+            // 获取用户角色
             List<String> roleList = this.baseMapper.getRoleNameByUserId(loginUser.getId());
             data.put("roles",roleList);
+
+            // 获取角色权限
+            List<Menu> menuList = menuService.getMenuListByUserId(loginUser.getId());
+            data.put("menuList",menuList);
 
             return data;
         }
