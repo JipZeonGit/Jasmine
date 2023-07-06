@@ -11,9 +11,9 @@ public class CodeGenerator {
         String url = "jdbc:mysql://localhost:3307/jasmine"; //数据库URL
         String username = "123456"; //用户名
         String password = "123456"; //密码
-        String moduleName = "sys"; //模块名
+        String moduleName = "cus"; //模块名
         String mapperLocation = "G:\\Code\\IDEA\\Jasmine\\Jasmine\\src\\main\\resources\\mapper\\" + moduleName; //mapper路径
-        String tables = "user,role,menu,user_role,role_menu";
+        String tables = "appointment,flower,inventory,sales,vip";
 
         FastAutoGenerator.create(url, username, password)
                 .globalConfig(builder -> {
