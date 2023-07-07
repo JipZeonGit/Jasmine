@@ -3,6 +3,7 @@ package com.nfu.jasmine.sys.controller;
 import com.nfu.jasmine.common.vo.Result;
 import com.nfu.jasmine.sys.entity.Menu;
 import com.nfu.jasmine.sys.service.IMenuService;
+import io.swagger.annotations.Api;
 import io.swagger.annotations.ApiOperation;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -20,6 +21,7 @@ import java.util.List;
  * @author jipzeongit
  * @since 2023-05-29
  */
+@Api(tags = {"导航栏接口列表"})
 @RestController
 @RequestMapping("/menu")
 public class MenuController {

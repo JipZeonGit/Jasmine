@@ -1,7 +1,11 @@
 package com.nfu.jasmine.cus.entity;
 
+import lombok.Data;
+import org.springframework.format.annotation.DateTimeFormat;
+
 import java.io.Serializable;
 import java.time.LocalDateTime;
+import java.util.Date;
 
 /**
  * <p>
@@ -11,13 +15,15 @@ import java.time.LocalDateTime;
  * @author jipzeongit
  * @since 2023-07-06
  */
+@Data
 public class Appointment implements Serializable {
 
     private static final long serialVersionUID = 1L;
 
     private Integer id;
 
-    private LocalDateTime date;
+    @DateTimeFormat(pattern = "yyyy-MM-dd hh:mm:ss")
+    private Date date;
 
     private Integer vid;
 
@@ -30,75 +36,4 @@ public class Appointment implements Serializable {
     private String content;
 
     private Integer deleted;
-
-    public Integer getId() {
-        return id;
-    }
-
-    public void setId(Integer id) {
-        this.id = id;
-    }
-    public LocalDateTime getDate() {
-        return date;
-    }
-
-    public void setDate(LocalDateTime date) {
-        this.date = date;
-    }
-    public Integer getVid() {
-        return vid;
-    }
-
-    public void setVid(Integer vid) {
-        this.vid = vid;
-    }
-    public String getName() {
-        return name;
-    }
-
-    public void setName(String name) {
-        this.name = name;
-    }
-    public String getSex() {
-        return sex;
-    }
-
-    public void setSex(String sex) {
-        this.sex = sex;
-    }
-    public String getPhone() {
-        return phone;
-    }
-
-    public void setPhone(String phone) {
-        this.phone = phone;
-    }
-    public String getContent() {
-        return content;
-    }
-
-    public void setContent(String content) {
-        this.content = content;
-    }
-    public Integer getDeleted() {
-        return deleted;
-    }
-
-    public void setDeleted(Integer deleted) {
-        this.deleted = deleted;
-    }
-
-    @Override
-    public String toString() {
-        return "Appointment{" +
-            "id=" + id +
-            ", date=" + date +
-            ", vid=" + vid +
-            ", name=" + name +
-            ", sex=" + sex +
-            ", phone=" + phone +
-            ", content=" + content +
-            ", deleted=" + deleted +
-        "}";
-    }
 }

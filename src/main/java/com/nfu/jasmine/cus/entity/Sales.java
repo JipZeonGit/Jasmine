@@ -2,9 +2,13 @@ package com.nfu.jasmine.cus.entity;
 
 import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableId;
+import lombok.Data;
+import org.springframework.format.annotation.DateTimeFormat;
+
 import java.io.Serializable;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.Date;
 
 /**
  * <p>
@@ -14,55 +18,17 @@ import java.time.LocalDateTime;
  * @author jipzeongit
  * @since 2023-07-06
  */
+@Data
 public class Sales implements Serializable {
-
     private static final long serialVersionUID = 1L;
 
     @TableId(value = "id", type = IdType.AUTO)
     private Integer id;
 
-    private LocalDateTime date;
+    @DateTimeFormat(pattern = "yyyy-MM-dd hh:mm:ss")
+    private Date date;
 
     private BigDecimal money;
 
     private Integer deleted;
-
-    public Integer getId() {
-        return id;
-    }
-
-    public void setId(Integer id) {
-        this.id = id;
-    }
-    public LocalDateTime getDate() {
-        return date;
-    }
-
-    public void setDate(LocalDateTime date) {
-        this.date = date;
-    }
-    public BigDecimal getMoney() {
-        return money;
-    }
-
-    public void setMoney(BigDecimal money) {
-        this.money = money;
-    }
-    public Integer getDeleted() {
-        return deleted;
-    }
-
-    public void setDeleted(Integer deleted) {
-        this.deleted = deleted;
-    }
-
-    @Override
-    public String toString() {
-        return "Sales{" +
-            "id=" + id +
-            ", date=" + date +
-            ", money=" + money +
-            ", deleted=" + deleted +
-        "}";
-    }
 }
