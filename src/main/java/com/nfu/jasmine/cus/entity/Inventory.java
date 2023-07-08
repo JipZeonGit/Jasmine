@@ -6,7 +6,6 @@ import lombok.Data;
 import org.springframework.format.annotation.DateTimeFormat;
 
 import java.io.Serializable;
-import java.time.LocalDateTime;
 import java.util.Date;
 
 /**
@@ -27,7 +26,7 @@ public class Inventory implements Serializable {
 
     private String name;
 
-    private Integer num;
+    private String num;
 
     private Integer quantity;
 

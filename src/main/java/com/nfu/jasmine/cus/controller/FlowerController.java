@@ -3,7 +3,6 @@ package com.nfu.jasmine.cus.controller;
 import com.nfu.jasmine.common.vo.Result;
 import com.nfu.jasmine.cus.entity.Flower;
 import com.nfu.jasmine.cus.service.IFlowerService;
-import com.nfu.jasmine.sys.entity.User;
 import io.swagger.annotations.Api;
 import io.swagger.annotations.ApiOperation;
 import org.springframework.beans.factory.annotation.Autowired;
