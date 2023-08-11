@@ -3,6 +3,7 @@ package com.nfu.jasmine.sys.entity;
 import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import lombok.Data;
 
 import java.io.Serializable;
@@ -32,5 +33,19 @@ public class User implements Serializable {
 
     @TableField(exist = false)
     private List<Integer> roleIdList;
+
+//    // 新增字段来存储密码哈希值
+//    @TableField(exist = false)
+//    private String passwordHash;
+//
+//    // 设置密码哈希值
+//    public void setPasswordHash(String passwordHash) {
+//        this.passwordHash = passwordHash;
+//    }
+//
+//    // 更新密码哈希值
+//    public void changePassword(String newPasswordHash) {
+//        this.passwordHash = newPasswordHash;
+//    }
 
 }

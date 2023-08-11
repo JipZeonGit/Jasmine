@@ -1,15 +1,21 @@
 package com.nfu.jasmine.cus.controller;
 
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.nfu.jasmine.common.vo.Result;
 import com.nfu.jasmine.cus.entity.Flower;
 import com.nfu.jasmine.cus.service.IFlowerService;
+import com.nfu.jasmine.sys.entity.User;
 import io.swagger.annotations.Api;
 import io.swagger.annotations.ApiOperation;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.stereotype.Controller;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * <p>
@@ -59,5 +65,27 @@ public class FlowerController {
     public Result<Flower> deleteFlowerById(@PathVariable("id") Integer id){
         flowerService.removeById(id);
         return Result.success("删除花卉数据成功！");
+    }
+
+    @ApiOperation("查询花卉")
+    @GetMapping("/list")
+    public Result<Map<String,Object>> getFlowerList(@RequestParam(value = "name",required = false) String name, @RequestParam("pageNo") Long pageNo, @RequestParam("pageSize") Long pageSize){
+
+        LambdaQueryWrapper<Flower> wrapper = new LambdaQueryWrapper<>();
+
+        // 使用LambdaQueryWrapper的like方法来实现模糊查询
+        wrapper.like(StringUtils.hasLength(name), Flower::getName, name);
+
+        // 按照ID进行排序
+        wrapper.orderByAsc(Flower::getId);
+
+        Page<Flower> page = new Page<>(pageNo,pageSize);
+        flowerService.page(page,wrapper);
+
+        Map<String,Object> data = new HashMap<>();
+        data.put("total",page.getTotal());
+        data.put("rows",page.getRecords());
+
+        return Result.success(data);
     }
 }

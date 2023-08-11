@@ -32,14 +32,14 @@ public class RoleController {
     @Autowired
     private IRoleService roleService;
 
-    @ApiOperation("获取全部角色")
+    @ApiOperation("查询角色")
     @GetMapping("/list")
     public Result<Map<String,Object>> getUserList(@RequestParam(value = "roleName",required = false) String roleName,
                                                   @RequestParam(value = "pageNo") Long pageNo,
                                                   @RequestParam(value = "pageSize") Long pageSize){
         LambdaQueryWrapper<Role> wrapper = new LambdaQueryWrapper<>();
-        wrapper.eq(StringUtils.hasLength(roleName),Role::getRoleName,roleName);
-        wrapper.orderByDesc(Role::getRoleId);
+        wrapper.like(StringUtils.hasLength(roleName),Role::getRoleName,roleName);
+        wrapper.orderByAsc(Role::getRoleId);
 
         Page<Role> page = new Page<>(pageNo,pageSize);
         roleService.page(page, wrapper);

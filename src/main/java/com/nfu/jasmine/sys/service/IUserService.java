@@ -28,4 +28,7 @@ public interface IUserService extends IService<User> {
     void updateUser(User user);
 
     void deleteUserById(Integer id);
+
+
+//    boolean changePassword(String username, String oldPassword, String newPassword);
 }

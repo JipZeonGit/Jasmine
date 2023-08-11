@@ -71,15 +71,16 @@ public class UserController {
         return Result.success();
     }
 
+
     @ApiOperation("查询用户")
     @GetMapping("/list")
     public Result<Map<String,Object>> getUserList(@RequestParam(value = "username",required = false) String username,@RequestParam(value = "phone",required = false) String phone,@RequestParam("pageNo") Long pageNo,@RequestParam("pageSize") Long pageSize){
 
         LambdaQueryWrapper<User> wrapper = new LambdaQueryWrapper<>();
 
-        wrapper.eq(StringUtils.hasLength(username),User::getUsername,username);
-        wrapper.eq(StringUtils.hasLength(phone),User::getPhone,phone);
-        wrapper.orderByDesc(User::getId); //按照用户ID进行排序
+        wrapper.like(StringUtils.hasLength(username),User::getUsername,username);
+        wrapper.like(StringUtils.hasLength(phone),User::getPhone,phone);
+        wrapper.orderByAsc(User::getId); //按照用户ID进行排序
 
         Page<User> page = new Page<>(pageNo,pageSize);
         userService.page(page,wrapper);
@@ -90,7 +91,6 @@ public class UserController {
 
         return Result.success(data);
     }
-
     @ApiOperation("新增用户")
     @PostMapping("")
     public Result<?> addUser(@RequestBody User user){
@@ -120,4 +120,24 @@ public class UserController {
         userService.deleteUserById(id);
         return Result.success("删除用户数据成功！");
     }
+
+//    @ApiOperation("修改用户密码")
+//    @PutMapping("/changePassword")
+//    public Result<String> changePassword(@RequestBody Map<String, String> request) {
+//        String username = request.get("username");
+//        String oldPassword = request.get("oldPassword");
+//        String newPassword = request.get("newPassword");
+//
+//        if (username != null && oldPassword != null && newPassword != null) {
+//            boolean success = userService.changePassword(username, oldPassword, newPassword);
+//            if (success) {
+//                return Result.success("密码修改成功！");
+//            } else {
+//                return Result.fail("用户名或旧密码不匹配，密码修改失败！");
+//            }
+//        } else {
+//            return Result.fail("请求参数不完整，密码修改失败！");
+//        }
+//    }
+
 }

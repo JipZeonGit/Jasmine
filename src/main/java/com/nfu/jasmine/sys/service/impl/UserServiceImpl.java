@@ -47,7 +47,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements IU
     @Autowired
     private IMenuService menuService;
 
-    //用户登录
+    // 用户登录
     @Override
     public Map<String, Object> login(User user) {
         //根据用户名查询
@@ -74,7 +74,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements IU
         return null;
     }
 
-    //获取用户信息
+    // 获取用户信息
     @Override
     public Map<String, Object> getUserInfo(String token) {
         // 根据token获取用户信息
@@ -109,7 +109,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements IU
         return null;
     }
 
-    //用户注销，退出登录
+    // 用户注销，退出登录
     @Override
     public void logout(String token) {
         // redisTemplate.delete(token);
@@ -132,12 +132,20 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements IU
 
     @Override
     public User getUserById(Integer id) {
+        // 根据ID查询用户信息
         User user = this.baseMapper.selectById(id);
+
+        // 构建查询条件，查询用户角色列表
         LambdaQueryWrapper<UserRole> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(UserRole::getUserId,id);
         List<UserRole> userRoleList = userRoleMapper.selectList(wrapper);
+
+        // 提取角色ID列表
         List<Integer> roleIdList = userRoleList.stream().map(userRole -> {return userRole.getRoleId();}).collect(Collectors.toList());
+
+        // 设置角色ID列表到用户信息中
         user.setRoleIdList(roleIdList);
+
         return user;
     }
 
@@ -168,4 +176,22 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements IU
         wrapper.eq(UserRole::getUserId,id);
         userRoleMapper.delete(wrapper);
     }
+
+//    // 修改用户密码
+//    @Override
+//    public boolean changePassword(String username, String oldPassword, String newPassword) {
+//        // 根据用户名查询用户
+//        LambdaQueryWrapper<User> wrapper = new LambdaQueryWrapper<>();
+//        wrapper.eq(User::getUsername, username);
+//        User user = this.baseMapper.selectOne(wrapper);
+//
+//        if (user != null && passwordEncoder.matches(oldPassword, user.getPasswordHash())) {
+//            // 旧密码匹配，可以修改密码
+//            String newPasswordHash = passwordEncoder.encode(newPassword);
+//            user.setPasswordHash(newPasswordHash);
+//            this.baseMapper.updateById(user);
+//            return true;
+//        }
+//        return false; // 修改失败，用户名或旧密码不匹配
+//    }
 }
