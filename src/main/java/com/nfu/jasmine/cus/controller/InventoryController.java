@@ -1,16 +1,22 @@
 package com.nfu.jasmine.cus.controller;
 
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.nfu.jasmine.common.utils.SerialNumberUtil;
 import com.nfu.jasmine.common.vo.Result;
+import com.nfu.jasmine.cus.entity.Flower;
 import com.nfu.jasmine.cus.entity.Inventory;
 import com.nfu.jasmine.cus.service.IInventoryService;
 import io.swagger.annotations.Api;
 import io.swagger.annotations.ApiOperation;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.stereotype.Controller;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * <p>
@@ -26,9 +32,6 @@ import java.util.List;
 public class InventoryController {
     @Autowired
     private IInventoryService inventoryService;
-
-    @Autowired
-    private SerialNumberUtil serialNumberUtil;
 
     @ApiOperation("获取全部库存")
     @GetMapping("/all")
@@ -64,6 +67,29 @@ public class InventoryController {
     public Result<Inventory> deleteInventoryById(@PathVariable("id") Integer id){
         inventoryService.removeById(id);
         return Result.success("删除库存数据成功！");
+    }
+
+    @ApiOperation("查询仓库")
+    @GetMapping("/list")
+    public Result<Map<String,Object>> getInventoryList(@RequestParam(value = "name",required = false) String name,@RequestParam(value = "num",required = false) String num, @RequestParam("pageNo") Long pageNo, @RequestParam("pageSize") Long pageSize){
+
+        LambdaQueryWrapper<Inventory> wrapper = new LambdaQueryWrapper<>();
+
+        // 使用LambdaQueryWrapper的like方法来实现模糊查询
+        wrapper.like(StringUtils.hasLength(name), Inventory::getName, name);
+        wrapper.like(StringUtils.hasLength(num),Inventory::getNum,num);
+
+        // 按照ID进行排序
+        wrapper.orderByAsc(Inventory::getId);
+
+        Page<Inventory> page = new Page<>(pageNo,pageSize);
+        inventoryService.page(page,wrapper);
+
+        Map<String,Object> data = new HashMap<>();
+        data.put("total",page.getTotal());
+        data.put("rows",page.getRecords());
+
+        return Result.success(data);
     }
 
 }

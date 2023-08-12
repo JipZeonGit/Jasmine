@@ -1,5 +1,7 @@
 package com.nfu.jasmine.cus.controller;
 
+import com.nfu.jasmine.common.utils.MembershipIdUtil;
+import com.nfu.jasmine.common.utils.SerialNumberUtil;
 import com.nfu.jasmine.common.vo.Result;
 import com.nfu.jasmine.cus.entity.Appointment;
 import com.nfu.jasmine.cus.entity.Vip;
@@ -37,8 +39,9 @@ public class VipController {
     @ApiOperation("新增会员")
     @PostMapping("")
     public Result<?> addVip(@RequestBody Vip vip){
+        vip.setVid(MembershipIdUtil.generateMembershipCardNumber());
         vipService.save(vip);
-        return Result.success("新增预约成功！");
+        return Result.success("新增会员成功！");
     }
 
     @ApiOperation("修改会员")

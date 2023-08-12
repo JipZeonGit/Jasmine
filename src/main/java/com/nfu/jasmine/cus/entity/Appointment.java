@@ -25,7 +25,7 @@ public class Appointment implements Serializable {
     @DateTimeFormat(pattern = "yyyy-MM-dd hh:mm:ss")
     private Date date;
 
-    private Integer vid;
+    private String vid;
 
     private String name;
 
