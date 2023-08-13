@@ -26,13 +26,16 @@
                 <el-table-column prop="id" label="仓库ID" width="180"></el-table-column>
                 <el-table-column prop="name" label="花名" width="180"></el-table-column>
                 <el-table-column prop="num" label="单号" width="240"></el-table-column>
-                <el-table-column prop="quantity" label="出/入库数量" width="180">
+                <el-table-column prop="quantity" label="出 / 入库数量" width="180">
                     <template slot-scope="scope">
-                        <el-tag v-if="scope.row.quantity > 0">+&nbsp;<span>{{ scope.row.quantity }}</span></el-tag>
-                        <el-tag v-if="scope.row.quantity < 0" type="danger">-&nbsp;<span>{{ Math.abs(scope.row.quantity) }}</span></el-tag>
+                        <strong>
+                            <el-tag v-if="scope.row.quantity > 0" style="font-size: 15px;">+&nbsp;<span>{{ scope.row.quantity }}</span></el-tag>
+                            <el-tag v-if="scope.row.quantity < 0" type="danger" style="font-size: 15px;">-&nbsp;<span>{{ Math.abs(scope.row.quantity)
+                            }}</span></el-tag>
+                        </strong>
                     </template>
                 </el-table-column>
-                <el-table-column prop="date" label="出/入库时间" width="240"></el-table-column>
+                <el-table-column prop="date" label="出 / 入库时间" width="240"></el-table-column>
                 <el-table-column prop="residue" label="余量"></el-table-column>
                 <el-table-column label="操作">
                     <template slot-scope="scope">
@@ -57,15 +60,17 @@
                 <el-form-item label="花名" prop="name" :label-width="formLabelWidth">
                     <el-input v-model="inventoryForm.name" autocomplete="off"></el-input>
                 </el-form-item>
-                <el-form-item label="出/入库数量" prop="quantity" :label-width="formLabelWidth">
-                    <el-input v-model="inventoryForm.quantity" autocomplete="off"></el-input>
+                <el-form-item label="出 / 入库数量" prop="quantity" :label-width="formLabelWidth">
+                    <el-input v-model="inventoryForm.quantity" autocomplete="off"
+                        @blur="$refs.inventoryFormRef.validateField('quantity')"></el-input>
                 </el-form-item>
-                <el-form-item label="出/入库时间" prop="date" :label-width="formLabelWidth">
+                <el-form-item label="出 / 入库时间" prop="date" :label-width="formLabelWidth">
                     <el-date-picker v-model="inventoryForm.date" type="datetime" format="yyyy-MM-dd HH:mm:ss"
                         @change="handleDateChange"></el-date-picker>
                 </el-form-item>
                 <el-form-item label="余量" prop="residue" :label-width="formLabelWidth">
-                    <el-input v-model="inventoryForm.residue" autocomplete="off"></el-input>
+                    <el-input v-model="inventoryForm.residue" autocomplete="off"
+                        @blur="$refs.inventoryFormRef.validateField('residue')"></el-input>
                 </el-form-item>
             </el-form>
             <div slot="footer" class="dialog-footer">
@@ -121,7 +126,8 @@ export default {
                     {
                         min: 1,
                         max: 20,
-                        message: '长度在1到20字符',
+                        pattern: /^(-?[1-9]\d*)$/,
+                        message: '只能以"-"或数字开头，长度在1到20的非零整数',
                         trigger: 'blur'
                     }
                 ],
@@ -134,7 +140,8 @@ export default {
                     {
                         min: 1,
                         max: 20,
-                        message: '长度在1到20字符',
+                        pattern: /^[0-9]+$/,
+                        message: '长度在1到20大于或等于0的整数',
                         trigger: 'blur'
                     }
                 ]
@@ -167,19 +174,23 @@ export default {
             });
         },
         saveInventory() {
+            // 转换字段值为字符串类型
+            this.inventoryForm.quantity = this.inventoryForm.quantity.toString();
+            this.inventoryForm.residue = this.inventoryForm.residue.toString();
+
             // 触发表单验证
             this.$refs.inventoryFormRef.validate((valid) => {
                 if (valid) {
                     // 请求提交
                     inventoryApi.saveInventory(this.inventoryForm).then(response => {
-                        //提交成功提示
+                        // 提交成功提示
                         this.$message({
                             message: response.message,
                             type: 'success'
                         });
-                        //关闭对话框
+                        // 关闭对话框
                         this.dialogFormVisible = false;
-                        //刷新表格
+                        // 刷新表格
                         this.getInventoryList();
                     });
                 } else {

@@ -34,8 +34,10 @@
                 </el-table-column>
                 <el-table-column prop="status" label="用户状态" width="180">
                     <template slot-scope="scope">
-                        <el-tag v-if="scope.row.status == 1">正常</el-tag>
-                        <el-tag v-if="scope.row.status == 0" type="danger">禁用</el-tag>
+                        <strong>
+                            <el-tag v-if="scope.row.status == 1" style="font-size: 15px;">正常</el-tag>
+                            <el-tag v-if="scope.row.status == 0" type="danger" style="font-size: 15px;">禁用</el-tag>
+                        </strong>
                     </template>
                 </el-table-column>
                 <el-table-column prop="email" label="电子邮件"> </el-table-column>
@@ -74,7 +76,8 @@
                 </el-form-item>
                 <el-form-item label="用户角色" :label-width="formLabelWidth">
                     <el-checkbox-group style="width: 85%" v-model="userForm.roleIdList" :min="1" :max="2">
-                        <el-checkbox v-for="role in roleIdList" :label="role.roleId" :key="role.roleId">{{role.roleDesc}}</el-checkbox>
+                        <el-checkbox v-for="role in roleIdList" :label="role.roleId"
+                            :key="role.roleId">{{ role.roleDesc }}</el-checkbox>
                     </el-checkbox-group>
                 </el-form-item>
                 <el-form-item label="电子邮件" prop="email" :label-width="formLabelWidth">
@@ -158,7 +161,7 @@ export default {
         };
     },
     methods: {
-        getAllRoleList(){
+        getAllRoleList() {
             roleApi.getAllRoleList().then(response => {
                 this.roleIdList = response.data;
             });
