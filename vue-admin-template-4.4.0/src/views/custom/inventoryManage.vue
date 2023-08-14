@@ -85,7 +85,7 @@
 <script>
 import inventoryApi from '@/api/inventoryManage'
 import { DatePicker } from 'element-ui'
-import moment from 'moment';
+import moment from 'moment'
 export default {
     data() {
         return {

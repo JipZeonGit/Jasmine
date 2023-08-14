@@ -25,7 +25,7 @@ public class Sales implements Serializable {
     @TableId(value = "id", type = IdType.AUTO)
     private Integer id;
 
-    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
+    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss", timezone = "GMT+8")
     @DateTimeFormat(pattern = "yyyy-MM-dd hh:mm:ss")
     private Date date;
 

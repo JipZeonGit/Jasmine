@@ -11,6 +11,7 @@ import com.nfu.jasmine.cus.service.ISalesService;
 import io.swagger.annotations.Api;
 import io.swagger.annotations.ApiOperation;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.stereotype.Controller;
@@ -73,16 +74,18 @@ public class SalesController {
 
     @ApiOperation("查询销售订单")
     @GetMapping("/list")
-    public Result<Map<String,Object>> getSalesList(@RequestParam(value = "date",required = false) Date date, @RequestParam("pageNo") Long pageNo, @RequestParam("pageSize") Long pageSize){
+    public Result<Map<String,Object>> getSalesList(@RequestParam(value = "date",required = false) @DateTimeFormat(pattern = "yyyy-MM-dd HH:mm:ss")Date date, @RequestParam("pageNo") Long pageNo, @RequestParam("pageSize") Long pageSize){
 
         LambdaQueryWrapper<Sales> wrapper = new LambdaQueryWrapper<>();
 
         // 使用LambdaQueryWrapper的like方法来实现模糊查询
-        if (date != null) {
+        if (date != null && !date.equals("")) {
             // 将日期字段转换为字符串进行模糊查询
             SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
             String dateString = sdf.format(date);
             wrapper.like(Sales::getDate, dateString);
+        } else {
+            date = null;
         }
 
         // 按照ID进行排序
