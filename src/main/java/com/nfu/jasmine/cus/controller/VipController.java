@@ -1,5 +1,7 @@
 package com.nfu.jasmine.cus.controller;
 
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.nfu.jasmine.common.utils.MembershipIdUtil;
 import com.nfu.jasmine.common.utils.SerialNumberUtil;
 import com.nfu.jasmine.common.vo.Result;
@@ -9,10 +11,13 @@ import com.nfu.jasmine.cus.service.IVipService;
 import io.swagger.annotations.Api;
 import io.swagger.annotations.ApiOperation;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.stereotype.Controller;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * <p>
@@ -63,5 +68,29 @@ public class VipController {
     public Result<Appointment> deleteVipById(@PathVariable("id") Integer id){
         vipService.removeById(id);
         return Result.success("删除会员数据成功！");
+    }
+
+    @ApiOperation("查询会员")
+    @GetMapping("/list")
+    public Result<Map<String,Object>> getVipList(@RequestParam(value = "name",required = false) String name,@RequestParam(value = "vid",required = false) String vid,@RequestParam(value = "phone",required = false) String phone, @RequestParam("pageNo") Long pageNo, @RequestParam("pageSize") Long pageSize){
+
+        LambdaQueryWrapper<Vip> wrapper = new LambdaQueryWrapper<>();
+
+        // 使用LambdaQueryWrapper的like方法来实现模糊查询
+        wrapper.like(StringUtils.hasLength(name), Vip::getName, name);
+        wrapper.like(StringUtils.hasLength(vid), Vip::getVid, vid);
+        wrapper.like(StringUtils.hasLength(phone), Vip::getPhone, phone);
+
+        // 按照ID进行排序
+        wrapper.orderByAsc(Vip::getId);
+
+        Page<Vip> page = new Page<>(pageNo,pageSize);
+        vipService.page(page,wrapper);
+
+        Map<String,Object> data = new HashMap<>();
+        data.put("total",page.getTotal());
+        data.put("rows",page.getRecords());
+
+        return Result.success(data);
     }
 }

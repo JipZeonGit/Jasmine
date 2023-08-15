@@ -50,7 +50,7 @@ export default {
             method: 'delete'
         });
     },
-    //获取全部花卉
+    // 获取全部花卉
     getAllFlowerList() {
         return request({
             url: '/flower/all',
