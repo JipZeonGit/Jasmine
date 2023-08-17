@@ -1,12 +1,14 @@
 package com.nfu.jasmine.cus.controller;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.nfu.jasmine.common.utils.MembershipIdUtil;
 import com.nfu.jasmine.common.utils.SerialNumberUtil;
 import com.nfu.jasmine.common.vo.Result;
 import com.nfu.jasmine.cus.entity.Appointment;
 import com.nfu.jasmine.cus.entity.Vip;
+import com.nfu.jasmine.cus.mapper.VipMapper;
 import com.nfu.jasmine.cus.service.IVipService;
 import io.swagger.annotations.Api;
 import io.swagger.annotations.ApiOperation;
@@ -33,6 +35,8 @@ import java.util.Map;
 public class VipController {
     @Autowired
     private IVipService vipService;
+    @Autowired
+    private VipMapper vipMapper;
 
     @ApiOperation("获取全部会员")
     @GetMapping("/all")
@@ -45,8 +49,21 @@ public class VipController {
     @PostMapping("")
     public Result<?> addVip(@RequestBody Vip vip){
         vip.setVid(MembershipIdUtil.generateMembershipCardNumber());
-        vipService.save(vip);
-        return Result.success("新增会员成功！");
+        // 判断手机号是否存在
+        boolean vipExists = false;
+        String phone = vip.getPhone();
+        if (phone != null) {
+            Vip vipByPhone = vipMapper.selectOne(new QueryWrapper<Vip>().eq("phone",phone));
+            if (vipByPhone != null) {
+                vipExists = true;
+            }
+        }
+        if (vipExists) {
+            return Result.fail("该手机号已注册,请重新输入没有注册的手机号!");
+        } else {
+            vipService.save(vip);
+            return Result.success("新增会员成功!");
+        }
     }
 
     @ApiOperation("修改会员")
