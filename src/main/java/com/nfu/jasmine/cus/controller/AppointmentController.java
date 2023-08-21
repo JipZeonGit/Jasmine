@@ -92,7 +92,7 @@ public class AppointmentController {
     }
 
     @ApiOperation("查询预约")
-    @GetMapping("")
+    @GetMapping("/list")
     public Result<Map<String,Object>> getAppointmentList(@RequestParam(value = "name",required = false) String name , @RequestParam(value = "phone",required = false) String phone , @RequestParam(value = "date",required = false) @DateTimeFormat(pattern = "yyyy-MM-dd HH:mm:ss") Date date, @RequestParam("pageNo") Long pageNo, @RequestParam("pageSize") Long pageSize){
         LambdaQueryWrapper<Appointment> wrapper = new LambdaQueryWrapper<>();
 
