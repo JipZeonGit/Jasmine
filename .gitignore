@@ -31,3 +31,4 @@ build/
 
 ### VS Code ###
 .vscode/
+.agent/rules/debugger.md

@@ -1,0 +1,72 @@
+version: '3.8'
+
+services:
+  # MySQL 数据库服务
+  mysql:
+    image: mysql:5.7.44
+    container_name: jasmine-mysql
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: 123456
+      MYSQL_DATABASE: jasmine
+      MYSQL_USER: root
+    ports:
+      - "3306:3306"
+    volumes:
+      # - ./mysql-data:/var/lib/mysql # 这里可以挂载数据卷以实现数据持久化
+      - ./jasmine.sql:/docker-entrypoint-initdb.d/jasmine.sql # 初始化SQL脚本（如果有的话可以放在根目录）
+    networks:
+      - jasmine-network
+
+  # Redis 缓存服务
+  redis:
+    image: redis:7.2
+    container_name: jasmine-redis
+    restart: always
+    command: redis-server --requirepass 123456 # 设置 Redis 密码
+    ports:
+      - "6379:6379"
+    volumes:
+      - ./redis-data:/data # 持久化
+    networks:
+      - jasmine-network
+
+  # Spring Boot 后端服务
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: jasmine-backend
+    restart: always
+    ports:
+      - "9999:9999"
+    environment:
+      # 通过环境变量覆盖 application.yml 中的默认配置
+      MYSQL_HOST: mysql
+      MYSQL_PORT: 3306
+      MYSQL_USER: root
+      MYSQL_PASSWORD: 123456
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: 123456
+    depends_on:
+      - mysql
+      - redis
+    networks:
+      - jasmine-network
+
+  # Vue 前端服务
+  frontend:
+    build:
+      context: ./vue-admin-template-4.4.0
+      dockerfile: Dockerfile
+    container_name: jasmine-frontend
+    restart: always
+    ports:
+      - "80:80"    # 本地暴露 80 端口，前端页面可以通过 http://localhost 访问
+    networks:
+      - jasmine-network
+
+networks:
+  jasmine-network:
+    driver: bridge

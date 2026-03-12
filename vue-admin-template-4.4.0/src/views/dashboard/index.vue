@@ -1,6 +1,6 @@
 <template>
   <div class="dashboard-container">
-    <div class="dashboard-text">name: {{ name }}</div>
+    <div class="dashboard-text">{{ name }}，您好！欢迎您使用 Jasmine 智慧花卉管理系统！</div>
   </div>
 </template>
 
