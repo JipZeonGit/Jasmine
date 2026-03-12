@@ -7,7 +7,7 @@ import java.util.Map;
 
 /**
  * <p>
- *  服务类
+ * 服务类
  * </p>
  *
  * @author jipzeongit
@@ -29,6 +29,5 @@ public interface IUserService extends IService<User> {
 
     void deleteUserById(Integer id);
 
-
-//    boolean changePassword(String username, String oldPassword, String newPassword);
+    boolean changePassword(String username, String oldPassword, String newPassword);
 }

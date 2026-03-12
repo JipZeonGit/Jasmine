@@ -9,6 +9,8 @@ import org.springframework.stereotype.Service;
 
 import java.util.List;
 
+import org.springframework.cache.annotation.Cacheable;
+
 /**
  * <p>
  * 服务实现类
@@ -45,6 +47,7 @@ public class MenuServiceImpl extends ServiceImpl<MenuMapper, Menu> implements IM
     }
 
     @Override
+    @Cacheable(value = "menuList", key = "#userId")
     public List<Menu> getMenuListByUserId(Integer userId) {
         // 一级菜单
         List<Menu> menuList = this.baseMapper.getMenuListByUserId(userId,0);

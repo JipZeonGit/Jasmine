@@ -14,6 +14,8 @@ import com.nfu.jasmine.sys.service.IUserService;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import kotlin.jvm.internal.Lambda;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -28,7 +30,7 @@ import java.util.stream.Collectors;
 
 /**
  * <p>
- *  服务实现类
+ * 服务实现类
  * </p>
  *
  * @author jipzeongit
@@ -50,12 +52,12 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements IU
     // 用户登录
     @Override
     public Map<String, Object> login(User user) {
-        //根据用户名查询
+        // 根据用户名查询
         LambdaQueryWrapper<User> wrapper = new LambdaQueryWrapper<>();
-        wrapper.eq(User::getUsername,user.getUsername());
+        wrapper.eq(User::getUsername, user.getUsername());
         User loginUser = this.baseMapper.selectOne(wrapper);
-        //查询结果不为空，并且传入密码和数据库的密码进行匹配，则生成一个token，并将用户信息存入Redis
-        if(loginUser != null && passwordEncoder.matches(user.getPassword(), loginUser.getPassword())){
+        // 查询结果不为空，并且传入密码和数据库的密码进行匹配，则生成一个token，并将用户信息存入Redis
+        if (loginUser != null && passwordEncoder.matches(user.getPassword(), loginUser.getPassword())) {
             // UUID生成key
             // String key = "user:" + UUID.randomUUID();
 
@@ -67,8 +69,8 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements IU
             String token = jwtUtil.createToken(loginUser);
 
             // 返回数据
-            Map<String,Object> data = new HashMap<>();
-            data.put("token",token);
+            Map<String, Object> data = new HashMap<>();
+            data.put("token", token);
             return data;
         }
         return null;
@@ -83,26 +85,29 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements IU
         User loginUser = null;
         try {
             loginUser = jwtUtil.parseToken(token, User.class);
-        } catch (Exception e){
+        } catch (Exception e) {
             e.printStackTrace();
         }
 
-        if(loginUser != null){
+        if (loginUser != null) {
             // fastjson2 反序列化
             // User loginUser = JSON.parseObject(JSON.toJSONString(obj),User.class);
 
             Map<String, Object> data = new HashMap<>();
 
-            data.put("name",loginUser.getUsername());//取用户名
-            data.put("avatar",loginUser.getAvatar());//取头像
+            data.put("name", loginUser.getUsername());// 取用户名
+            data.put("avatar", loginUser.getAvatar());// 取头像
+            data.put("phone", loginUser.getPhone()); // 电话
+            data.put("email", loginUser.getEmail()); // 邮箱
+            data.put("status", loginUser.getStatus()); // 状态
 
             // 获取用户角色
             List<String> roleList = this.baseMapper.getRoleNameByUserId(loginUser.getId());
-            data.put("roles",roleList);
+            data.put("roles", roleList);
 
             // 获取角色权限
             List<Menu> menuList = menuService.getMenuListByUserId(loginUser.getId());
-            data.put("menuList",menuList);
+            data.put("menuList", menuList);
 
             return data;
         }
@@ -123,25 +128,28 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements IU
         this.baseMapper.insert(user);
         // 写入角色表
         List<Integer> roleIdList = user.getRoleIdList();
-        if(roleIdList != null){
-            for(Integer roleId : roleIdList){
+        if (roleIdList != null) {
+            for (Integer roleId : roleIdList) {
                 userRoleMapper.insert(new UserRole(null, user.getId(), roleId));
             }
         }
     }
 
     @Override
+    @Cacheable(value = "user", key = "#id")
     public User getUserById(Integer id) {
         // 根据ID查询用户信息
         User user = this.baseMapper.selectById(id);
 
         // 构建查询条件，查询用户角色列表
         LambdaQueryWrapper<UserRole> wrapper = new LambdaQueryWrapper<>();
-        wrapper.eq(UserRole::getUserId,id);
+        wrapper.eq(UserRole::getUserId, id);
         List<UserRole> userRoleList = userRoleMapper.selectList(wrapper);
 
         // 提取角色ID列表
-        List<Integer> roleIdList = userRoleList.stream().map(userRole -> {return userRole.getRoleId();}).collect(Collectors.toList());
+        List<Integer> roleIdList = userRoleList.stream().map(userRole -> {
+            return userRole.getRoleId();
+        }).collect(Collectors.toList());
 
         // 设置角色ID列表到用户信息中
         user.setRoleIdList(roleIdList);
@@ -151,47 +159,50 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements IU
 
     @Override
     @Transactional
+    @CacheEvict(value = "user", key = "#user.id")
     public void updateUser(User user) {
         // 更新用户表
         this.baseMapper.updateById(user);
         // 清除原有的角色
         LambdaQueryWrapper<UserRole> wrapper = new LambdaQueryWrapper<>();
-        wrapper.eq(UserRole::getUserId,user.getId());
+        wrapper.eq(UserRole::getUserId, user.getId());
         userRoleMapper.delete(wrapper);
         // 设置新的角色
         List<Integer> roleIdList = user.getRoleIdList();
-        if(roleIdList != null){
-            for(Integer roleId : roleIdList){
-                userRoleMapper.insert(new UserRole(null, user.getId(),roleId));
+        if (roleIdList != null) {
+            for (Integer roleId : roleIdList) {
+                userRoleMapper.insert(new UserRole(null, user.getId(), roleId));
             }
         }
     }
 
     @Override
+    @CacheEvict(value = "user", key = "#id")
     public void deleteUserById(Integer id) {
         // 删除用户
         this.baseMapper.deleteById(id);
         // 清除原有角色
         LambdaQueryWrapper<UserRole> wrapper = new LambdaQueryWrapper<>();
-        wrapper.eq(UserRole::getUserId,id);
+        wrapper.eq(UserRole::getUserId, id);
         userRoleMapper.delete(wrapper);
     }
 
-//    // 修改用户密码
-//    @Override
-//    public boolean changePassword(String username, String oldPassword, String newPassword) {
-//        // 根据用户名查询用户
-//        LambdaQueryWrapper<User> wrapper = new LambdaQueryWrapper<>();
-//        wrapper.eq(User::getUsername, username);
-//        User user = this.baseMapper.selectOne(wrapper);
-//
-//        if (user != null && passwordEncoder.matches(oldPassword, user.getPasswordHash())) {
-//            // 旧密码匹配，可以修改密码
-//            String newPasswordHash = passwordEncoder.encode(newPassword);
-//            user.setPasswordHash(newPasswordHash);
-//            this.baseMapper.updateById(user);
-//            return true;
-//        }
-//        return false; // 修改失败，用户名或旧密码不匹配
-//    }
+    // 修改用户密码
+    @Override
+    @CacheEvict(value = "user", allEntries = true)
+    public boolean changePassword(String username, String oldPassword, String newPassword) {
+        // 根据用户名查询用户
+        LambdaQueryWrapper<User> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(User::getUsername, username);
+        User user = this.baseMapper.selectOne(wrapper);
+
+        if (user != null && passwordEncoder.matches(oldPassword, user.getPassword())) {
+            // 旧密码匹配，可以修改密码
+            String newPasswordHash = passwordEncoder.encode(newPassword);
+            user.setPassword(newPasswordHash);
+            this.baseMapper.updateById(user);
+            return true;
+        }
+        return false; // 修改失败，用户名或旧密码不匹配
+    }
 }
