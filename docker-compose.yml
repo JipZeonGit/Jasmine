@@ -14,7 +14,7 @@ services:
       - "3306:3306"
     volumes:
       # - ./mysql-data:/var/lib/mysql # 这里可以挂载数据卷以实现数据持久化
-      - ./jasmine.sql:/docker-entrypoint-initdb.d/jasmine.sql # 初始化SQL脚本（如果有的话可以放在根目录）
+      - ./Jasmine.sql:/docker-entrypoint-initdb.d/Jasmine.sql # 初始化SQL脚本（如果有的话可以放在根目录）
     networks:
       - jasmine-network
 
