@@ -26,15 +26,15 @@
 ## 额外说明
 项目在本地部署请根据实际环境进行修改 application.yml 的 后端端口号 、 MySQL 、 Redis 的数据库链接以及用户名和密码等
 
-## 项目启动（本地调试）
-1. 后端
+## 项目启动（Windows本地调试）
+1. 后端（9999 端口）
 ```bash
 cd Jasmine
-.\mvnw spring-boot:run
+./mvnw spring-boot:run
 ```
-2. 前端
+2. 前端（8888 端口）
 ```bash
-cd vue-admin-template-4.4.0
+cd Jasmine/vue-admin-template-4.4.0
 npm run dev
 ```
 
@@ -47,7 +47,7 @@ npm run dev
 ```bash
 # 进入根目录
 cd Jasmine
-mvn clean package -DskipTests
+./mvnw clean package -DskipTests
 ```
 *(注：本项目的根目录有初始的数据库SQL文件。如果您有其他初始的数据库SQL文件，可重命名为 `jasmine.sql` 并放置在根目录，MySQL容器首次启动时会自动执行。)*
 
