@@ -24,6 +24,9 @@ FROM nginx:stable-alpine AS production-stage
 # 将构建好的前端产物复制到 nginx 默认发布目录下
 COPY --from=build-stage /app/dist /usr/share/nginx/html
 
+# 覆盖掉 nginx 的默认配置，加载包含反向代理规则的配置文件
+COPY default.conf /etc/nginx/conf.d/default.conf
+
 # 声明暴露端口
 EXPOSE 80
 
