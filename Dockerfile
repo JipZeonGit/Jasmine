@@ -1,5 +1,5 @@
-# 使用官方的 Java 8 镜像作为基础镜像
-FROM openjdk:8-jdk-alpine
+# 使用 Eclipse Temurin 的 Java 8 镜像作为基础镜像（openjdk 官方镜像已下架）
+FROM eclipse-temurin:8-jre-alpine
 
 # 将本地文件夹挂载到当前容器
 VOLUME /tmp
