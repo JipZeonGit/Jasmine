@@ -4,6 +4,17 @@ name: 构建并发布 Docker 镜像
 on:
   push:
     branches: [ "main" ]
+    paths-ignore:
+      - '**.md'
+      - '.gitignore'
+      - '.dockerignore'
+      - 'vue-admin-template-4.4.0/.dockerignore'
+      - '.env'
+      - 'LICENSE'
+      - 'Jasmine.sql'
+      - '.idea/**'
+      - '.vscode/**'
+      - '.agent/**'
 
 # 必须声明写入权限，否则私有仓库推 GHCR 会报 403
 permissions:

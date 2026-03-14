@@ -1,0 +1,40 @@
+# ========================================
+# 后端 Docker 构建上下文排除列表
+# ========================================
+
+# Git 版本控制
+.git
+.gitignore
+
+# IDE 配置
+.idea
+.vscode
+*.iml
+*.iws
+*.ipr
+
+# GitHub Actions（与容器构建无关）
+.github
+
+# Maven 构建中间产物（jar 由 CI 提前打好，只需 target/*.jar）
+target/classes
+target/generated-sources
+target/generated-test-sources
+target/maven-archiver
+target/maven-status
+target/surefire-reports
+target/test-classes
+target/*.original
+
+# 前端源代码（后端镜像不需要前端）
+vue-admin-template-4.4.0
+
+# 文档和配置文件（与运行无关）
+README.md
+LICENSE
+docker-compose.yml
+Jasmine.sql
+.dockerignore
+
+# 测试相关
+.apt_generated_tests

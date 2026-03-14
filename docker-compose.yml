@@ -6,15 +6,16 @@ services:
     image: mysql:5.7.44
     container_name: jasmine-mysql
     restart: always
+    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_general_ci # 确保中文数据不乱码
     environment:
       MYSQL_ROOT_PASSWORD: 123456
       MYSQL_DATABASE: jasmine
-      MYSQL_USER: root
+      # 注意：不要在这里设置 MYSQL_USER: root，MySQL 官方镜像禁止创建名为 root 的额外用户
     ports:
       - "3306:3306"
     volumes:
-      # - ./mysql-data:/var/lib/mysql # 这里可以挂载数据卷以实现数据持久化
-      - ./Jasmine.sql:/docker-entrypoint-initdb.d/Jasmine.sql # 初始化SQL脚本（如果有的话可以放在根目录）
+      - mysql-data:/var/lib/mysql # 数据持久化，防止容器重启后数据丢失
+      - ./Jasmine.sql:/docker-entrypoint-initdb.d/Jasmine.sql # 首次启动时自动导入初始化SQL脚本
     networks:
       - jasmine-network
 
@@ -27,7 +28,7 @@ services:
     ports:
       - "6379:6379"
     volumes:
-      - ./redis-data:/data # 持久化
+      - redis-data:/data # 持久化
     networks:
       - jasmine-network
 
@@ -72,3 +73,7 @@ services:
 networks:
   jasmine-network:
     driver: bridge
+
+volumes:
+  mysql-data: # MySQL 数据持久化卷
+  redis-data: # Redis 数据持久化卷

@@ -17,6 +17,10 @@
 SET NAMES utf8mb4;
 SET FOREIGN_KEY_CHECKS = 0;
 
+-- 确保数据库存在并切换使用（兼容 Docker 自动初始化和手动导入两种场景）
+CREATE DATABASE IF NOT EXISTS `jasmine` DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci;
+USE `jasmine`;
+
 -- ----------------------------
 -- Table structure for appointment
 -- ----------------------------
