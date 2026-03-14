@@ -5,8 +5,8 @@ FROM node:22.22.1 AS build-stage
 
 WORKDIR /app
 
-# 建议在此设置npm镜像源以加速构建（按需启用）
-RUN npm config set registry https://registry.npmmirror.com
+# 如果在国内服务器构建可取消注释以加速（GitHub Actions 服务器在海外，使用淘宝源反而更慢）
+# RUN npm config set registry https://registry.npmmirror.com
 
 # 拷贝依赖配置并安装
 COPY package*.json ./
