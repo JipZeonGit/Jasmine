@@ -50,32 +50,65 @@ npm run dev
 cd Jasmine
 ./mvnw clean package -DskipTests
 ```
-*(注：本项目的根目录有初始的数据库SQL文件。如果您有其他初始的数据库SQL文件，可重命名为 `jasmine.sql` 并放置在根目录，MySQL容器首次启动时会自动执行。)*
+> 注：项目根目录下的 `Jasmine.sql` 为初始化数据库脚本，MySQL 容器首次启动时会自动导入。
 
-### 2. 环境变量配置
-为了保证项目在本地开发与 Docker 部署之间平滑切换且不互相冲突，后端的 `application.yml` 配置了默认环境变量解析。当通过 Docker 启动时，可在 `docker-compose.yml` 的 `backend` 服务中注入以下变量进行配置覆写（编排文件中默认已配好，即开即用）：
-- `MYSQL_HOST` / `MYSQL_PORT`：数据库连接地址与端口（默认使用容器名 `mysql`，端口 `3306`）
-- `MYSQL_USER` / `MYSQL_PASSWORD`：数据库账号密码（默认 `root` / `123456`）
-- `REDIS_HOST` / `REDIS_PORT`：Redis 连接地址与端口（默认使用容器名 `redis`，端口 `6379`）
-- `REDIS_PASSWORD`：Redis 认证密码（默认 `123456`）
+### 2. 环境变量配置（.env 文件）
+本项目采用 **`.env` 文件**管理所有敏感配置（数据库密码等），`.env` 文件已被 `.gitignore` 排除，**不会被提交到 Git 仓库**，从源头杜绝密码泄漏。
 
-*如果您的目标环境使用了外置的独立数据库，也可直接在上述配置文件里修改。*
+**首次部署时，请按以下步骤配置：**
+```bash
+# 复制示例模板为实际配置文件
+cp .env.example .env
 
-### 3. 一键编译与启动
-在带有 `docker-compose.yml` 的根目录（即 `Jasmine/` 目录下）执行该命令：
+# 编辑 .env 文件，修改为您的实际密码
+vim .env   # 或使用任意文本编辑器
+```
+
+`.env` 文件中包含以下配置项：
+
+| 变量名 | 说明 | 示例值 |
+|:---|:---|:---|
+| `MYSQL_ROOT_PASSWORD` | MySQL root 根密码（仅运维管理使用，应用不会用到） | `YourRootPass!` |
+| `MYSQL_DATABASE` | 初始化创建的数据库名 | `jasmine` |
+| `MYSQL_USER` | 应用专用的数据库连接用户（**非 root**） | `jasmine_app` |
+| `MYSQL_PASSWORD` | 应用专用用户的密码 | `YourAppPass!` |
+| `REDIS_PASSWORD` | Redis 认证密码 | `YourRedisPass!` |
+| `CORS_ALLOWED_ORIGINS` | （可选）CORS 跨域白名单，多个地址用逗号分隔 | `http://localhost` |
+
+`docker-compose.yml` 通过 `${变量名}` 语法引用 `.env` 文件中的值，Docker Compose 启动时会自动读取并注入。
+
+### 3. 数据库权限安全模型
+为了遵循生产环境安全最佳实践，本项目的 Docker 配置采用了**最小权限原则**：
+
+| 用户 | 用途 | 权限范围 |
+|:---|:---|:---|
+| `root` | 仅限运维人员紧急维护或手动管理 | MySQL 全局最高权限 |
+| `jasmine_app`（可自定义） | Spring Boot 后端应用连接数据库 | 仅限 `jasmine` 库的增删改查 |
+
+MySQL 官方 Docker 镜像在首次启动时，会自动根据 `.env` 中的 `MYSQL_USER` 和 `MYSQL_PASSWORD` 创建该普通用户，并授予其对 `MYSQL_DATABASE` 指定数据库的全部表级操作权限（等同于 `GRANT ALL ON jasmine.* TO 'jasmine_app'`）。
+
+后端通过该受限用户连接数据库，即便遭遇 SQL 注入攻击，攻击者也**无法访问其他数据库、无法执行系统级危险操作**（如 `DROP DATABASE`、`SHUTDOWN` 等）。
+
+### 4. 一键编译与启动
+在项目根目录（即包含 `docker-compose.yml` 的 `Jasmine/` 目录下）执行：
 ```bash
 docker-compose up -d --build
 ```
 这条指令会自动拉取所需镜像（Node 22.22.1、Nginx、MySQL 5.7.44、Redis 7.2 等），分阶段编译前端 Vue 代码，并启动所有容器实例放到后台运行。
 
-### 4. 访问系统
+### 5. 访问系统
 在控制台显示各容器状态为 `Started` 并且等待约 1~2 分钟让组件初始化后：
 - **前端系统界面**：打开浏览器，直接访问宿主机 IP（如果是本地运行即访问 `http://localhost`），因为前端 Nginx 容器已映射到了主机的 `80` 端口。
 - **后端 API 服务**：运行并映射在主机的 `9999` 端口。
 
-### 5. 停止与卸载
-若需停止测试清理环境，在项目根目录运行：
+### 6. 停止与卸载
+若需停止并清理环境，在项目根目录运行：
 ```bash
 docker-compose down
 ```
 这条命令会停止对应容器栈、并移除所有容器及默认生成的虚拟网络环境。
+
+> 注意：`docker-compose down` 默认**不会删除**数据持久化卷（`mysql-data`、`redis-data`）。如需彻底清除所有数据（包括数据库内容），请使用：
+> ```bash
+> docker-compose down -v
+> ```
