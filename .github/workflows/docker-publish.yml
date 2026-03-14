@@ -10,6 +10,7 @@ on:
       - '.dockerignore'
       - 'vue-admin-template-4.4.0/.dockerignore'
       - '.env'
+      - '.env.example'
       - 'LICENSE'
       - 'Jasmine.sql'
       - '.idea/**'
