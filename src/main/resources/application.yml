@@ -1,0 +1,30 @@
+server:
+  port: 9999
+
+spring:
+  datasource:
+    username: ${MYSQL_USER:root}
+    password: ${MYSQL_PASSWORD:123456}
+    url: jdbc:mysql://${MYSQL_HOST:192.168.31.26}:${MYSQL_PORT:3306}/jasmine
+  redis:
+    port: ${REDIS_PORT:6379}
+    host: ${REDIS_HOST:192.168.31.26}
+    password: ${REDIS_PASSWORD:123456} # 请在这里填入你的 Redis 密码，如果和 MySQL 一样也可以直接填进去
+
+# 自定义应用级配置
+app:
+  cors:
+    # 这里配置生产环境或测试环境跨域白名单，默认放行前端开发环境 8888 和 Docker Nginx 的 80 (即 localhost)
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:8888,http://localhost}
+
+logging:
+  level:
+    com.nfu.jasmine: debug
+
+mybatis-plus:
+  global-config:
+    db-config:
+      logic-delete-field: deleted
+      logic-not-delete-value: 0
+      logic-delete-value: 1
+  type-aliases-package: com.nfu.jasmine.*.entity
