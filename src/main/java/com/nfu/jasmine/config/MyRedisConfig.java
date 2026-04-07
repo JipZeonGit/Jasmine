@@ -1,6 +1,6 @@
 package com.nfu.jasmine.config;
 
-import org.springframework.beans.factory.annotation.Autowired;
+import jakarta.annotation.Resource;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.data.redis.connection.RedisConnectionFactory;
@@ -8,8 +8,6 @@ import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.serializer.GenericJackson2JsonRedisSerializer;
 import org.springframework.data.redis.serializer.RedisSerializationContext;
 import org.springframework.data.redis.serializer.StringRedisSerializer;
-
-import javax.annotation.Resource;
 
 @Configuration
 @org.springframework.cache.annotation.EnableCaching
@@ -26,12 +24,13 @@ public class MyRedisConfig {
         // 序列化处理键值对
         redisTemplate.setKeySerializer(new StringRedisSerializer());
 
-        // 使用更强大的GenericJackson2JsonRedisSerializer来处理复杂类型包括List的序列化与反序列化
+        // 使用更强的 GenericJackson2JsonRedisSerializer 处理复杂类型序列化与反序列化
         GenericJackson2JsonRedisSerializer serializer = new GenericJackson2JsonRedisSerializer();
         redisTemplate.setValueSerializer(serializer);
 
         return redisTemplate;
     }
+
     @Bean
     public org.springframework.data.redis.cache.RedisCacheManager cacheManager(RedisConnectionFactory factory) {
         org.springframework.data.redis.cache.RedisCacheConfiguration config = org.springframework.data.redis.cache.RedisCacheConfiguration.defaultCacheConfig()

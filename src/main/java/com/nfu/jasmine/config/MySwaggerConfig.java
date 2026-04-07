@@ -1,62 +1,40 @@
 package com.nfu.jasmine.config;
 
+import io.swagger.v3.oas.models.Components;
+import io.swagger.v3.oas.models.OpenAPI;
+import io.swagger.v3.oas.models.info.Contact;
+import io.swagger.v3.oas.models.info.Info;
+import io.swagger.v3.oas.models.security.SecurityRequirement;
+import io.swagger.v3.oas.models.security.SecurityScheme;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.web.servlet.config.annotation.EnableWebMvc;
-import springfox.documentation.builders.ApiInfoBuilder;
-import springfox.documentation.builders.PathSelectors;
-import springfox.documentation.builders.RequestHandlerSelectors;
-import springfox.documentation.oas.annotations.EnableOpenApi;
-import springfox.documentation.service.*;
-import springfox.documentation.spi.DocumentationType;
-import springfox.documentation.spi.service.contexts.SecurityContext;
-import springfox.documentation.spring.web.plugins.Docket;
-
-import java.util.Collections;
-import java.util.List;
 
 @Configuration
-@EnableOpenApi
-@EnableWebMvc
 public class MySwaggerConfig {
     @Bean
-    public Docket api() {
-        return new Docket(DocumentationType.OAS_30)
-                .apiInfo(apiInfo())
-                .select()
-                .apis(RequestHandlerSelectors.basePackage("com.nfu.jasmine"))
-                .paths(PathSelectors.any())
-                .build()
-                .securitySchemes(Collections.singletonList(securityScheme()))
-                .securityContexts(Collections.singletonList(securityContext()));
+    public OpenAPI api() {
+        String securitySchemeName = "X-Token";
+        return new OpenAPI()
+                .info(apiInfo())
+                .addSecurityItem(new SecurityRequirement().addList(securitySchemeName))
+                .components(new Components().addSecuritySchemes(securitySchemeName, securityScheme()));
     }
 
     private SecurityScheme securityScheme() {
-        //return new ApiKey("Authorization", "Authorization", "header");
-        return new ApiKey("X-Token", "X-Token", "header");
+        return new SecurityScheme()
+                .type(SecurityScheme.Type.APIKEY)
+                .in(SecurityScheme.In.HEADER)
+                .name("X-Token");
     }
 
-    private SecurityContext securityContext() {
-        return SecurityContext.builder()
-                .securityReferences(defaultAuth())
-                .forPaths(PathSelectors.regex("^(?!auth).*$"))
-                .build();
-    }
-
-    private List<SecurityReference> defaultAuth() {
-        AuthorizationScope authorizationScope = new AuthorizationScope("global", "accessEverything");
-        AuthorizationScope[] authorizationScopes = new AuthorizationScope[1];
-        authorizationScopes[0] = authorizationScope;
-        return Collections.singletonList(
-                new SecurityReference("X-Token", authorizationScopes));
-    }
-
-    private ApiInfo apiInfo() {
-        return new ApiInfoBuilder()
-                .title("茉莉花店管理系统接口文档")
+    private Info apiInfo() {
+        return new Info()
+                .title("Jasmine花店管理系统接口文档")
                 .description("一个花店管理系统项目")
                 .version("1.0")
-                .contact(new Contact("JipZeonGit", "https://github.com/JipZeonGit/Jasmine", "yejunjie2017@gmail.com"))
-                .build();
+                .contact(new Contact()
+                        .name("JipZeonGit")
+                        .url("https://github.com/JipZeonGit/Jasmine")
+                        .email("yejunjie2017@gmail.com"));
     }
 }

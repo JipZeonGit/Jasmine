@@ -1,6 +1,5 @@
 name: 构建并发布 Docker 镜像
 
-# 触发条件：当你 push 代码到 main 分支时自动执行
 on:
   push:
     branches: [ "main" ]
@@ -17,7 +16,6 @@ on:
       - '.vscode/**'
       - '.agent/**'
 
-# 必须声明写入权限，否则私有仓库推 GHCR 会报 403
 permissions:
   contents: read
   packages: write
@@ -30,10 +28,10 @@ jobs:
       - name: 1. 拉取最新代码
         uses: actions/checkout@v4
 
-      - name: 2. 配置 Java 1.8 环境 (为了打后端 jar 包)
+      - name: 2. 配置 Java 21 环境
         uses: actions/setup-java@v4
         with:
-          java-version: '8'
+          java-version: '21'
           distribution: 'temurin'
 
       - name: 3. 赋予 Maven Wrapper 执行权限并编译打包
@@ -41,7 +39,6 @@ jobs:
           chmod +x ./mvnw
           ./mvnw clean package -DskipTests
 
-      # 将用户名转为全小写，GHCR 强制要求镜像名全小写
       - name: 4. 转换仓库拥有者为小写
         id: lower
         run: echo "owner=$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')" >> $GITHUB_OUTPUT
@@ -53,14 +50,14 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: 6. 构建并推送后端镜像 (Backend)
+      - name: 6. 构建并推送后端镜像
         uses: docker/build-push-action@v6
         with:
           context: .
           push: true
           tags: ghcr.io/${{ steps.lower.outputs.owner }}/jasmine-backend:latest
 
-      - name: 7. 构建并推送前端镜像 (Frontend)
+      - name: 7. 构建并推送前端镜像
         uses: docker/build-push-action@v6
         with:
           context: ./vue-admin-template-4.4.0
