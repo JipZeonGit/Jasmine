@@ -3,21 +3,26 @@ package com.nfu.jasmine.sys.controller;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.nfu.jasmine.common.vo.Result;
+import com.nfu.jasmine.common.vo.TableData;
+import com.nfu.jasmine.sys.dto.ChangePasswordDTO;
+import com.nfu.jasmine.sys.dto.LoginDTO;
 import com.nfu.jasmine.sys.entity.User;
 import com.nfu.jasmine.sys.service.IUserService;
+import com.nfu.jasmine.sys.vo.LoginVO;
+import com.nfu.jasmine.sys.vo.UserInfoVO;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.util.StringUtils;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 
 /**
  * <p>
@@ -28,6 +33,7 @@ import java.util.Map;
  * @since 2023-05-29
  */
 @Tag(name = "用户接口列表")
+@Validated
 @RestController
 @RequestMapping("/user")
 public class UserController {
@@ -46,8 +52,8 @@ public class UserController {
 
     @Operation(summary = "用户登录")
     @PostMapping("/login")
-    public Result<Map<String, Object>> login(@RequestBody User user) {
-        Map<String, Object> data = userService.login(user);
+    public Result<LoginVO> login(@Valid @RequestBody LoginDTO loginDTO) {
+        LoginVO data = userService.login(loginDTO);
         if (data != null) {
             return Result.success(data);
         }
@@ -56,18 +62,9 @@ public class UserController {
 
     @Operation(summary = "获取用户信息")
     @GetMapping("/info")
-    public Result<Map<String, Object>> getUserInfo(
-            HttpServletRequest request,
-            @RequestParam(value = "token", required = false) String token
-    ) {
+    public Result<UserInfoVO> getUserInfo(HttpServletRequest request) {
         User loginUser = getLoginUser(request);
-        Map<String, Object> data;
-        if (loginUser != null) {
-            data = userService.getUserInfo(loginUser);
-        } else {
-            token = resolveToken(request, token);
-            data = userService.getUserInfo(token);
-        }
+        UserInfoVO data = userService.getUserInfo(loginUser);
         if (data != null) {
             return Result.success(data);
         }
@@ -76,18 +73,15 @@ public class UserController {
 
     @Operation(summary = "注销用户")
     @PostMapping("/logout")
-    public Result<?> logout(
-            HttpServletRequest request,
-            @RequestHeader(value = "X-Token", required = false) String token
-    ) {
-        token = resolveToken(request, token);
+    public Result<?> logout(HttpServletRequest request) {
+        String token = resolveToken(request);
         userService.logout(token);
         return Result.success();
     }
 
     @Operation(summary = "查询用户")
     @GetMapping("/list")
-    public Result<Map<String, Object>> getUserList(@RequestParam(value = "username", required = false) String username,
+    public Result<TableData<User>> getUserList(@RequestParam(value = "username", required = false) String username,
             @RequestParam(value = "phone", required = false) String phone, @RequestParam("pageNo") Long pageNo,
             @RequestParam("pageSize") Long pageSize) {
 
@@ -100,9 +94,9 @@ public class UserController {
         Page<User> page = new Page<>(pageNo, pageSize);
         userService.page(page, wrapper);
 
-        Map<String, Object> data = new HashMap<>();
-        data.put("total", page.getTotal());
-        data.put("rows", page.getRecords());
+        TableData<User> data = new TableData<>();
+        data.setTotal(page.getTotal());
+        data.setRows(page.getRecords());
 
         return Result.success(data);
     }
@@ -139,21 +133,12 @@ public class UserController {
 
     @Operation(summary = "修改用户密码")
     @PutMapping("/changePassword")
-    public Result<String> changePassword(@RequestBody Map<String, String> request) {
-        String username = request.get("username");
-        String oldPassword = request.get("oldPassword");
-        String newPassword = request.get("newPassword");
-
-        if (username != null && oldPassword != null && newPassword != null) {
-            boolean success = userService.changePassword(username, oldPassword, newPassword);
-            if (success) {
-                return Result.success("密码修改成功！");
-            } else {
-                return Result.fail(20005, "用户名或旧密码不匹配，密码修改失败！");
-            }
-        } else {
-            return Result.fail(20005, "请求参数不完整，密码修改失败！");
+    public Result<String> changePassword(@Valid @RequestBody ChangePasswordDTO request) {
+        boolean success = userService.changePassword(request.getUsername(), request.getOldPassword(), request.getNewPassword());
+        if (success) {
+            return Result.success("密码修改成功！");
         }
+        return Result.fail(20005, "用户名或旧密码不匹配，密码修改失败！");
     }
 
     private User getLoginUser(HttpServletRequest request) {
@@ -169,17 +154,11 @@ public class UserController {
         return null;
     }
 
-    private String resolveToken(HttpServletRequest request, String token) {
+    private String resolveToken(HttpServletRequest request) {
         String authorization = request.getHeader("Authorization");
         if (StringUtils.hasLength(authorization) && authorization.startsWith("Bearer ")) {
             return authorization.substring(7);
         }
-
-        String xToken = request.getHeader("X-Token");
-        if (StringUtils.hasLength(xToken)) {
-            return xToken;
-        }
-
-        return token;
+        return null;
     }
 }

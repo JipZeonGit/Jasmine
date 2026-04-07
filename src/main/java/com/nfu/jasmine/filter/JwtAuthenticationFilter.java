@@ -69,12 +69,6 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         if (StringUtils.hasText(authorization) && authorization.startsWith("Bearer ")) {
             return authorization.substring(7);
         }
-
-        String xToken = request.getHeader("X-Token");
-        if (StringUtils.hasText(xToken)) {
-            return xToken;
-        }
-
-        return request.getParameter("token");
+        return null;
     }
 }

@@ -3,6 +3,7 @@ package com.nfu.jasmine.sys.service.impl;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.nfu.jasmine.common.utils.JwtUtil;
+import com.nfu.jasmine.sys.dto.LoginDTO;
 import com.nfu.jasmine.sys.entity.Menu;
 import com.nfu.jasmine.sys.entity.User;
 import com.nfu.jasmine.sys.entity.UserRole;
@@ -10,6 +11,8 @@ import com.nfu.jasmine.sys.mapper.UserMapper;
 import com.nfu.jasmine.sys.mapper.UserRoleMapper;
 import com.nfu.jasmine.sys.service.IMenuService;
 import com.nfu.jasmine.sys.service.IUserService;
+import com.nfu.jasmine.sys.vo.LoginVO;
+import com.nfu.jasmine.sys.vo.UserInfoVO;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
@@ -18,9 +21,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.stream.Collectors;
 
 /**
@@ -46,13 +47,13 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements IU
 
     // 用户登录
     @Override
-    public Map<String, Object> login(User user) {
+    public LoginVO login(LoginDTO loginDTO) {
         // 根据用户名查询
         LambdaQueryWrapper<User> wrapper = new LambdaQueryWrapper<>();
-        wrapper.eq(User::getUsername, user.getUsername());
+        wrapper.eq(User::getUsername, loginDTO.getUsername());
         User loginUser = this.baseMapper.selectOne(wrapper);
         // 查询结果不为空，并且传入密码和数据库密码进行匹配，则生成token并返回
-        if (loginUser != null && passwordEncoder.matches(user.getPassword(), loginUser.getPassword())) {
+        if (loginUser != null && passwordEncoder.matches(loginDTO.getPassword(), loginUser.getPassword())) {
             // 去除密码
             loginUser.setPassword(null);
 
@@ -60,44 +61,30 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements IU
             String token = jwtUtil.createToken(loginUser);
 
             // 返回数据
-            Map<String, Object> data = new HashMap<>();
-            data.put("token", token);
-            return data;
+            return new LoginVO(token);
         }
         return null;
     }
 
     // 获取用户信息
     @Override
-    public Map<String, Object> getUserInfo(String token) {
-        // 根据token获取用户信息
-        User loginUser = null;
-        try {
-            loginUser = jwtUtil.parseToken(token, User.class);
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-        return getUserInfo(loginUser);
-    }
-
-    @Override
-    public Map<String, Object> getUserInfo(User loginUser) {
+    public UserInfoVO getUserInfo(User loginUser) {
         if (loginUser != null) {
-            Map<String, Object> data = new HashMap<>();
+            UserInfoVO data = new UserInfoVO();
 
-            data.put("name", loginUser.getUsername());
-            data.put("avatar", loginUser.getAvatar());
-            data.put("phone", loginUser.getPhone());
-            data.put("email", loginUser.getEmail());
-            data.put("status", loginUser.getStatus());
+            data.setName(loginUser.getUsername());
+            data.setAvatar(loginUser.getAvatar());
+            data.setPhone(loginUser.getPhone());
+            data.setEmail(loginUser.getEmail());
+            data.setStatus(loginUser.getStatus());
 
             // 获取用户角色
             List<String> roleList = this.baseMapper.getRoleNameByUserId(loginUser.getId());
-            data.put("roles", roleList);
+            data.setRoles(roleList);
 
             // 获取角色权限
             List<Menu> menuList = menuService.getMenuListByUserId(loginUser.getId());
-            data.put("menuList", menuList);
+            data.setMenuList(menuList);
 
             return data;
         }
