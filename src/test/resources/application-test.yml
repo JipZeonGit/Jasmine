@@ -1,0 +1,22 @@
+﻿spring:
+  datasource:
+    # 测试环境使用内存 H2，不再依赖真实 MySQL
+    driver-class-name: org.h2.Driver
+    url: jdbc:h2:mem:jasmine;MODE=MySQL;DB_CLOSE_DELAY=-1;DATABASE_TO_LOWER=TRUE;NON_KEYWORDS=USER
+    username: sa
+    password:
+  redis:
+    # 保留 Redis 配置入口，但测试基线不依赖真实 Redis
+    host: localhost
+    port: 6379
+    password:
+  sql:
+    init:
+      # 测试启动时自动初始化内存数据库
+      mode: always
+      schema-locations: classpath:schema-test.sql
+      data-locations: classpath:data-test.sql
+
+logging:
+  level:
+    com.nfu.jasmine: warn
