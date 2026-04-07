@@ -18,7 +18,9 @@ import java.util.HashMap;
 import java.util.Map;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.options;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -56,7 +58,50 @@ class UserControllerSecurityTest {
     }
 
     @Test
-    void getUserInfoWithJwtHeaderShouldSucceed() throws Exception {
+    void loginWithoutUsernameShouldFailValidation() throws Exception {
+        Map<String, Object> loginRequest = new HashMap<>();
+        loginRequest.put("password", "password123");
+
+        mockMvc.perform(post("/user/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(loginRequest)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(20005))
+                .andExpect(jsonPath("$.message").value("用户名不能为空！"));
+    }
+
+    @Test
+    void getUserInfoWithAuthorizationHeaderShouldSucceed() throws Exception {
+        String token = createLoginToken();
+
+        mockMvc.perform(get("/user/info")
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(20000))
+                .andExpect(jsonPath("$.data.name").value("security-smoke-user"));
+    }
+
+    @Test
+    void getUserInfoWithLegacyXTokenShouldBeRejected() throws Exception {
+        String token = createLoginToken();
+
+        mockMvc.perform(get("/user/info")
+                        .header("X-Token", token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(20003));
+    }
+
+    @Test
+    void userInfoPreflightRequestShouldAllowFrontendOrigin() throws Exception {
+        mockMvc.perform(options("/user/info")
+                        .header("Origin", "http://localhost:8888")
+                        .header("Access-Control-Request-Method", "GET")
+                        .header("Access-Control-Request-Headers", "Authorization"))
+                .andExpect(status().isOk())
+                .andExpect(header().string("Access-Control-Allow-Origin", "http://localhost:8888"));
+    }
+
+    private String createLoginToken() throws Exception {
         User seedUser = new User();
         seedUser.setUsername("security-smoke-user");
         seedUser.setPassword(passwordEncoder.encode("password123"));
@@ -80,12 +125,6 @@ class UserControllerSecurityTest {
                 .getResponse()
                 .getContentAsString();
 
-        String token = objectMapper.readTree(loginResponse).path("data").path("token").asText();
-
-        mockMvc.perform(get("/user/info")
-                        .header("X-Token", token))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.code").value(20000))
-                .andExpect(jsonPath("$.data.name").value("security-smoke-user"));
+        return objectMapper.readTree(loginResponse).path("data").path("token").asText();
     }
 }

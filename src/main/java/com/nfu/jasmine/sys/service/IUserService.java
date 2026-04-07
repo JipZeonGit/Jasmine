@@ -1,9 +1,10 @@
 package com.nfu.jasmine.sys.service;
 
-import com.nfu.jasmine.sys.entity.User;
 import com.baomidou.mybatisplus.extension.service.IService;
-
-import java.util.Map;
+import com.nfu.jasmine.sys.dto.LoginDTO;
+import com.nfu.jasmine.sys.entity.User;
+import com.nfu.jasmine.sys.vo.LoginVO;
+import com.nfu.jasmine.sys.vo.UserInfoVO;
 
 /**
  * <p>
@@ -15,11 +16,9 @@ import java.util.Map;
  */
 public interface IUserService extends IService<User> {
 
-    Map<String, Object> login(User user);
+    LoginVO login(LoginDTO loginDTO);
 
-    Map<String, Object> getUserInfo(String token);
-
-    Map<String, Object> getUserInfo(User loginUser);
+    UserInfoVO getUserInfo(User loginUser);
 
     void logout(String token);
 

@@ -1,16 +1,16 @@
 package com.nfu.jasmine.sys.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.nfu.jasmine.sys.dto.LoginDTO;
 import com.nfu.jasmine.sys.entity.User;
 import com.nfu.jasmine.sys.mapper.UserMapper;
+import com.nfu.jasmine.sys.vo.LoginVO;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.context.ActiveProfiles;
-
-import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -46,18 +46,15 @@ class UserServiceLoginTest {
         seedUser.setDeleted(0);
         userMapper.insert(seedUser);
 
-        User loginRequest = new User();
+        LoginDTO loginRequest = new LoginDTO();
         loginRequest.setUsername("login-smoke-user");
         loginRequest.setPassword("password123");
 
-        Map<String, Object> data = userService.login(loginRequest);
+        LoginVO data = userService.login(loginRequest);
 
         assertThat(data)
-                .isNotNull()
-                .containsKey("token");
-        assertThat(data.get("token"))
-                .isInstanceOf(String.class)
-                .asString()
+                .isNotNull();
+        assertThat(data.getToken())
                 .isNotBlank();
     }
 }
