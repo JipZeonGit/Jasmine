@@ -1,6 +1,5 @@
 package com.nfu.jasmine.sys.service.impl;
 
-import com.alibaba.fastjson2.JSON;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.nfu.jasmine.common.utils.JwtUtil;
@@ -78,7 +77,11 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements IU
         } catch (Exception e) {
             e.printStackTrace();
         }
+        return getUserInfo(loginUser);
+    }
 
+    @Override
+    public Map<String, Object> getUserInfo(User loginUser) {
         if (loginUser != null) {
             Map<String, Object> data = new HashMap<>();
 

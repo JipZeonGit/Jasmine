@@ -7,7 +7,10 @@ import com.nfu.jasmine.sys.entity.User;
 import com.nfu.jasmine.sys.service.IUserService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.*;
@@ -53,9 +56,18 @@ public class UserController {
 
     @Operation(summary = "获取用户信息")
     @GetMapping("/info")
-    public Result<Map<String, Object>> getUserInfo(@RequestParam("token") String token) {
-        // 根据token获取用户信息，从Redis获取
-        Map<String, Object> data = userService.getUserInfo(token);
+    public Result<Map<String, Object>> getUserInfo(
+            HttpServletRequest request,
+            @RequestParam(value = "token", required = false) String token
+    ) {
+        User loginUser = getLoginUser(request);
+        Map<String, Object> data;
+        if (loginUser != null) {
+            data = userService.getUserInfo(loginUser);
+        } else {
+            token = resolveToken(request, token);
+            data = userService.getUserInfo(token);
+        }
         if (data != null) {
             return Result.success(data);
         }
@@ -64,7 +76,11 @@ public class UserController {
 
     @Operation(summary = "注销用户")
     @PostMapping("/logout")
-    public Result<?> logout(@RequestHeader("X-Token") String token) {
+    public Result<?> logout(
+            HttpServletRequest request,
+            @RequestHeader(value = "X-Token", required = false) String token
+    ) {
+        token = resolveToken(request, token);
         userService.logout(token);
         return Result.success();
     }
@@ -138,5 +154,32 @@ public class UserController {
         } else {
             return Result.fail(20005, "请求参数不完整，密码修改失败！");
         }
+    }
+
+    private User getLoginUser(HttpServletRequest request) {
+        Object loginUser = request.getAttribute("loginUser");
+        if (loginUser instanceof User) {
+            return (User) loginUser;
+        }
+
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication != null && authentication.getPrincipal() instanceof User) {
+            return (User) authentication.getPrincipal();
+        }
+        return null;
+    }
+
+    private String resolveToken(HttpServletRequest request, String token) {
+        String authorization = request.getHeader("Authorization");
+        if (StringUtils.hasLength(authorization) && authorization.startsWith("Bearer ")) {
+            return authorization.substring(7);
+        }
+
+        String xToken = request.getHeader("X-Token");
+        if (StringUtils.hasLength(xToken)) {
+            return xToken;
+        }
+
+        return token;
     }
 }
