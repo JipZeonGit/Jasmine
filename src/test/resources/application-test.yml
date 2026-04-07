@@ -1,4 +1,4 @@
-﻿spring:
+spring:
   datasource:
     # 测试环境使用内存 H2，不再依赖真实 MySQL
     driver-class-name: org.h2.Driver
@@ -10,6 +10,10 @@
     host: localhost
     port: 6379
     password:
+  data:
+    redis:
+      repositories:
+        enabled: false
   sql:
     init:
       # 测试启动时自动初始化内存数据库

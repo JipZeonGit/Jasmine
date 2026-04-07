@@ -13,7 +13,7 @@ import org.springframework.context.annotation.Configuration;
 public class MySwaggerConfig {
     @Bean
     public OpenAPI api() {
-        String securitySchemeName = "X-Token";
+        String securitySchemeName = "BearerAuth";
         return new OpenAPI()
                 .info(apiInfo())
                 .addSecurityItem(new SecurityRequirement().addList(securitySchemeName))
@@ -22,9 +22,9 @@ public class MySwaggerConfig {
 
     private SecurityScheme securityScheme() {
         return new SecurityScheme()
-                .type(SecurityScheme.Type.APIKEY)
-                .in(SecurityScheme.In.HEADER)
-                .name("X-Token");
+                .type(SecurityScheme.Type.HTTP)
+                .scheme("bearer")
+                .bearerFormat("JWT");
     }
 
     private Info apiInfo() {
