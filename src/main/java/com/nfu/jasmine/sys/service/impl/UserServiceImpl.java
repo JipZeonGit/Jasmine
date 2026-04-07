@@ -2,8 +2,8 @@ package com.nfu.jasmine.sys.service.impl;
 
 import com.alibaba.fastjson2.JSON;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.nfu.jasmine.common.utils.JwtUtil;
-import com.nfu.jasmine.config.MyRedisConfig;
 import com.nfu.jasmine.sys.entity.Menu;
 import com.nfu.jasmine.sys.entity.User;
 import com.nfu.jasmine.sys.entity.UserRole;
@@ -11,8 +11,6 @@ import com.nfu.jasmine.sys.mapper.UserMapper;
 import com.nfu.jasmine.sys.mapper.UserRoleMapper;
 import com.nfu.jasmine.sys.service.IMenuService;
 import com.nfu.jasmine.sys.service.IUserService;
-import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
-import kotlin.jvm.internal.Lambda;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
@@ -24,8 +22,6 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.UUID;
-import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 /**
@@ -56,14 +52,10 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements IU
         LambdaQueryWrapper<User> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(User::getUsername, user.getUsername());
         User loginUser = this.baseMapper.selectOne(wrapper);
-        // 查询结果不为空，并且传入密码和数据库的密码进行匹配，则生成一个token，并将用户信息存入Redis
+        // 查询结果不为空，并且传入密码和数据库密码进行匹配，则生成token并返回
         if (loginUser != null && passwordEncoder.matches(user.getPassword(), loginUser.getPassword())) {
-            // UUID生成key
-            // String key = "user:" + UUID.randomUUID();
-
-            // 去除密码，存入Redis，时效为30分钟
+            // 去除密码
             loginUser.setPassword(null);
-            // redisTemplate.opsForValue().set(key,loginUser,30, TimeUnit.MINUTES);
 
             // 创建JWT
             String token = jwtUtil.createToken(loginUser);
@@ -80,8 +72,6 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements IU
     @Override
     public Map<String, Object> getUserInfo(String token) {
         // 根据token获取用户信息
-        // Object obj = redisTemplate.opsForValue().get(token);
-
         User loginUser = null;
         try {
             loginUser = jwtUtil.parseToken(token, User.class);
@@ -90,16 +80,13 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements IU
         }
 
         if (loginUser != null) {
-            // fastjson2 反序列化
-            // User loginUser = JSON.parseObject(JSON.toJSONString(obj),User.class);
-
             Map<String, Object> data = new HashMap<>();
 
-            data.put("name", loginUser.getUsername());// 取用户名
-            data.put("avatar", loginUser.getAvatar());// 取头像
-            data.put("phone", loginUser.getPhone()); // 电话
-            data.put("email", loginUser.getEmail()); // 邮箱
-            data.put("status", loginUser.getStatus()); // 状态
+            data.put("name", loginUser.getUsername());
+            data.put("avatar", loginUser.getAvatar());
+            data.put("phone", loginUser.getPhone());
+            data.put("email", loginUser.getEmail());
+            data.put("status", loginUser.getStatus());
 
             // 获取用户角色
             List<String> roleList = this.baseMapper.getRoleNameByUserId(loginUser.getId());
@@ -117,14 +104,13 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements IU
     // 用户注销，退出登录
     @Override
     public void logout(String token) {
-        // redisTemplate.delete(token);
+        // 当前版本保留接口，后续在统一安全体系阶段处理失效策略
     }
 
     @Override
     @Transactional
     public void addUser(User user) {
         // 新增用户
-        // 写入用户表
         this.baseMapper.insert(user);
         // 写入角色表
         List<Integer> roleIdList = user.getRoleIdList();
@@ -147,9 +133,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements IU
         List<UserRole> userRoleList = userRoleMapper.selectList(wrapper);
 
         // 提取角色ID列表
-        List<Integer> roleIdList = userRoleList.stream().map(userRole -> {
-            return userRole.getRoleId();
-        }).collect(Collectors.toList());
+        List<Integer> roleIdList = userRoleList.stream().map(UserRole::getRoleId).collect(Collectors.toList());
 
         // 设置角色ID列表到用户信息中
         user.setRoleIdList(roleIdList);
@@ -163,7 +147,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements IU
     public void updateUser(User user) {
         // 更新用户表
         this.baseMapper.updateById(user);
-        // 清除原有的角色
+        // 清除原有角色
         LambdaQueryWrapper<UserRole> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(UserRole::getUserId, user.getId());
         userRoleMapper.delete(wrapper);
