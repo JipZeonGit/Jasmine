@@ -10,3 +10,8 @@ spring:
     host: ${REDIS_HOST}
     port: ${REDIS_PORT:6379}
     password: ${REDIS_PASSWORD}
+
+app:
+  cache:
+    # 生产环境继续使用 Redis 缓存
+    type: redis
