@@ -1,0 +1,12 @@
+spring:
+  datasource:
+    # 开发环境继续使用当前的 MySQL 连接方式，避免影响现有调试流程
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    username: ${MYSQL_USER:root}
+    password: ${MYSQL_PASSWORD:123456}
+    url: jdbc:mysql://${MYSQL_HOST:192.168.31.26}:${MYSQL_PORT:3306}/jasmine?useUnicode=true&characterEncoding=UTF-8&serverTimezone=Asia/Shanghai
+  redis:
+    # Redis 开发环境配置继续从环境变量读取，不改变现有调试习惯
+    host: ${REDIS_HOST:192.168.31.26}
+    port: ${REDIS_PORT:6379}
+    password: ${REDIS_PASSWORD:123456}
