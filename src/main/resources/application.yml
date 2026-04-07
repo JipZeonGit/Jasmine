@@ -8,6 +8,13 @@ spring:
   # 默认使用开发环境配置，测试环境由测试类显式指定
   profiles:
     default: dev
+  flyway:
+    # 数据库迁移统一由 Flyway 接管，已有开发库通过 baseline 接入
+    enabled: true
+    locations: classpath:db/migration
+    baseline-on-migrate: true
+    baseline-version: 1
+    clean-disabled: true
 
 # 自定义应用级配置
 app:
@@ -27,3 +34,17 @@ mybatis-plus:
       logic-not-delete-value: 0
       logic-delete-value: 1
   type-aliases-package: com.nfu.jasmine.*.entity
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: always
+
+info:
+  app:
+    name: ${spring.application.name}
+    description: Jasmine 单体应用

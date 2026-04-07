@@ -15,3 +15,9 @@ app:
   cache:
     # 开发环境默认走内存缓存，避免本地调试被 Redis 连接或序列化问题阻塞
     type: memory
+
+management:
+  health:
+    # 开发环境默认不把 Redis 纳入健康检查，避免无本地 Redis 时总状态误判为 DOWN
+    redis:
+      enabled: false
