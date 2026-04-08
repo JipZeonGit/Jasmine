@@ -1,4 +1,4 @@
-name: Backend CI
+name: 后端基础检查
 
 on:
   pull_request:
@@ -17,24 +17,24 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout repository
+      - name: 拉取仓库代码
         uses: actions/checkout@v4
 
-      - name: Set up Temurin JDK 21
+      - name: 配置 Temurin JDK 21
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '21'
           cache: maven
 
-      - name: Grant execute permission to Maven Wrapper
+      - name: 赋予 Maven Wrapper 执行权限
         run: chmod +x ./mvnw
 
-      - name: Compile backend
+      - name: 运行后端编译检查
         run: ./mvnw -B clean compile
 
-      - name: Run fast unit tests
+      - name: 运行快速单元测试
         run: ./mvnw -B test -DskipITs=true
 
-      - name: Run Testcontainers integration tests and package
+      - name: 运行 Testcontainers 集成测试并打包
         run: ./mvnw -B verify -DskipUTs=true
