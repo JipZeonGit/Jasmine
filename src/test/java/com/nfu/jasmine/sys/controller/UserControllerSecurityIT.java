@@ -1,6 +1,7 @@
 package com.nfu.jasmine.sys.controller;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nfu.jasmine.config.AbstractIntegrationTest;
 import com.nfu.jasmine.sys.entity.User;
@@ -14,8 +15,10 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.options;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -77,10 +80,10 @@ class UserControllerSecurityIT extends AbstractIntegrationTest {
 
     @Test
     void getUserInfoWithAuthorizationHeaderShouldSucceed() throws Exception {
-        String token = createLoginToken();
+        JsonNode loginData = loginAndReturnData();
 
         mockMvc.perform(get("/user/info")
-                        .header("Authorization", "Bearer " + token))
+                        .header("Authorization", "Bearer " + loginData.path("token").asText()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(20000))
                 .andExpect(jsonPath("$.data.name").value("security-smoke-user"));
@@ -88,10 +91,53 @@ class UserControllerSecurityIT extends AbstractIntegrationTest {
 
     @Test
     void getUserInfoWithLegacyXTokenShouldBeRejected() throws Exception {
-        String token = createLoginToken();
+        JsonNode loginData = loginAndReturnData();
 
         mockMvc.perform(get("/user/info")
-                        .header("X-Token", token))
+                        .header("X-Token", loginData.path("token").asText()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(20003));
+    }
+
+    @Test
+    void refreshTokenShouldReturnNewTokenPair() throws Exception {
+        JsonNode loginData = loginAndReturnData();
+        Map<String, Object> refreshRequest = new HashMap<>();
+        refreshRequest.put("refreshToken", loginData.path("refreshToken").asText());
+
+        String response = mockMvc.perform(post("/user/refresh")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(refreshRequest)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(20000))
+                .andExpect(jsonPath("$.data.token").isString())
+                .andExpect(jsonPath("$.data.refreshToken").isString())
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+
+        JsonNode refreshedData = objectMapper.readTree(response).path("data");
+        assertThat(refreshedData.path("token").asText()).isNotEqualTo(loginData.path("token").asText());
+        assertThat(refreshedData.path("refreshToken").asText()).isNotEqualTo(loginData.path("refreshToken").asText());
+    }
+
+    @Test
+    void logoutShouldInvalidateRefreshToken() throws Exception {
+        JsonNode loginData = loginAndReturnData();
+        String accessToken = loginData.path("token").asText();
+        String refreshToken = loginData.path("refreshToken").asText();
+
+        mockMvc.perform(post("/user/logout")
+                        .header("Authorization", "Bearer " + accessToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(20000));
+
+        Map<String, Object> refreshRequest = new HashMap<>();
+        refreshRequest.put("refreshToken", refreshToken);
+
+        mockMvc.perform(post("/user/refresh")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(refreshRequest)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(20003));
     }
@@ -106,7 +152,7 @@ class UserControllerSecurityIT extends AbstractIntegrationTest {
                 .andExpect(header().string("Access-Control-Allow-Origin", "http://localhost:8888"));
     }
 
-    private String createLoginToken() throws Exception {
+    private JsonNode loginAndReturnData() throws Exception {
         User seedUser = new User();
         seedUser.setUsername("security-smoke-user");
         seedUser.setPassword(passwordEncoder.encode("password123"));
@@ -126,10 +172,12 @@ class UserControllerSecurityIT extends AbstractIntegrationTest {
                         .content(objectMapper.writeValueAsString(loginRequest)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(20000))
+                .andExpect(jsonPath("$.data.token").isString())
+                .andExpect(jsonPath("$.data.refreshToken").isString())
                 .andReturn()
                 .getResponse()
                 .getContentAsString();
 
-        return objectMapper.readTree(loginResponse).path("data").path("token").asText();
+        return objectMapper.readTree(loginResponse).path("data");
     }
 }

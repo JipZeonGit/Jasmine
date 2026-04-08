@@ -35,6 +35,7 @@ public class MySecurityConfig {
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                         .requestMatchers(
                                 "/user/login",
+                                "/user/refresh",
                                 "/actuator/health",
                                 "/actuator/info",
                                 "/error",
