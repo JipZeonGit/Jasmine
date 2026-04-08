@@ -15,6 +15,9 @@ app:
   cache:
     # 开发环境默认走内存缓存，避免本地调试被 Redis 连接或序列化问题阻塞
     type: memory
+  security:
+    # 开发环境允许使用默认 JWT 密钥，方便本地联调；生产环境禁止保留默认值
+    jwt-secret: ${JWT_SECRET:jasmine-dev-jwt-secret-for-local-debug-only-change-me-2026}
 
 management:
   health:

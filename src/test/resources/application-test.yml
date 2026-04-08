@@ -24,6 +24,11 @@ spring:
       schema-locations: classpath:schema-test.sql
       data-locations: classpath:data-test.sql
 
+app:
+  security:
+    # 测试环境使用固定测试密钥，避免依赖外部环境变量
+    jwt-secret: jasmine-test-jwt-secret-for-automated-tests-only-2026
+
 management:
   health:
     # 测试环境不校验 Redis 健康状态，避免无 Redis 时把总体健康度拉成 DOWN

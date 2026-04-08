@@ -13,7 +13,7 @@ permissions:
   contents: read
 
 jobs:
-  test:
+  backend-ci:
     runs-on: ubuntu-latest
 
     steps:
@@ -30,5 +30,11 @@ jobs:
       - name: 赋予 Maven Wrapper 执行权限
         run: chmod +x ./mvnw
 
+      - name: 运行后端编译检查
+        run: ./mvnw -B clean compile
+
       - name: 运行后端测试
-        run: ./mvnw test
+        run: ./mvnw -B test
+
+      - name: 运行后端打包
+        run: ./mvnw -B package -DskipTests

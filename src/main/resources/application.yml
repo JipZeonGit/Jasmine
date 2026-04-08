@@ -21,6 +21,9 @@ app:
   cors:
     # 这里配置跨域白名单，默认放行本地前端开发环境与 Docker Nginx
     allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:8888,http://localhost}
+  security:
+    # JWT 过期时间默认半小时，可按环境变量覆盖
+    jwt-expire-millis: ${JWT_EXPIRE_MILLIS:1800000}
 
 logging:
   level:
