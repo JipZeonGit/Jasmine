@@ -6,6 +6,7 @@ import com.nfu.jasmine.common.vo.Result;
 import com.nfu.jasmine.common.vo.TableData;
 import com.nfu.jasmine.sys.dto.ChangePasswordDTO;
 import com.nfu.jasmine.sys.dto.LoginDTO;
+import com.nfu.jasmine.sys.dto.RefreshTokenDTO;
 import com.nfu.jasmine.sys.entity.User;
 import com.nfu.jasmine.sys.service.IUserService;
 import com.nfu.jasmine.sys.vo.LoginVO;
@@ -60,6 +61,16 @@ public class UserController {
         return Result.fail(20002, "用户名或密码错误！");
     }
 
+    @Operation(summary = "刷新登录状态")
+    @PostMapping("/refresh")
+    public Result<LoginVO> refreshToken(@Valid @RequestBody RefreshTokenDTO refreshTokenDTO) {
+        LoginVO data = userService.refreshToken(refreshTokenDTO);
+        if (data != null) {
+            return Result.success(data);
+        }
+        return Result.fail(20003, "刷新令牌无效或已过期，请重新登录！");
+    }
+
     @Operation(summary = "获取用户信息")
     @GetMapping("/info")
     public Result<UserInfoVO> getUserInfo(HttpServletRequest request) {
@@ -86,7 +97,6 @@ public class UserController {
             @RequestParam("pageSize") Long pageSize) {
 
         LambdaQueryWrapper<User> wrapper = new LambdaQueryWrapper<>();
-
         wrapper.like(StringUtils.hasLength(username), User::getUsername, username);
         wrapper.like(StringUtils.hasLength(phone), User::getPhone, phone);
         wrapper.orderByAsc(User::getId); // 按照用户ID进行排序

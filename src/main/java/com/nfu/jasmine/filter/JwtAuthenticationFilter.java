@@ -1,6 +1,7 @@
 package com.nfu.jasmine.filter;
 
 import com.alibaba.fastjson2.JSON;
+import com.nfu.jasmine.common.utils.JwtTokenClaims;
 import com.nfu.jasmine.common.utils.JwtUtil;
 import com.nfu.jasmine.common.vo.Result;
 import com.nfu.jasmine.sys.entity.User;
@@ -34,7 +35,11 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         }
 
         try {
-            User loginUser = jwtUtil.parseToken(token, User.class);
+            JwtTokenClaims claims = jwtUtil.parseAccessToken(token);
+            User loginUser = new User();
+            loginUser.setId(claims.getUserId());
+            loginUser.setUsername(claims.getUsername());
+
             UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
                     loginUser,
                     null,
@@ -45,7 +50,6 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             SecurityContextHolder.getContext().setAuthentication(authentication);
             filterChain.doFilter(request, response);
         } catch (Exception e) {
-            e.printStackTrace();
             SecurityContextHolder.clearContext();
             response.setContentType("application/json;charset=utf-8");
             Result<Object> fail = Result.fail(20003, "JWT无效，请重新登录！");
@@ -54,9 +58,10 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     }
 
     @Override
-    protected boolean shouldNotFilter(HttpServletRequest request) throws ServletException {
+    protected boolean shouldNotFilter(HttpServletRequest request) {
         String requestURI = request.getRequestURI();
         return "/user/login".equals(requestURI)
+                || "/user/refresh".equals(requestURI)
                 || "/error".equals(requestURI)
                 || requestURI.startsWith("/swagger-ui/")
                 || "/swagger-ui.html".equals(requestURI)

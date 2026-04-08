@@ -1,12 +1,17 @@
 package com.nfu.jasmine.sys.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
+import com.nfu.jasmine.common.utils.JwtTokenClaims;
 import com.nfu.jasmine.common.utils.JwtUtil;
 import com.nfu.jasmine.sys.dto.LoginDTO;
+import com.nfu.jasmine.sys.dto.RefreshTokenDTO;
+import com.nfu.jasmine.sys.entity.AuthRefreshToken;
 import com.nfu.jasmine.sys.entity.Menu;
 import com.nfu.jasmine.sys.entity.User;
 import com.nfu.jasmine.sys.entity.UserRole;
+import com.nfu.jasmine.sys.mapper.AuthRefreshTokenMapper;
 import com.nfu.jasmine.sys.mapper.UserMapper;
 import com.nfu.jasmine.sys.mapper.UserRoleMapper;
 import com.nfu.jasmine.sys.service.IMenuService;
@@ -16,12 +21,13 @@ import com.nfu.jasmine.sys.vo.UserInfoVO;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
-import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
 import java.util.List;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 /**
@@ -35,8 +41,6 @@ import java.util.stream.Collectors;
 @Service
 public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements IUserService {
     @Autowired
-    private RedisTemplate redisTemplate;
-    @Autowired
     private PasswordEncoder passwordEncoder;
     @Autowired
     private JwtUtil jwtUtil;
@@ -44,57 +48,100 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements IU
     private UserRoleMapper userRoleMapper;
     @Autowired
     private IMenuService menuService;
+    @Autowired
+    private AuthRefreshTokenMapper authRefreshTokenMapper;
 
     // 用户登录
     @Override
+    @Transactional
     public LoginVO login(LoginDTO loginDTO) {
         // 根据用户名查询
         LambdaQueryWrapper<User> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(User::getUsername, loginDTO.getUsername());
         User loginUser = this.baseMapper.selectOne(wrapper);
-        // 查询结果不为空，并且传入密码和数据库密码进行匹配，则生成token并返回
-        if (loginUser != null && passwordEncoder.matches(loginDTO.getPassword(), loginUser.getPassword())) {
-            // 去除密码
-            loginUser.setPassword(null);
-
-            // 创建JWT
-            String token = jwtUtil.createToken(loginUser);
-
-            // 返回数据
-            return new LoginVO(token);
+        if (loginUser == null || !passwordEncoder.matches(loginDTO.getPassword(), loginUser.getPassword())) {
+            return null;
         }
-        return null;
+
+        revokeActiveRefreshTokens(loginUser.getId());
+        return issueTokenPair(loginUser);
+    }
+
+    // 刷新登录状态
+    @Override
+    @Transactional
+    public LoginVO refreshToken(RefreshTokenDTO refreshTokenDTO) {
+        JwtTokenClaims claims;
+        try {
+            claims = jwtUtil.parseRefreshToken(refreshTokenDTO.getRefreshToken());
+        } catch (Exception e) {
+            return null;
+        }
+
+        LambdaQueryWrapper<AuthRefreshToken> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(AuthRefreshToken::getUserId, claims.getUserId())
+                .eq(AuthRefreshToken::getTokenId, claims.getTokenId())
+                .eq(AuthRefreshToken::getRevoked, 0)
+                .gt(AuthRefreshToken::getExpiresAt, LocalDateTime.now())
+                .last("limit 1");
+        AuthRefreshToken refreshToken = authRefreshTokenMapper.selectOne(wrapper);
+        if (refreshToken == null) {
+            return null;
+        }
+
+        refreshToken.setRevoked(1);
+        authRefreshTokenMapper.updateById(refreshToken);
+
+        User user = this.baseMapper.selectById(claims.getUserId());
+        if (user == null || Integer.valueOf(1).equals(user.getDeleted())) {
+            return null;
+        }
+
+        return issueTokenPair(user);
     }
 
     // 获取用户信息
     @Override
     public UserInfoVO getUserInfo(User loginUser) {
-        if (loginUser != null) {
-            UserInfoVO data = new UserInfoVO();
-
-            data.setName(loginUser.getUsername());
-            data.setAvatar(loginUser.getAvatar());
-            data.setPhone(loginUser.getPhone());
-            data.setEmail(loginUser.getEmail());
-            data.setStatus(loginUser.getStatus());
-
-            // 获取用户角色
-            List<String> roleList = this.baseMapper.getRoleNameByUserId(loginUser.getId());
-            data.setRoles(roleList);
-
-            // 获取角色权限
-            List<Menu> menuList = menuService.getMenuListByUserId(loginUser.getId());
-            data.setMenuList(menuList);
-
-            return data;
+        if (loginUser == null || loginUser.getId() == null) {
+            return null;
         }
-        return null;
+
+        User currentUser = this.baseMapper.selectById(loginUser.getId());
+        if (currentUser == null) {
+            return null;
+        }
+
+        UserInfoVO data = new UserInfoVO();
+        data.setName(currentUser.getUsername());
+        data.setAvatar(currentUser.getAvatar());
+        data.setPhone(currentUser.getPhone());
+        data.setEmail(currentUser.getEmail());
+        data.setStatus(currentUser.getStatus());
+
+        // 获取用户角色
+        List<String> roleList = this.baseMapper.getRoleNameByUserId(currentUser.getId());
+        data.setRoles(roleList);
+
+        // 获取角色权限
+        List<Menu> menuList = menuService.getMenuListByUserId(currentUser.getId());
+        data.setMenuList(menuList);
+        return data;
     }
 
     // 用户注销，退出登录
     @Override
+    @Transactional
     public void logout(String token) {
-        // 当前版本保留接口，后续在统一安全体系阶段处理失效策略
+        if (token == null) {
+            return;
+        }
+
+        try {
+            JwtTokenClaims claims = jwtUtil.parseAccessToken(token);
+            revokeActiveRefreshTokens(claims.getUserId());
+        } catch (Exception ignored) {
+        }
     }
 
     @Override
@@ -127,7 +174,6 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements IU
 
         // 设置角色ID列表到用户信息中
         user.setRoleIdList(roleIdList);
-
         return user;
     }
 
@@ -159,11 +205,13 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements IU
         LambdaQueryWrapper<UserRole> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(UserRole::getUserId, id);
         userRoleMapper.delete(wrapper);
+        revokeActiveRefreshTokens(id);
     }
 
     // 修改用户密码
     @Override
     @CacheEvict(value = "user", allEntries = true)
+    @Transactional
     public boolean changePassword(String username, String oldPassword, String newPassword) {
         // 根据用户名查询用户
         LambdaQueryWrapper<User> wrapper = new LambdaQueryWrapper<>();
@@ -172,11 +220,35 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements IU
 
         if (user != null && passwordEncoder.matches(oldPassword, user.getPassword())) {
             // 旧密码匹配，可以修改密码
-            String newPasswordHash = passwordEncoder.encode(newPassword);
-            user.setPassword(newPasswordHash);
+            user.setPassword(passwordEncoder.encode(newPassword));
             this.baseMapper.updateById(user);
+            revokeActiveRefreshTokens(user.getId());
             return true;
         }
         return false; // 修改失败，用户名或旧密码不匹配
+    }
+
+    private LoginVO issueTokenPair(User user) {
+        String accessToken = jwtUtil.createAccessToken(user.getId(), user.getUsername());
+        String refreshTokenId = UUID.randomUUID().toString();
+        String refreshToken = jwtUtil.createRefreshToken(user.getId(), user.getUsername(), refreshTokenId);
+        JwtTokenClaims refreshClaims = jwtUtil.parseRefreshToken(refreshToken);
+
+        AuthRefreshToken authRefreshToken = new AuthRefreshToken();
+        authRefreshToken.setUserId(user.getId());
+        authRefreshToken.setTokenId(refreshTokenId);
+        authRefreshToken.setExpiresAt(refreshClaims.getExpiresAt());
+        authRefreshToken.setRevoked(0);
+        authRefreshTokenMapper.insert(authRefreshToken);
+
+        return new LoginVO(accessToken, refreshToken);
+    }
+
+    private void revokeActiveRefreshTokens(Integer userId) {
+        LambdaUpdateWrapper<AuthRefreshToken> wrapper = new LambdaUpdateWrapper<>();
+        wrapper.eq(AuthRefreshToken::getUserId, userId)
+                .eq(AuthRefreshToken::getRevoked, 0)
+                .set(AuthRefreshToken::getRevoked, 1);
+        authRefreshTokenMapper.update(null, wrapper);
     }
 }

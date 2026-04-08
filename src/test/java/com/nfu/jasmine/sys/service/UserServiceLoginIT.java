@@ -32,7 +32,7 @@ class UserServiceLoginIT extends AbstractIntegrationTest {
     }
 
     @Test
-    void loginReturnsJwtForKnownUser() {
+    void loginReturnsTokenPairForKnownUser() {
         User seedUser = new User();
         seedUser.setUsername("login-smoke-user");
         seedUser.setPassword(passwordEncoder.encode("password123"));
@@ -51,5 +51,6 @@ class UserServiceLoginIT extends AbstractIntegrationTest {
 
         assertThat(data).isNotNull();
         assertThat(data.getToken()).isNotBlank();
+        assertThat(data.getRefreshToken()).isNotBlank();
     }
 }
