@@ -25,7 +25,7 @@ PR7 聚焦把现有 Bearer Token 登录链路补成可长期维护的单体认�
 
 ### 2. 新增 refresh token 持久化
 
-新增 Flyway 脚本 [`V2__auth_refresh_token.sql`](/D:/Software%20Engineering/Code%20Library/IdeaProjects/Jasmine/src/main/resources/db/migration/V2__auth_refresh_token.sql)，创建 `auth_refresh_token` 表，用于记录：
+新增 Flyway 脚本 [`V2__auth_refresh_token.sql`](../../src/main/resources/db/migration/V2__auth_refresh_token.sql)，创建 `auth_refresh_token` 表，用于记录：
 
 - 用户 ID
 - refresh token 对应的 `token_id`
