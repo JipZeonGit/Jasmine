@@ -58,6 +58,13 @@ class UserControllerSecurityTest {
     }
 
     @Test
+    void actuatorHealthShouldBePublic() throws Exception {
+        mockMvc.perform(get("/actuator/health"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").exists());
+    }
+
+    @Test
     void loginWithoutUsernameShouldFailValidation() throws Exception {
         Map<String, Object> loginRequest = new HashMap<>();
         loginRequest.put("password", "password123");

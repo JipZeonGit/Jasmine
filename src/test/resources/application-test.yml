@@ -1,4 +1,7 @@
 spring:
+  flyway:
+    # 测试环境继续沿用现有 H2 初始化脚本，避免 baseline SQL 与 MySQL 方言耦合
+    enabled: false
   datasource:
     # 测试环境使用内存 H2，不再依赖真实 MySQL
     driver-class-name: org.h2.Driver
@@ -20,6 +23,17 @@ spring:
       mode: always
       schema-locations: classpath:schema-test.sql
       data-locations: classpath:data-test.sql
+
+app:
+  security:
+    # 测试环境使用固定测试密钥，避免依赖外部环境变量
+    jwt-secret: jasmine-test-jwt-secret-for-automated-tests-only-2026
+
+management:
+  health:
+    # 测试环境不校验 Redis 健康状态，避免无 Redis 时把总体健康度拉成 DOWN
+    redis:
+      enabled: false
 
 logging:
   level:
