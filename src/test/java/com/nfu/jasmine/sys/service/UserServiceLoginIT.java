@@ -1,6 +1,7 @@
 package com.nfu.jasmine.sys.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.nfu.jasmine.config.AbstractIntegrationTest;
 import com.nfu.jasmine.sys.dto.LoginDTO;
 import com.nfu.jasmine.sys.entity.User;
 import com.nfu.jasmine.sys.mapper.UserMapper;
@@ -8,15 +9,11 @@ import com.nfu.jasmine.sys.vo.LoginVO;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.test.context.ActiveProfiles;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-@SpringBootTest
-@ActiveProfiles("test")
-class UserServiceLoginTest {
+class UserServiceLoginIT extends AbstractIntegrationTest {
 
     @Autowired
     private IUserService userService;
@@ -52,9 +49,7 @@ class UserServiceLoginTest {
 
         LoginVO data = userService.login(loginRequest);
 
-        assertThat(data)
-                .isNotNull();
-        assertThat(data.getToken())
-                .isNotBlank();
+        assertThat(data).isNotNull();
+        assertThat(data.getToken()).isNotBlank();
     }
 }

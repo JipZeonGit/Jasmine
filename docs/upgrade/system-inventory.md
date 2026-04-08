@@ -1,6 +1,6 @@
 # 当前系统清单
 
-## 分支与升级基线
+## 分支与升级主线
 
 - `main`：保留 legacy 可运行版本，用于回溯和对照
 - `legacy-v1`：旧系统冻结标签
@@ -107,7 +107,7 @@
 - `src/main/resources/application.yml`
 - `src/main/resources/application-dev.yml`
 - `src/main/resources/application-prod.yml`
-- `src/test/resources/application-test.yml`
+- `src/test/resources/application-integration.yml`
 
 ### 推荐环境变量
 
@@ -127,6 +127,12 @@
 - `application-dev.yml` 默认连接 `MYSQL_HOST=192.168.31.26`
 - 为了兼容 5.7 与 8.4 并存，默认 `MYSQL_PORT=13306`
 - 如果后续只保留 8.4 并恢复宿主机 `3306`，可通过环境变量把 `MYSQL_PORT` 改回 `3306`
+
+### 当前测试基线约定
+
+- 轻量测试：本机运行 `./mvnw test`
+- 完整集成测试：GitHub Actions 在 `verify` 阶段使用 Testcontainers 拉起 MySQL 8.4 / Redis 7.x
+- 对应配置入口：`src/test/resources/application-integration.yml`
 
 ## 当前已知待后移问题
 
