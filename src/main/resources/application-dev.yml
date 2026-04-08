@@ -1,12 +1,12 @@
 spring:
   datasource:
-    # 开发环境继续使用当前的 MySQL 连接方式，避免影响现有调试流程
+    # 开发环境默认连接当前 NAS 上并存运行的 MySQL 8.4，宿主机暴露端口为 13306
     driver-class-name: com.mysql.cj.jdbc.Driver
     username: ${MYSQL_USER:root}
     password: ${MYSQL_PASSWORD:123456}
-    url: jdbc:mysql://${MYSQL_HOST:192.168.31.26}:${MYSQL_PORT:3306}/jasmine?useUnicode=true&characterEncoding=UTF-8&serverTimezone=Asia/Shanghai
+    url: jdbc:mysql://${MYSQL_HOST:192.168.31.26}:${MYSQL_PORT:13306}/jasmine?useUnicode=true&characterEncoding=UTF-8&serverTimezone=Asia/Shanghai
   redis:
-    # Redis 开发环境配置继续从环境变量读取，不改变现有调试习惯
+    # Redis 开发环境继续从环境变量读取，不改变当前调试习惯
     host: ${REDIS_HOST:192.168.31.26}
     port: ${REDIS_PORT:6379}
     password: ${REDIS_PASSWORD:123456}
@@ -21,6 +21,6 @@ app:
 
 management:
   health:
-    # 开发环境默认不把 Redis 纳入健康检查，避免无本地 Redis 时总状态误判为 DOWN
+    # 开发环境默认不把 Redis 纳入健康检查，避免无本地 Redis 时总体状态误判为 DOWN
     redis:
       enabled: false
