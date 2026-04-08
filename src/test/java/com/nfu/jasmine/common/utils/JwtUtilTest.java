@@ -2,21 +2,18 @@ package com.nfu.jasmine.common.utils;
 
 import com.nfu.jasmine.sys.entity.User;
 import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-@SpringBootTest
-@ActiveProfiles("test")
 class JwtUtilTest {
-
-    @Autowired
-    private JwtUtil jwtUtil;
 
     @Test
     void createTokenShouldBeParsedBackToUser() {
+        JwtUtil jwtUtil = new JwtUtil();
+        ReflectionTestUtils.setField(jwtUtil, "jwtExpire", 1800000L);
+        ReflectionTestUtils.setField(jwtUtil, "jwtKey", "jasmine-unit-test-jwt-secret-for-fast-tests-2026");
+
         User user = new User();
         user.setId(1);
         user.setUsername("jwt-smoke-user");

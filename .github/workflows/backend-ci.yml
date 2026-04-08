@@ -33,8 +33,8 @@ jobs:
       - name: 运行后端编译检查
         run: ./mvnw -B clean compile
 
-      - name: 运行后端测试
-        run: ./mvnw -B test
+      - name: 运行快速单元测试
+        run: ./mvnw -B test -DskipITs=true
 
-      - name: 运行后端打包
-        run: ./mvnw -B package -DskipTests
+      - name: 运行 Testcontainers 集成测试并打包
+        run: ./mvnw -B verify -DskipUTs=true

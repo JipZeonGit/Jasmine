@@ -1,0 +1,25 @@
+spring:
+  flyway:
+    enabled: true
+  sql:
+    init:
+      mode: never
+  data:
+    redis:
+      repositories:
+        enabled: false
+
+app:
+  cache:
+    type: redis
+  security:
+    jwt-secret: jasmine-integration-jwt-secret-for-testcontainers-2026
+
+management:
+  health:
+    redis:
+      enabled: true
+
+logging:
+  level:
+    com.nfu.jasmine: warn
