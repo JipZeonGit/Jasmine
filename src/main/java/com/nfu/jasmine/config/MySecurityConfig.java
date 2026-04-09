@@ -1,6 +1,7 @@
 package com.nfu.jasmine.config;
 
 import com.nfu.jasmine.filter.JwtAuthenticationFilter;
+import com.nfu.jasmine.filter.RequestTraceFilter;
 import com.nfu.jasmine.handler.JwtAccessDeniedHandler;
 import com.nfu.jasmine.handler.JwtAuthenticationEntryPoint;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -18,6 +19,8 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 @Configuration
 @EnableMethodSecurity
 public class MySecurityConfig {
+    @Autowired
+    private RequestTraceFilter requestTraceFilter;
     @Autowired
     private JwtAuthenticationFilter jwtAuthenticationFilter;
     @Autowired
@@ -37,7 +40,9 @@ public class MySecurityConfig {
                                 "/user/login",
                                 "/user/refresh",
                                 "/actuator/health",
+                                "/actuator/health/**",
                                 "/actuator/info",
+                                "/actuator/prometheus",
                                 "/error",
                                 "/swagger-ui/**",
                                 "/swagger-ui.html",
@@ -50,7 +55,8 @@ public class MySecurityConfig {
                         .authenticationEntryPoint(jwtAuthenticationEntryPoint)
                         .accessDeniedHandler(jwtAccessDeniedHandler)
                 )
-                .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
+                .addFilterBefore(requestTraceFilter, UsernamePasswordAuthenticationFilter.class)
+                .addFilterAfter(jwtAuthenticationFilter, RequestTraceFilter.class);
         return http.build();
     }
 }

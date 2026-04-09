@@ -10,6 +10,8 @@ import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -23,6 +25,8 @@ import java.util.Collections;
 
 @Component
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
+    private static final Logger log = LoggerFactory.getLogger(JwtAuthenticationFilter.class);
+
     @Autowired
     private JwtUtil jwtUtil;
 
@@ -52,6 +56,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             filterChain.doFilter(request, response);
         } catch (Exception e) {
             SecurityContextHolder.clearContext();
+            log.warn("JWT 校验失败 uri={} message={}", request.getRequestURI(), e.getMessage());
             response.setContentType("application/json;charset=utf-8");
             Result<Object> fail = Result.fail(ResultCode.UNAUTHORIZED, "JWT无效，请重新登录！");
             response.getWriter().write(JSON.toJSONString(fail));
@@ -67,7 +72,11 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 || requestURI.startsWith("/swagger-ui/")
                 || "/swagger-ui.html".equals(requestURI)
                 || requestURI.startsWith("/v3/api-docs/")
-                || requestURI.startsWith("/swagger-resources/");
+                || requestURI.startsWith("/swagger-resources/")
+                || "/actuator/health".equals(requestURI)
+                || requestURI.startsWith("/actuator/health/")
+                || "/actuator/info".equals(requestURI)
+                || "/actuator/prometheus".equals(requestURI);
     }
 
     private String resolveToken(HttpServletRequest request) {
