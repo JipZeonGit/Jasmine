@@ -1,5 +1,6 @@
 package com.nfu.jasmine.cus.controller;
 
+import com.nfu.jasmine.common.enums.ResultCode;
 import com.nfu.jasmine.common.vo.Result;
 import com.nfu.jasmine.cus.dto.AppointmentCreateDTO;
 import com.nfu.jasmine.cus.service.IAppointmentService;
@@ -35,7 +36,7 @@ class AppointmentControllerTest {
 
         Result<?> result = appointmentController.addAppointment(appointmentDTO);
 
-        assertEquals(20001, result.getCode());
+        assertEquals(ResultCode.VALIDATE_FAILED.getCode(), result.getCode());
         assertEquals("会员卡号或手机号至少填写一项！", result.getMessage());
         assertNull(result.getData());
         verifyNoInteractions(appointmentService);
@@ -51,7 +52,7 @@ class AppointmentControllerTest {
 
         Result<?> result = appointmentController.addAppointment(appointmentDTO);
 
-        assertEquals(20001, result.getCode());
+        assertEquals(ResultCode.NOT_FOUND.getCode(), result.getCode());
         assertEquals("用户信息不存在，请创建新会员！", result.getMessage());
         verify(appointmentService).addAppointment(eq(null), eq("13677778888"), any(Date.class), eq("预订花束"));
     }

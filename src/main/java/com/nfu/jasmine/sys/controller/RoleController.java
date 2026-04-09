@@ -2,6 +2,7 @@ package com.nfu.jasmine.sys.controller;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.nfu.jasmine.common.enums.ResultCode;
 import com.nfu.jasmine.common.vo.Result;
 import com.nfu.jasmine.common.vo.TableData;
 import com.nfu.jasmine.sys.dto.RoleQueryDTO;
@@ -67,7 +68,7 @@ public class RoleController {
     @PutMapping
     public Result<?> updateRole(@Valid @RequestBody RoleSaveDTO roleDTO) {
         if (roleDTO.getRoleId() == null) {
-            return Result.fail(20005, "角色ID不能为空！");
+            return Result.fail(ResultCode.VALIDATE_FAILED, "角色ID不能为空！");
         }
         Role role = new Role();
         BeanUtils.copyProperties(roleDTO, role);

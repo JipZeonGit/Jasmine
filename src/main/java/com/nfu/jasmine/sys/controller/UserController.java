@@ -2,6 +2,7 @@ package com.nfu.jasmine.sys.controller;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.nfu.jasmine.common.enums.ResultCode;
 import com.nfu.jasmine.common.vo.Result;
 import com.nfu.jasmine.common.vo.TableData;
 import com.nfu.jasmine.sys.dto.ChangePasswordDTO;
@@ -64,7 +65,7 @@ public class UserController {
         if (data != null) {
             return Result.success(data);
         }
-        return Result.fail(20002, "用户名或密码错误！");
+        return Result.fail(ResultCode.LOGIN_ERROR);
     }
 
     @Operation(summary = "刷新登录状态")
@@ -74,7 +75,7 @@ public class UserController {
         if (data != null) {
             return Result.success(data);
         }
-        return Result.fail(20003, "刷新令牌无效或已过期，请重新登录！");
+        return Result.fail(ResultCode.UNAUTHORIZED, "刷新令牌无效或已过期，请重新登录！");
     }
 
     @Operation(summary = "获取用户信息")
@@ -85,7 +86,7 @@ public class UserController {
         if (data != null) {
             return Result.success(data);
         }
-        return Result.fail(20003, "用户登录信息无效，请重新登录！");
+        return Result.fail(ResultCode.UNAUTHORIZED, "用户登录信息无效，请重新登录！");
     }
 
     @Operation(summary = "注销用户")
@@ -155,7 +156,7 @@ public class UserController {
         if (success) {
             return Result.success("密码修改成功！");
         }
-        return Result.fail(20005, "用户名或旧密码不匹配，密码修改失败！");
+        return Result.fail(ResultCode.BUSINESS_ERROR, "用户名或旧密码不匹配，密码修改失败！");
     }
 
     private User getLoginUser(HttpServletRequest request) {

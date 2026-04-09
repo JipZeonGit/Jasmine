@@ -2,6 +2,7 @@ package com.nfu.jasmine.cus.controller;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.nfu.jasmine.common.enums.ResultCode;
 import com.nfu.jasmine.common.vo.Result;
 import com.nfu.jasmine.common.vo.TableData;
 import com.nfu.jasmine.cus.dto.AppointmentCreateDTO;
@@ -48,7 +49,7 @@ public class AppointmentController {
     @PostMapping("")
     public Result<?> addAppointment(@Valid @RequestBody AppointmentCreateDTO appointmentDTO) {
         if (!StringUtils.hasLength(appointmentDTO.getVid()) && !StringUtils.hasLength(appointmentDTO.getPhone())) {
-            return Result.fail("会员卡号或手机号至少填写一项！");
+            return Result.fail(ResultCode.VALIDATE_FAILED, "会员卡号或手机号至少填写一项！");
         }
 
         boolean success = appointmentService.addAppointment(
@@ -60,7 +61,7 @@ public class AppointmentController {
         if (success) {
             return Result.success("新增预约成功!");
         }
-        return Result.fail("用户信息不存在，请创建新会员！");
+        return Result.fail(ResultCode.NOT_FOUND, "用户信息不存在，请创建新会员！");
     }
 
     @Operation(summary = "修改预约")

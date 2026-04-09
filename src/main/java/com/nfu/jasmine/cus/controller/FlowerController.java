@@ -2,6 +2,7 @@ package com.nfu.jasmine.cus.controller;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.nfu.jasmine.common.enums.ResultCode;
 import com.nfu.jasmine.common.vo.Result;
 import com.nfu.jasmine.common.vo.TableData;
 import com.nfu.jasmine.cus.dto.FlowerQueryDTO;
@@ -57,7 +58,7 @@ public class FlowerController {
     @PutMapping("")
     public Result<?> updateFlower(@Valid @RequestBody FlowerSaveDTO flowerDTO) {
         if (flowerDTO.getId() == null) {
-            return Result.fail(20005, "花卉ID不能为空！");
+            return Result.fail(ResultCode.VALIDATE_FAILED, "花卉ID不能为空！");
         }
         Flower flower = new Flower();
         BeanUtils.copyProperties(flowerDTO, flower);

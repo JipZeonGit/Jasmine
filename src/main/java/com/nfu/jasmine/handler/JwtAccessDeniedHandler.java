@@ -1,6 +1,7 @@
 package com.nfu.jasmine.handler;
 
 import com.alibaba.fastjson2.JSON;
+import com.nfu.jasmine.common.enums.ResultCode;
 import com.nfu.jasmine.common.vo.Result;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -17,7 +18,7 @@ public class JwtAccessDeniedHandler implements AccessDeniedHandler {
     public void handle(HttpServletRequest request, HttpServletResponse response, AccessDeniedException accessDeniedException)
             throws IOException, ServletException {
         response.setContentType("application/json;charset=utf-8");
-        Result<Object> fail = Result.fail(20004, "当前用户无权访问该资源！");
+        Result<Object> fail = Result.fail(ResultCode.FORBIDDEN);
         response.getWriter().write(JSON.toJSONString(fail));
     }
 }
