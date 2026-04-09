@@ -1,6 +1,7 @@
 package com.nfu.jasmine.handler;
 
 import com.alibaba.fastjson2.JSON;
+import com.nfu.jasmine.common.enums.ResultCode;
 import com.nfu.jasmine.common.vo.Result;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -17,7 +18,7 @@ public class JwtAuthenticationEntryPoint implements AuthenticationEntryPoint {
     public void commence(HttpServletRequest request, HttpServletResponse response, AuthenticationException authException)
             throws IOException, ServletException {
         response.setContentType("application/json;charset=utf-8");
-        Result<Object> fail = Result.fail(20003, "请先登录后再访问！");
+        Result<Object> fail = Result.fail(ResultCode.UNAUTHORIZED);
         response.getWriter().write(JSON.toJSONString(fail));
     }
 }

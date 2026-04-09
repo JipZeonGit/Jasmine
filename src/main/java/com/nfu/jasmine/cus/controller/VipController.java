@@ -3,6 +3,7 @@ package com.nfu.jasmine.cus.controller;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.nfu.jasmine.common.enums.ResultCode;
 import com.nfu.jasmine.common.utils.MembershipIdUtil;
 import com.nfu.jasmine.common.vo.Result;
 import com.nfu.jasmine.common.vo.TableData;
@@ -52,7 +53,7 @@ public class VipController {
     @PostMapping("")
     public Result<?> addVip(@Valid @RequestBody VipSaveDTO vipDTO) {
         if (phoneExists(vipDTO.getPhone(), null)) {
-            return Result.fail("该手机号已注册，请重新输入没有注册的手机号！");
+            return Result.fail(ResultCode.CONFLICT, "该手机号已注册，请重新输入没有注册的手机号！");
         }
 
         Vip vip = new Vip();
@@ -66,10 +67,10 @@ public class VipController {
     @PutMapping("")
     public Result<?> updateVip(@Valid @RequestBody VipSaveDTO vipDTO) {
         if (vipDTO.getId() == null) {
-            return Result.fail(20005, "会员ID不能为空！");
+            return Result.fail(ResultCode.VALIDATE_FAILED, "会员ID不能为空！");
         }
         if (phoneExists(vipDTO.getPhone(), vipDTO.getId())) {
-            return Result.fail("该手机号已注册，请重新输入没有注册的手机号！");
+            return Result.fail(ResultCode.CONFLICT, "该手机号已注册，请重新输入没有注册的手机号！");
         }
 
         Vip vip = new Vip();

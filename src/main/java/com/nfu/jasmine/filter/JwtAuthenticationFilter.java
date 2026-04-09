@@ -1,6 +1,7 @@
 package com.nfu.jasmine.filter;
 
 import com.alibaba.fastjson2.JSON;
+import com.nfu.jasmine.common.enums.ResultCode;
 import com.nfu.jasmine.common.utils.JwtTokenClaims;
 import com.nfu.jasmine.common.utils.JwtUtil;
 import com.nfu.jasmine.common.vo.Result;
@@ -52,7 +53,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         } catch (Exception e) {
             SecurityContextHolder.clearContext();
             response.setContentType("application/json;charset=utf-8");
-            Result<Object> fail = Result.fail(20003, "JWT无效，请重新登录！");
+            Result<Object> fail = Result.fail(ResultCode.UNAUTHORIZED, "JWT无效，请重新登录！");
             response.getWriter().write(JSON.toJSONString(fail));
         }
     }

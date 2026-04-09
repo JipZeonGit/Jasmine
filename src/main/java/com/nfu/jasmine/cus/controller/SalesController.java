@@ -2,6 +2,7 @@ package com.nfu.jasmine.cus.controller;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.nfu.jasmine.common.enums.ResultCode;
 import com.nfu.jasmine.common.vo.Result;
 import com.nfu.jasmine.common.vo.TableData;
 import com.nfu.jasmine.cus.dto.SalesQueryDTO;
@@ -55,7 +56,7 @@ public class SalesController {
     @PutMapping("")
     public Result<?> updateSales(@Valid @RequestBody SalesSaveDTO salesDTO) {
         if (salesDTO.getId() == null) {
-            return Result.fail(20005, "销售订单ID不能为空！");
+            return Result.fail(ResultCode.VALIDATE_FAILED, "销售订单ID不能为空！");
         }
         Sales sales = new Sales();
         BeanUtils.copyProperties(salesDTO, sales);

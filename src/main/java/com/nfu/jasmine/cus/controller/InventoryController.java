@@ -2,6 +2,7 @@ package com.nfu.jasmine.cus.controller;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.nfu.jasmine.common.enums.ResultCode;
 import com.nfu.jasmine.common.utils.SerialNumberUtil;
 import com.nfu.jasmine.common.vo.Result;
 import com.nfu.jasmine.common.vo.TableData;
@@ -59,7 +60,7 @@ public class InventoryController {
     @PutMapping("")
     public Result<?> updateFlower(@Valid @RequestBody InventorySaveDTO inventoryDTO) {
         if (inventoryDTO.getId() == null) {
-            return Result.fail(20005, "库存ID不能为空！");
+            return Result.fail(ResultCode.VALIDATE_FAILED, "库存ID不能为空！");
         }
         Inventory inventory = new Inventory();
         BeanUtils.copyProperties(inventoryDTO, inventory);
