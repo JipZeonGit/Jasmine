@@ -6,6 +6,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.ConstraintViolationException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.validation.BindException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -58,6 +59,12 @@ public class GlobalExceptionHandler {
         String message = e.getName() + "参数格式不正确！";
         log.warn("参数类型不匹配 method={} uri={} message={}", request.getMethod(), request.getRequestURI(), message);
         return Result.fail(ResultCode.VALIDATE_FAILED, message);
+    }
+
+    @ExceptionHandler(DataIntegrityViolationException.class)
+    public Result<Object> handleDataIntegrityViolationException(DataIntegrityViolationException e, HttpServletRequest request) {
+        log.warn("数据库约束冲突 method={} uri={} message={}", request.getMethod(), request.getRequestURI(), e.getMostSpecificCause().getMessage());
+        return Result.fail(ResultCode.CONFLICT, "数据违反唯一约束或关联约束，请检查后重试！");
     }
 
     @ExceptionHandler(Exception.class)

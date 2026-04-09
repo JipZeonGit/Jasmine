@@ -18,7 +18,7 @@ SET NAMES utf8mb4;
 SET FOREIGN_KEY_CHECKS = 0;
 
 -- 确保数据库存在并切换使用（兼容 Docker 自动初始化和手动导入两种场景）
-CREATE DATABASE IF NOT EXISTS `jasmine` DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci;
+CREATE DATABASE IF NOT EXISTS `jasmine` DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci;
 USE `jasmine`;
 
 -- ----------------------------
@@ -26,16 +26,19 @@ USE `jasmine`;
 -- ----------------------------
 DROP TABLE IF EXISTS `appointment`;
 CREATE TABLE `appointment`  (
-  `id` int(10) NOT NULL AUTO_INCREMENT,
+  `id` int NOT NULL AUTO_INCREMENT,
   `date` datetime NULL DEFAULT NULL,
-  `vid` varchar(20) CHARACTER SET utf8 COLLATE utf8_general_ci NULL DEFAULT NULL,
-  `name` varchar(50) CHARACTER SET utf8 COLLATE utf8_general_ci NULL DEFAULT NULL,
-  `sex` varchar(2) CHARACTER SET utf8 COLLATE utf8_general_ci NULL DEFAULT NULL,
-  `phone` varchar(50) CHARACTER SET utf8 COLLATE utf8_general_ci NULL DEFAULT NULL,
-  `content` varchar(50) CHARACTER SET utf8 COLLATE utf8_general_ci NULL DEFAULT NULL,
-  `deleted` int(1) NULL DEFAULT 0,
-  PRIMARY KEY (`id`) USING BTREE
-) ENGINE = InnoDB AUTO_INCREMENT = 7 CHARACTER SET = utf8 COLLATE = utf8_general_ci ROW_FORMAT = Dynamic;
+  `vid` varchar(20) NULL DEFAULT NULL,
+  `name` varchar(50) NULL DEFAULT NULL,
+  `sex` varchar(2) NULL DEFAULT NULL,
+  `phone` varchar(50) NULL DEFAULT NULL,
+  `content` varchar(50) NULL DEFAULT NULL,
+  `deleted` tinyint NOT NULL DEFAULT 0,
+  PRIMARY KEY (`id`) USING BTREE,
+  KEY `idx_appointment_deleted_date` (`deleted`, `date`) USING BTREE,
+  KEY `idx_appointment_vid` (`vid`) USING BTREE,
+  KEY `idx_appointment_phone` (`phone`) USING BTREE
+) ENGINE = InnoDB AUTO_INCREMENT = 7 DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci ROW_FORMAT = Dynamic;
 
 -- ----------------------------
 -- Records of appointment
@@ -52,13 +55,14 @@ INSERT INTO `appointment` VALUES (6, '2023-08-24 00:00:00', '10563933573', '黄�
 -- ----------------------------
 DROP TABLE IF EXISTS `flower`;
 CREATE TABLE `flower`  (
-  `id` int(11) NOT NULL AUTO_INCREMENT,
-  `name` varchar(50) CHARACTER SET utf8 COLLATE utf8_general_ci NOT NULL,
+  `id` int NOT NULL AUTO_INCREMENT,
+  `name` varchar(50) NOT NULL,
   `unitprice` decimal(10, 2) NULL DEFAULT NULL,
   `costs` decimal(10, 2) NULL DEFAULT NULL,
-  `deleted` int(1) NULL DEFAULT 0,
-  PRIMARY KEY (`id`) USING BTREE
-) ENGINE = InnoDB AUTO_INCREMENT = 6 CHARACTER SET = utf8 COLLATE = utf8_general_ci ROW_FORMAT = Dynamic;
+  `deleted` tinyint NOT NULL DEFAULT 0,
+  PRIMARY KEY (`id`) USING BTREE,
+  KEY `idx_flower_deleted_name` (`deleted`, `name`) USING BTREE
+) ENGINE = InnoDB AUTO_INCREMENT = 6 DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci ROW_FORMAT = Dynamic;
 
 -- ----------------------------
 -- Records of flower
@@ -74,15 +78,18 @@ INSERT INTO `flower` VALUES (5, '白玫瑰', 17.00, 14.00, 1);
 -- ----------------------------
 DROP TABLE IF EXISTS `inventory`;
 CREATE TABLE `inventory`  (
-  `id` int(10) NOT NULL AUTO_INCREMENT,
-  `name` varchar(50) CHARACTER SET utf8 COLLATE utf8_general_ci NOT NULL,
-  `num` varchar(20) CHARACTER SET utf8 COLLATE utf8_general_ci NULL DEFAULT NULL,
-  `quantity` int(20) NULL DEFAULT NULL,
+  `id` int NOT NULL AUTO_INCREMENT,
+  `name` varchar(50) NOT NULL,
+  `num` varchar(20) NULL DEFAULT NULL,
+  `quantity` int NULL DEFAULT NULL,
   `date` datetime NULL DEFAULT NULL,
-  `residue` int(20) NULL DEFAULT NULL,
-  `deleted` int(1) NULL DEFAULT 0,
-  PRIMARY KEY (`id`) USING BTREE
-) ENGINE = InnoDB AUTO_INCREMENT = 13 CHARACTER SET = utf8 COLLATE = utf8_general_ci ROW_FORMAT = Dynamic;
+  `residue` int NULL DEFAULT NULL,
+  `deleted` tinyint NOT NULL DEFAULT 0,
+  PRIMARY KEY (`id`) USING BTREE,
+  UNIQUE KEY `uk_inventory_num` (`num`) USING BTREE,
+  KEY `idx_inventory_deleted_name` (`deleted`, `name`) USING BTREE,
+  KEY `idx_inventory_date` (`date`) USING BTREE
+) ENGINE = InnoDB AUTO_INCREMENT = 13 DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci ROW_FORMAT = Dynamic;
 
 -- ----------------------------
 -- Records of inventory
@@ -105,18 +112,20 @@ INSERT INTO `inventory` VALUES (12, '葵花', '2023081493090861', 100, '2023-08-
 -- ----------------------------
 DROP TABLE IF EXISTS `menu`;
 CREATE TABLE `menu`  (
-  `menu_id` int(11) NOT NULL AUTO_INCREMENT,
-  `component` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NULL DEFAULT NULL,
-  `path` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NULL DEFAULT NULL,
-  `redirect` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NULL DEFAULT NULL,
-  `name` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NULL DEFAULT NULL,
-  `title` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NULL DEFAULT NULL,
-  `icon` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NULL DEFAULT NULL,
-  `parent_id` int(11) NULL DEFAULT NULL,
-  `is_leaf` varchar(1) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NULL DEFAULT NULL,
-  `hidden` tinyint(1) NULL DEFAULT NULL,
-  PRIMARY KEY (`menu_id`) USING BTREE
-) ENGINE = InnoDB AUTO_INCREMENT = 10 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_general_ci ROW_FORMAT = Dynamic;
+  `menu_id` int NOT NULL AUTO_INCREMENT,
+  `component` varchar(100) NULL DEFAULT NULL,
+  `path` varchar(100) NULL DEFAULT NULL,
+  `redirect` varchar(100) NULL DEFAULT NULL,
+  `name` varchar(100) NULL DEFAULT NULL,
+  `title` varchar(100) NULL DEFAULT NULL,
+  `icon` varchar(100) NULL DEFAULT NULL,
+  `parent_id` int NULL DEFAULT NULL,
+  `is_leaf` varchar(1) NULL DEFAULT NULL,
+  `hidden` tinyint NOT NULL DEFAULT 0,
+  PRIMARY KEY (`menu_id`) USING BTREE,
+  KEY `idx_menu_parent_id` (`parent_id`) USING BTREE,
+  KEY `idx_menu_hidden` (`hidden`) USING BTREE
+) ENGINE = InnoDB AUTO_INCREMENT = 10 DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci ROW_FORMAT = Dynamic;
 
 -- ----------------------------
 -- Records of menu
@@ -136,11 +145,12 @@ INSERT INTO `menu` VALUES (9, 'custom/inventoryManage', 'inventoryManage', NULL,
 -- ----------------------------
 DROP TABLE IF EXISTS `role`;
 CREATE TABLE `role`  (
-  `role_id` int(11) NOT NULL AUTO_INCREMENT,
-  `role_name` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NULL DEFAULT NULL,
-  `role_desc` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NULL DEFAULT NULL,
-  PRIMARY KEY (`role_id`) USING BTREE
-) ENGINE = InnoDB AUTO_INCREMENT = 8 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_general_ci ROW_FORMAT = Dynamic;
+  `role_id` int NOT NULL AUTO_INCREMENT,
+  `role_name` varchar(50) NOT NULL,
+  `role_desc` varchar(100) NULL DEFAULT NULL,
+  PRIMARY KEY (`role_id`) USING BTREE,
+  KEY `idx_role_name` (`role_name`) USING BTREE
+) ENGINE = InnoDB AUTO_INCREMENT = 8 DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci ROW_FORMAT = Dynamic;
 
 -- ----------------------------
 -- Records of role
@@ -155,11 +165,13 @@ INSERT INTO `role` VALUES (7, 'Boss', '老板');
 -- ----------------------------
 DROP TABLE IF EXISTS `role_menu`;
 CREATE TABLE `role_menu`  (
-  `id` int(11) NOT NULL AUTO_INCREMENT,
-  `role_id` int(11) NULL DEFAULT NULL,
-  `menu_id` int(11) NULL DEFAULT NULL,
-  PRIMARY KEY (`id`) USING BTREE
-) ENGINE = InnoDB AUTO_INCREMENT = 50 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_general_ci ROW_FORMAT = Dynamic;
+  `id` int NOT NULL AUTO_INCREMENT,
+  `role_id` int NOT NULL,
+  `menu_id` int NOT NULL,
+  PRIMARY KEY (`id`) USING BTREE,
+  UNIQUE KEY `uk_role_menu_role_id_menu_id` (`role_id`, `menu_id`) USING BTREE,
+  KEY `idx_role_menu_menu_id` (`menu_id`) USING BTREE
+) ENGINE = InnoDB AUTO_INCREMENT = 50 DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci ROW_FORMAT = Dynamic;
 
 -- ----------------------------
 -- Records of role_menu
@@ -189,12 +201,13 @@ INSERT INTO `role_menu` VALUES (49, 7, 9);
 -- ----------------------------
 DROP TABLE IF EXISTS `sales`;
 CREATE TABLE `sales`  (
-  `id` int(10) NOT NULL AUTO_INCREMENT,
+  `id` int NOT NULL AUTO_INCREMENT,
   `date` datetime NULL DEFAULT NULL,
   `money` decimal(15, 2) NULL DEFAULT NULL,
-  `deleted` int(1) NULL DEFAULT 0,
-  PRIMARY KEY (`id`) USING BTREE
-) ENGINE = InnoDB AUTO_INCREMENT = 8 CHARACTER SET = utf8 COLLATE = utf8_general_ci ROW_FORMAT = Dynamic;
+  `deleted` tinyint NOT NULL DEFAULT 0,
+  PRIMARY KEY (`id`) USING BTREE,
+  KEY `idx_sales_deleted_date` (`deleted`, `date`) USING BTREE
+) ENGINE = InnoDB AUTO_INCREMENT = 8 DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci ROW_FORMAT = Dynamic;
 
 -- ----------------------------
 -- Records of sales
@@ -212,16 +225,19 @@ INSERT INTO `sales` VALUES (7, '2023-08-15 18:25:23', -400.25, 0);
 -- ----------------------------
 DROP TABLE IF EXISTS `user`;
 CREATE TABLE `user`  (
-  `id` int(11) NOT NULL AUTO_INCREMENT,
-  `username` varchar(50) CHARACTER SET utf8 COLLATE utf8_general_ci NOT NULL,
-  `password` varchar(100) CHARACTER SET utf8 COLLATE utf8_general_ci NULL DEFAULT NULL,
-  `email` varchar(50) CHARACTER SET utf8 COLLATE utf8_general_ci NULL DEFAULT NULL,
-  `phone` varchar(20) CHARACTER SET utf8 COLLATE utf8_general_ci NULL DEFAULT NULL,
-  `status` int(1) NULL DEFAULT NULL,
-  `avatar` varchar(200) CHARACTER SET utf8 COLLATE utf8_general_ci NULL DEFAULT NULL,
-  `deleted` int(1) NULL DEFAULT 0,
-  PRIMARY KEY (`id`) USING BTREE
-) ENGINE = InnoDB AUTO_INCREMENT = 3 CHARACTER SET = utf8 COLLATE = utf8_general_ci ROW_FORMAT = Dynamic;
+  `id` int NOT NULL AUTO_INCREMENT,
+  `username` varchar(50) NOT NULL,
+  `password` varchar(100) NULL DEFAULT NULL,
+  `email` varchar(50) NULL DEFAULT NULL,
+  `phone` varchar(20) NULL DEFAULT NULL,
+  `status` tinyint NULL DEFAULT NULL,
+  `avatar` varchar(200) NULL DEFAULT NULL,
+  `deleted` tinyint NOT NULL DEFAULT 0,
+  PRIMARY KEY (`id`) USING BTREE,
+  UNIQUE KEY `uk_user_username` (`username`) USING BTREE,
+  KEY `idx_user_phone` (`phone`) USING BTREE,
+  KEY `idx_user_deleted_status` (`deleted`, `status`) USING BTREE
+) ENGINE = InnoDB AUTO_INCREMENT = 3 DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci ROW_FORMAT = Dynamic;
 
 -- ----------------------------
 -- Records of user
@@ -234,33 +250,36 @@ INSERT INTO `user` VALUES (2, 'Jasmine', '$2a$10$PY5vfxJvPMQwEEtklOOgI.pGwB6kOeQ
 -- ----------------------------
 DROP TABLE IF EXISTS `user_role`;
 CREATE TABLE `user_role`  (
-  `id` int(11) NOT NULL AUTO_INCREMENT,
-  `user_id` int(11) NULL DEFAULT NULL,
-  `role_id` int(11) NULL DEFAULT NULL,
-  PRIMARY KEY (`id`) USING BTREE
-) ENGINE = InnoDB AUTO_INCREMENT = 5 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_general_ci ROW_FORMAT = Dynamic;
+  `id` int NOT NULL AUTO_INCREMENT,
+  `user_id` int NOT NULL,
+  `role_id` int NOT NULL,
+  PRIMARY KEY (`id`) USING BTREE,
+  UNIQUE KEY `uk_user_role_user_id_role_id` (`user_id`, `role_id`) USING BTREE,
+  KEY `idx_user_role_role_id` (`role_id`) USING BTREE
+) ENGINE = InnoDB AUTO_INCREMENT = 5 DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci ROW_FORMAT = Dynamic;
 
 -- ----------------------------
 -- Records of user_role
 -- ----------------------------
 INSERT INTO `user_role` VALUES (1, 1, 1);
-INSERT INTO `user_role` VALUES (2, 3, 2);
 INSERT INTO `user_role` VALUES (3, 2, 1);
-INSERT INTO `user_role` VALUES (4, 5, 4);
 
 -- ----------------------------
 -- Table structure for vip
 -- ----------------------------
 DROP TABLE IF EXISTS `vip`;
 CREATE TABLE `vip`  (
-  `id` int(10) NOT NULL AUTO_INCREMENT,
-  `vid` varchar(20) CHARACTER SET utf8 COLLATE utf8_general_ci NULL DEFAULT NULL,
-  `name` varchar(50) CHARACTER SET utf8 COLLATE utf8_general_ci NOT NULL,
-  `sex` varchar(2) CHARACTER SET utf8 COLLATE utf8_general_ci NULL DEFAULT NULL,
-  `phone` varchar(50) CHARACTER SET utf8 COLLATE utf8_general_ci NULL DEFAULT NULL,
-  `deleted` int(1) NULL DEFAULT 0,
-  PRIMARY KEY (`id`) USING BTREE
-) ENGINE = InnoDB AUTO_INCREMENT = 6 CHARACTER SET = utf8 COLLATE = utf8_general_ci ROW_FORMAT = Dynamic;
+  `id` int NOT NULL AUTO_INCREMENT,
+  `vid` varchar(20) NULL DEFAULT NULL,
+  `name` varchar(50) NOT NULL,
+  `sex` varchar(2) NULL DEFAULT NULL,
+  `phone` varchar(50) NULL DEFAULT NULL,
+  `deleted` tinyint NOT NULL DEFAULT 0,
+  PRIMARY KEY (`id`) USING BTREE,
+  UNIQUE KEY `uk_vip_vid` (`vid`) USING BTREE,
+  UNIQUE KEY `uk_vip_phone` (`phone`) USING BTREE,
+  KEY `idx_vip_deleted_name` (`deleted`, `name`) USING BTREE
+) ENGINE = InnoDB AUTO_INCREMENT = 6 DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci ROW_FORMAT = Dynamic;
 
 -- ----------------------------
 -- Records of vip
