@@ -1,25 +1,25 @@
 package com.nfu.jasmine.cus.controller;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
-import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.nfu.jasmine.common.vo.Result;
+import com.nfu.jasmine.common.vo.TableData;
+import com.nfu.jasmine.cus.dto.AppointmentCreateDTO;
+import com.nfu.jasmine.cus.dto.AppointmentQueryDTO;
+import com.nfu.jasmine.cus.dto.AppointmentUpdateDTO;
 import com.nfu.jasmine.cus.entity.Appointment;
-import com.nfu.jasmine.cus.entity.Vip;
-import com.nfu.jasmine.cus.mapper.VipMapper;
 import com.nfu.jasmine.cus.service.IAppointmentService;
+import com.nfu.jasmine.cus.vo.AppointmentVO;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
+import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.util.StringUtils;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
-import java.text.SimpleDateFormat;
-import java.util.Date;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 
 /**
  * <p>
@@ -30,101 +30,87 @@ import java.util.Map;
  * @since 2023-07-06
  */
 @Tag(name = "预约接口列表")
+@Validated
 @RestController
 @RequestMapping("/appointment")
 public class AppointmentController {
     @Autowired
     private IAppointmentService appointmentService;
-    @Autowired
-    private VipMapper vipMapper;
 
     @Operation(summary = "获取全部预约")
     @GetMapping("/all")
-    public Result<List<Appointment>> getAllAppointment() {
-        List<Appointment> list = appointmentService.list();
+    public Result<List<AppointmentVO>> getAllAppointment() {
+        List<AppointmentVO> list = appointmentService.list().stream().map(this::toAppointmentVO).toList();
         return Result.success(list, "查询成功");
     }
 
     @Operation(summary = "新增预约")
     @PostMapping("")
-    public Result<?> addAppointment(@RequestParam(value = "vid", required = false) String vid,
-                                    @RequestParam(value = "phone", required = false) String phone,
-                                    @RequestParam(value = "date", required = false) @DateTimeFormat(pattern = "yyyy-MM-dd HH:mm:ss") Date date,
-                                    @RequestParam(value = "content", required = false) String content) {
-        boolean vipExists = false;
-        if (vid != null) {
-            Vip vip = vipMapper.selectOne(new QueryWrapper<Vip>().eq("vid", vid));
-            if (vip != null) {
-                vipExists = true;
-            }
-        } else if (phone != null) {
-            Vip vip = vipMapper.selectOne(new QueryWrapper<Vip>().eq("phone", phone));
-            if (vip != null) {
-                vipExists = true;
-            }
+    public Result<?> addAppointment(@Valid @RequestBody AppointmentCreateDTO appointmentDTO) {
+        if (!StringUtils.hasLength(appointmentDTO.getVid()) && !StringUtils.hasLength(appointmentDTO.getPhone())) {
+            return Result.fail("会员卡号或手机号至少填写一项！");
         }
 
-        if (vipExists) {
-            appointmentService.addAppointment(vid, phone, date, content);
+        boolean success = appointmentService.addAppointment(
+                appointmentDTO.getVid(),
+                appointmentDTO.getPhone(),
+                appointmentDTO.getDate(),
+                appointmentDTO.getContent()
+        );
+        if (success) {
             return Result.success("新增预约成功!");
-        } else {
-            return Result.fail("用户信息不存在，请创建新会员！");
         }
+        return Result.fail("用户信息不存在，请创建新会员！");
     }
 
     @Operation(summary = "修改预约")
     @PutMapping("")
-    public Result<?> updateAppointment(@RequestBody Appointment appointment) {
+    public Result<?> updateAppointment(@Valid @RequestBody AppointmentUpdateDTO appointmentDTO) {
+        Appointment appointment = new Appointment();
+        BeanUtils.copyProperties(appointmentDTO, appointment);
         appointmentService.updateById(appointment);
         return Result.success("修改预约成功！");
     }
 
     @Operation(summary = "根据ID查询预约")
     @GetMapping("/{id}")
-    public Result<Appointment> getAppointmentById(@PathVariable("id") Integer id) {
+    public Result<AppointmentVO> getAppointmentById(@PathVariable("id") Integer id) {
         Appointment appointment = appointmentService.getById(id);
-        return Result.success(appointment);
+        return Result.success(appointment == null ? null : toAppointmentVO(appointment));
     }
 
     @Operation(summary = "根据ID逻辑删除预约数据")
     @DeleteMapping("/{id}")
-    public Result<Appointment> deleteAppointmentById(@PathVariable("id") Integer id) {
+    public Result<?> deleteAppointmentById(@PathVariable("id") Integer id) {
         appointmentService.removeById(id);
         return Result.success("删除预约数据成功！");
     }
 
     @Operation(summary = "查询预约")
     @GetMapping("/list")
-    public Result<Map<String, Object>> getAppointmentList(@RequestParam(value = "name", required = false) String name,
-                                                          @RequestParam(value = "phone", required = false) String phone,
-                                                          @RequestParam(value = "date", required = false) @DateTimeFormat(pattern = "yyyy-MM-dd HH:mm:ss") Date date,
-                                                          @RequestParam("pageNo") Long pageNo,
-                                                          @RequestParam("pageSize") Long pageSize) {
+    public Result<TableData<AppointmentVO>> getAppointmentList(@Valid AppointmentQueryDTO queryDTO) {
         LambdaQueryWrapper<Appointment> wrapper = new LambdaQueryWrapper<>();
 
-        // 使用LambdaQueryWrapper的like方法实现模糊查询
-        wrapper.like(StringUtils.hasLength(name), Appointment::getName, name);
-        wrapper.like(StringUtils.hasLength(phone), Appointment::getPhone, phone);
-
-        if (date != null && !date.equals("")) {
-            // 将日期字段转换为字符串进行模糊查询
-            SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
-            String dateString = sdf.format(date);
-            wrapper.like(Appointment::getDate, dateString);
-        } else {
-            date = null;
+        wrapper.like(StringUtils.hasLength(queryDTO.getName()), Appointment::getName, queryDTO.getName());
+        wrapper.like(StringUtils.hasLength(queryDTO.getPhone()), Appointment::getPhone, queryDTO.getPhone());
+        if (queryDTO.getDate() != null) {
+            wrapper.like(Appointment::getDate, queryDTO.getDate());
         }
-
-        // 按照ID进行排序
         wrapper.orderByAsc(Appointment::getId);
 
-        Page<Appointment> page = new Page<>(pageNo, pageSize);
+        Page<Appointment> page = new Page<>(queryDTO.getPageNo(), queryDTO.getPageSize());
         appointmentService.page(page, wrapper);
 
-        Map<String, Object> data = new HashMap<>();
-        data.put("total", page.getTotal());
-        data.put("rows", page.getRecords());
+        TableData<AppointmentVO> data = new TableData<>();
+        data.setTotal(page.getTotal());
+        data.setRows(page.getRecords().stream().map(this::toAppointmentVO).toList());
 
         return Result.success(data);
+    }
+
+    private AppointmentVO toAppointmentVO(Appointment appointment) {
+        AppointmentVO appointmentVO = new AppointmentVO();
+        BeanUtils.copyProperties(appointment, appointmentVO);
+        return appointmentVO;
     }
 }

@@ -16,16 +16,11 @@ export default {
         });
     },
     // 新增预约
-    addAppointment(vid, phone, date, content) {
+    addAppointment(appointment) {
         return request({
             url: '/appointment',
             method: 'post',
-            params: {
-                vid: vid,
-                phone: phone,
-                date: date,
-                content: content
-            }
+            data: appointment
         });
     },
     // 修改预约
