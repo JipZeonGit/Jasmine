@@ -29,7 +29,8 @@ app:
 
 logging:
   level:
-    com.nfu.jasmine: debug
+    com.nfu.jasmine: INFO
+    ACCESS_LOG: INFO
 
 mybatis-plus:
   global-config:
@@ -44,10 +45,26 @@ management:
   endpoints:
     web:
       exposure:
-        include: health,info
+        include: health,info,metrics,prometheus
   endpoint:
     health:
       show-details: always
+  prometheus:
+    metrics:
+      export:
+        enabled: true
+  metrics:
+    tags:
+      application: ${spring.application.name}
+    distribution:
+      percentiles-histogram:
+        http.server.requests: true
+    enable:
+      jvm: true
+      process: true
+      system: true
+      hikaricp: true
+      http: true
 
 info:
   app:

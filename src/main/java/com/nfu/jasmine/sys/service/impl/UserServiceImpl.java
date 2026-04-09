@@ -18,6 +18,7 @@ import com.nfu.jasmine.sys.service.IMenuService;
 import com.nfu.jasmine.sys.service.IUserService;
 import com.nfu.jasmine.sys.vo.LoginVO;
 import com.nfu.jasmine.sys.vo.UserInfoVO;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
@@ -38,6 +39,7 @@ import java.util.stream.Collectors;
  * @author jipzeongit
  * @since 2023-05-29
  */
+@Slf4j
 @Service
 public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements IUserService {
     @Autowired
@@ -60,10 +62,12 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements IU
         wrapper.eq(User::getUsername, loginDTO.getUsername());
         User loginUser = this.baseMapper.selectOne(wrapper);
         if (loginUser == null || !passwordEncoder.matches(loginDTO.getPassword(), loginUser.getPassword())) {
+            log.warn("用户登录失败 username={}", loginDTO.getUsername());
             return null;
         }
 
         revokeActiveRefreshTokens(loginUser.getId());
+        log.info("用户登录成功 userId={} username={}", loginUser.getId(), loginUser.getUsername());
         return issueTokenPair(loginUser);
     }
 
@@ -75,6 +79,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements IU
         try {
             claims = jwtUtil.parseRefreshToken(refreshTokenDTO.getRefreshToken());
         } catch (Exception e) {
+            log.warn("刷新令牌解析失败 message={}", e.getMessage());
             return null;
         }
 
@@ -86,6 +91,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements IU
                 .last("limit 1");
         AuthRefreshToken refreshToken = authRefreshTokenMapper.selectOne(wrapper);
         if (refreshToken == null) {
+            log.warn("刷新令牌已失效 userId={}", claims.getUserId());
             return null;
         }
 
@@ -94,9 +100,11 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements IU
 
         User user = this.baseMapper.selectById(claims.getUserId());
         if (user == null || Integer.valueOf(1).equals(user.getDeleted())) {
+            log.warn("刷新令牌对应用户不存在或已删除 userId={}", claims.getUserId());
             return null;
         }
 
+        log.info("刷新访问令牌成功 userId={} username={}", user.getId(), user.getUsername());
         return issueTokenPair(user);
     }
 
@@ -140,7 +148,9 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements IU
         try {
             JwtTokenClaims claims = jwtUtil.parseAccessToken(token);
             revokeActiveRefreshTokens(claims.getUserId());
-        } catch (Exception ignored) {
+            log.info("用户退出登录 userId={}", claims.getUserId());
+        } catch (Exception e) {
+            log.warn("注销时访问令牌无效 message={}", e.getMessage());
         }
     }
 
@@ -223,8 +233,10 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements IU
             user.setPassword(passwordEncoder.encode(newPassword));
             this.baseMapper.updateById(user);
             revokeActiveRefreshTokens(user.getId());
+            log.info("用户修改密码成功 userId={} username={}", user.getId(), user.getUsername());
             return true;
         }
+        log.warn("用户修改密码失败 username={}", username);
         return false; // 修改失败，用户名或旧密码不匹配
     }
 
