@@ -1,12 +1,10 @@
 package com.nfu.jasmine.sys.controller;
 
-import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nfu.jasmine.config.AbstractIntegrationTest;
 import com.nfu.jasmine.sys.entity.User;
 import com.nfu.jasmine.sys.mapper.UserMapper;
-import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -17,6 +15,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -40,13 +39,6 @@ class UserControllerSecurityIT extends AbstractIntegrationTest {
 
     @Autowired
     private PasswordEncoder passwordEncoder;
-
-    @AfterEach
-    void cleanup() {
-        LambdaQueryWrapper<User> wrapper = new LambdaQueryWrapper<>();
-        wrapper.eq(User::getUsername, "security-smoke-user");
-        userMapper.delete(wrapper);
-    }
 
     @Test
     void getUserListWithoutLoginShouldBeRejected() throws Exception {
@@ -86,7 +78,7 @@ class UserControllerSecurityIT extends AbstractIntegrationTest {
                         .header("Authorization", "Bearer " + loginData.path("token").asText()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(20000))
-                .andExpect(jsonPath("$.data.name").value("security-smoke-user"));
+                .andExpect(jsonPath("$.data.name").value(loginData.path("username").asText()));
     }
 
     @Test
@@ -153,18 +145,20 @@ class UserControllerSecurityIT extends AbstractIntegrationTest {
     }
 
     private JsonNode loginAndReturnData() throws Exception {
+        String suffix = UUID.randomUUID().toString().replace("-", "").substring(0, 8);
+        String username = "security-smoke-" + suffix;
         User seedUser = new User();
-        seedUser.setUsername("security-smoke-user");
+        seedUser.setUsername(username);
         seedUser.setPassword(passwordEncoder.encode("password123"));
-        seedUser.setEmail("security-smoke-user@test.com");
+        seedUser.setEmail("sec-" + suffix + "@test.com");
         seedUser.setPhone("13800000001");
         seedUser.setStatus(1);
-        seedUser.setAvatar("https://example.com/security-smoke-user.png");
+        seedUser.setAvatar("https://example.com/" + username + ".png");
         seedUser.setDeleted(0);
         userMapper.insert(seedUser);
 
         Map<String, Object> loginRequest = new HashMap<>();
-        loginRequest.put("username", "security-smoke-user");
+        loginRequest.put("username", username);
         loginRequest.put("password", "password123");
 
         String loginResponse = mockMvc.perform(post("/user/login")
@@ -178,6 +172,8 @@ class UserControllerSecurityIT extends AbstractIntegrationTest {
                 .getResponse()
                 .getContentAsString();
 
-        return objectMapper.readTree(loginResponse).path("data");
+        JsonNode data = objectMapper.readTree(loginResponse).path("data");
+        ((com.fasterxml.jackson.databind.node.ObjectNode) data).put("username", username);
+        return data;
     }
 }
