@@ -145,11 +145,12 @@ class UserControllerSecurityIT extends AbstractIntegrationTest {
     }
 
     private JsonNode loginAndReturnData() throws Exception {
-        String username = "security-smoke-user-" + UUID.randomUUID().toString().replace("-", "");
+        String suffix = UUID.randomUUID().toString().replace("-", "").substring(0, 8);
+        String username = "security-smoke-" + suffix;
         User seedUser = new User();
         seedUser.setUsername(username);
         seedUser.setPassword(passwordEncoder.encode("password123"));
-        seedUser.setEmail(username + "@test.com");
+        seedUser.setEmail("sec-" + suffix + "@test.com");
         seedUser.setPhone("13800000001");
         seedUser.setStatus(1);
         seedUser.setAvatar("https://example.com/" + username + ".png");
