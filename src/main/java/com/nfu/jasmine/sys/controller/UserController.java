@@ -7,14 +7,19 @@ import com.nfu.jasmine.common.vo.TableData;
 import com.nfu.jasmine.sys.dto.ChangePasswordDTO;
 import com.nfu.jasmine.sys.dto.LoginDTO;
 import com.nfu.jasmine.sys.dto.RefreshTokenDTO;
+import com.nfu.jasmine.sys.dto.UserCreateDTO;
+import com.nfu.jasmine.sys.dto.UserQueryDTO;
+import com.nfu.jasmine.sys.dto.UserUpdateDTO;
 import com.nfu.jasmine.sys.entity.User;
 import com.nfu.jasmine.sys.service.IUserService;
 import com.nfu.jasmine.sys.vo.LoginVO;
 import com.nfu.jasmine.sys.vo.UserInfoVO;
+import com.nfu.jasmine.sys.vo.UserVO;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
+import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -24,6 +29,7 @@ import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.stream.Collectors;
 
 /**
  * <p>
@@ -46,8 +52,8 @@ public class UserController {
 
     @Operation(summary = "获取全部用户")
     @GetMapping("/all")
-    public Result<List<User>> getAllUser() {
-        List<User> list = userService.list();
+    public Result<List<UserVO>> getAllUser() {
+        List<UserVO> list = userService.list().stream().map(this::toUserVO).collect(Collectors.toList());
         return Result.success(list, "查询成功");
     }
 
@@ -92,36 +98,37 @@ public class UserController {
 
     @Operation(summary = "查询用户")
     @GetMapping("/list")
-    public Result<TableData<User>> getUserList(@RequestParam(value = "username", required = false) String username,
-            @RequestParam(value = "phone", required = false) String phone, @RequestParam("pageNo") Long pageNo,
-            @RequestParam("pageSize") Long pageSize) {
-
+    public Result<TableData<UserVO>> getUserList(@Valid UserQueryDTO queryDTO) {
         LambdaQueryWrapper<User> wrapper = new LambdaQueryWrapper<>();
-        wrapper.like(StringUtils.hasLength(username), User::getUsername, username);
-        wrapper.like(StringUtils.hasLength(phone), User::getPhone, phone);
+        wrapper.like(StringUtils.hasLength(queryDTO.getUsername()), User::getUsername, queryDTO.getUsername());
+        wrapper.like(StringUtils.hasLength(queryDTO.getPhone()), User::getPhone, queryDTO.getPhone());
         wrapper.orderByAsc(User::getId); // 按照用户ID进行排序
 
-        Page<User> page = new Page<>(pageNo, pageSize);
+        Page<User> page = new Page<>(queryDTO.getPageNo(), queryDTO.getPageSize());
         userService.page(page, wrapper);
 
-        TableData<User> data = new TableData<>();
+        TableData<UserVO> data = new TableData<>();
         data.setTotal(page.getTotal());
-        data.setRows(page.getRecords());
+        data.setRows(page.getRecords().stream().map(this::toUserVO).collect(Collectors.toList()));
 
         return Result.success(data);
     }
 
     @Operation(summary = "新增用户")
     @PostMapping("")
-    public Result<?> addUser(@RequestBody User user) {
-        user.setPassword(passwordEncoder.encode(user.getPassword())); // 用户密码加密
+    public Result<?> addUser(@Valid @RequestBody UserCreateDTO userDTO) {
+        User user = new User();
+        BeanUtils.copyProperties(userDTO, user);
+        user.setPassword(passwordEncoder.encode(userDTO.getPassword())); // 用户密码加密
         userService.addUser(user);
         return Result.success("新增用户成功！");
     }
 
     @Operation(summary = "修改用户")
     @PutMapping("")
-    public Result<?> updateUser(@RequestBody User user) {
+    public Result<?> updateUser(@Valid @RequestBody UserUpdateDTO userDTO) {
+        User user = new User();
+        BeanUtils.copyProperties(userDTO, user);
         user.setPassword(null);
         userService.updateUser(user);
         return Result.success("修改用户成功！");
@@ -129,14 +136,14 @@ public class UserController {
 
     @Operation(summary = "根据ID查询单个用户")
     @GetMapping("/{id}")
-    public Result<User> getUserById(@PathVariable("id") Integer id) {
+    public Result<UserVO> getUserById(@PathVariable("id") Integer id) {
         User user = userService.getUserById(id);
-        return Result.success(user);
+        return Result.success(toUserVO(user));
     }
 
     @Operation(summary = "根据ID逻辑删除用户数据")
     @DeleteMapping("/{id}")
-    public Result<User> deleteUserById(@PathVariable("id") Integer id) {
+    public Result<?> deleteUserById(@PathVariable("id") Integer id) {
         userService.deleteUserById(id);
         return Result.success("删除用户数据成功！");
     }
@@ -170,5 +177,14 @@ public class UserController {
             return authorization.substring(7);
         }
         return null;
+    }
+
+    private UserVO toUserVO(User user) {
+        if (user == null) {
+            return null;
+        }
+        UserVO vo = new UserVO();
+        BeanUtils.copyProperties(user, vo);
+        return vo;
     }
 }

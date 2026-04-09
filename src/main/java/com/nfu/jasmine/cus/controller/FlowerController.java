@@ -3,17 +3,23 @@ package com.nfu.jasmine.cus.controller;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.nfu.jasmine.common.vo.Result;
+import com.nfu.jasmine.common.vo.TableData;
+import com.nfu.jasmine.cus.dto.FlowerQueryDTO;
+import com.nfu.jasmine.cus.dto.FlowerSaveDTO;
 import com.nfu.jasmine.cus.entity.Flower;
 import com.nfu.jasmine.cus.service.IFlowerService;
+import com.nfu.jasmine.cus.vo.FlowerVO;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
+import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.util.StringUtils;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
+import java.util.stream.Collectors;
 
 /**
  * <p>
@@ -24,6 +30,7 @@ import java.util.Map;
  * @since 2023-07-06
  */
 @Tag(name = "花卉接口列表")
+@Validated
 @RestController
 @RequestMapping("/flower")
 public class FlowerController {
@@ -32,60 +39,69 @@ public class FlowerController {
 
     @Operation(summary = "获取全部花卉")
     @GetMapping("/all")
-    public Result<List<Flower>> getAllFlower() {
-        List<Flower> list = flowerService.list();
+    public Result<List<FlowerVO>> getAllFlower() {
+        List<FlowerVO> list = flowerService.list().stream().map(this::toFlowerVO).collect(Collectors.toList());
         return Result.success(list, "查询成功");
     }
 
     @Operation(summary = "新增花卉")
     @PostMapping("")
-    public Result<?> addFlower(@RequestBody Flower flower) {
+    public Result<?> addFlower(@Valid @RequestBody FlowerSaveDTO flowerDTO) {
+        Flower flower = new Flower();
+        BeanUtils.copyProperties(flowerDTO, flower);
         flowerService.save(flower);
         return Result.success("新增花卉成功！");
     }
 
     @Operation(summary = "修改花卉")
     @PutMapping("")
-    public Result<?> updateFlower(@RequestBody Flower flower) {
+    public Result<?> updateFlower(@Valid @RequestBody FlowerSaveDTO flowerDTO) {
+        if (flowerDTO.getId() == null) {
+            return Result.fail(20005, "花卉ID不能为空！");
+        }
+        Flower flower = new Flower();
+        BeanUtils.copyProperties(flowerDTO, flower);
         flowerService.updateById(flower);
         return Result.success("修改花卉成功！");
     }
 
     @Operation(summary = "根据ID查询单种花卉")
     @GetMapping("/{id}")
-    public Result<Flower> getFlowerById(@PathVariable("id") Integer id) {
+    public Result<FlowerVO> getFlowerById(@PathVariable("id") Integer id) {
         Flower flower = flowerService.getById(id);
-        return Result.success(flower);
+        return Result.success(toFlowerVO(flower));
     }
 
     @Operation(summary = "根据ID逻辑删除花卉数据")
     @DeleteMapping("/{id}")
-    public Result<Flower> deleteFlowerById(@PathVariable("id") Integer id) {
+    public Result<?> deleteFlowerById(@PathVariable("id") Integer id) {
         flowerService.removeById(id);
         return Result.success("删除花卉数据成功！");
     }
 
     @Operation(summary = "查询花卉")
     @GetMapping("/list")
-    public Result<Map<String, Object>> getFlowerList(@RequestParam(value = "name", required = false) String name,
-                                                     @RequestParam("pageNo") Long pageNo,
-                                                     @RequestParam("pageSize") Long pageSize) {
-
+    public Result<TableData<FlowerVO>> getFlowerList(@Valid FlowerQueryDTO queryDTO) {
         LambdaQueryWrapper<Flower> wrapper = new LambdaQueryWrapper<>();
-
-        // 使用LambdaQueryWrapper的like方法实现模糊查询
-        wrapper.like(StringUtils.hasLength(name), Flower::getName, name);
-
-        // 按照ID进行排序
+        wrapper.like(StringUtils.hasLength(queryDTO.getName()), Flower::getName, queryDTO.getName());
         wrapper.orderByAsc(Flower::getId);
 
-        Page<Flower> page = new Page<>(pageNo, pageSize);
+        Page<Flower> page = new Page<>(queryDTO.getPageNo(), queryDTO.getPageSize());
         flowerService.page(page, wrapper);
 
-        Map<String, Object> data = new HashMap<>();
-        data.put("total", page.getTotal());
-        data.put("rows", page.getRecords());
+        TableData<FlowerVO> data = new TableData<>();
+        data.setTotal(page.getTotal());
+        data.setRows(page.getRecords().stream().map(this::toFlowerVO).collect(Collectors.toList()));
 
         return Result.success(data);
+    }
+
+    private FlowerVO toFlowerVO(Flower flower) {
+        if (flower == null) {
+            return null;
+        }
+        FlowerVO vo = new FlowerVO();
+        BeanUtils.copyProperties(flower, vo);
+        return vo;
     }
 }
