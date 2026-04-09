@@ -32,6 +32,7 @@ public class RequestTraceFilter extends OncePerRequestFilter {
         String requestId = resolveOrCreateId(request.getHeader(REQUEST_HEADER));
         long startTime = System.currentTimeMillis();
 
+        // 统一把请求标识放进 MDC，后续业务日志和访问日志都能自动带上这两个字段。
         MDC.put(TRACE_ID, traceId);
         MDC.put(REQUEST_ID, requestId);
         response.setHeader(TRACE_HEADER, traceId);
@@ -55,6 +56,7 @@ public class RequestTraceFilter extends OncePerRequestFilter {
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
         String uri = request.getRequestURI();
+        // 健康检查、文档等高频公共端点不单独记录访问日志，避免污染主要业务日志。
         return "/actuator/health".equals(uri)
                 || "/actuator/info".equals(uri)
                 || "/actuator/prometheus".equals(uri)
@@ -82,6 +84,7 @@ public class RequestTraceFilter extends OncePerRequestFilter {
     private String resolveClientIp(HttpServletRequest request) {
         String forwardedFor = request.getHeader("X-Forwarded-For");
         if (StringUtils.hasText(forwardedFor)) {
+            // 经过代理时优先记录真实来源 IP，便于后续排查访问链路。
             return forwardedFor.split(",")[0].trim();
         }
         return request.getRemoteAddr();
