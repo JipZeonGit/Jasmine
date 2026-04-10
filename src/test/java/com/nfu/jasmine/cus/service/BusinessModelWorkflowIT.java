@@ -121,14 +121,19 @@ class BusinessModelWorkflowIT extends AbstractIntegrationTest {
 
     @Test
     void createAppointmentShouldBindRealVipRelation() {
+        String content = "集成测试预约-" + System.currentTimeMillis();
+
         AppointmentCreateDTO appointmentDTO = new AppointmentCreateDTO();
         appointmentDTO.setPhone("13677778888");
         appointmentDTO.setDate(new Date());
-        appointmentDTO.setContent("测试预约");
+        appointmentDTO.setContent(content);
 
         appointmentService.createAppointment(appointmentDTO);
 
-        AppointmentVO latestAppointment = appointmentService.listAppointments().stream().findFirst().orElse(null);
+        AppointmentVO latestAppointment = appointmentService.listAppointments().stream()
+                .filter(item -> content.equals(item.getContent()))
+                .findFirst()
+                .orElse(null);
         assertThat(latestAppointment).isNotNull();
         assertThat(latestAppointment.getVipId()).isEqualTo(1);
         assertThat(latestAppointment.getName()).isEqualTo("管先生");
