@@ -36,6 +36,7 @@ public class SalesController {
     @Autowired
     private ISalesService salesService;
 
+$1// 一次性把所有的销售订单拉出来
     @Operation(summary = "获取全部销售单")
     @GetMapping("/all")
     public Result<List<SalesVO>> getAllSales() {
@@ -48,6 +49,7 @@ public class SalesController {
         return Result.success(salesService.getTodayBusinessSummary());
     }
 
+$1// 结账新增一笔销售单记录
     @Operation(summary = "新增销售单")
     @PostMapping("")
     public Result<?> addSales(@Valid @RequestBody SalesSaveDTO salesDTO, HttpServletRequest request) {
@@ -55,6 +57,7 @@ public class SalesController {
         return Result.success("新增销售单成功！");
     }
 
+$1// 修改销售单的数据内容
     @Operation(summary = "修改销售单")
     @PutMapping("")
     public Result<?> updateSales(@Valid @RequestBody SalesSaveDTO salesDTO, HttpServletRequest request) {
@@ -65,12 +68,14 @@ public class SalesController {
         return Result.success("修改销售单成功！");
     }
 
+$1// 给一个销售单ID，返回这张单的具体信息
     @Operation(summary = "根据ID查询销售单")
     @GetMapping("/{id}")
     public Result<SalesVO> getSalesById(@PathVariable("id") Integer id) {
         return Result.success(salesService.getSalesDetail(id));
     }
 
+$1// 逻辑删除这一条销售订单记录
     @Operation(summary = "根据ID逻辑删除销售单")
     @DeleteMapping("/{id}")
     public Result<?> deleteSalesById(@PathVariable("id") Integer id) {
@@ -78,6 +83,7 @@ public class SalesController {
         return Result.success("删除销售单成功！");
     }
 
+$1// 分页查询销售订单列表，支持按售出日期来过滤
     @Operation(summary = "分页查询销售单")
     @GetMapping("/list")
     public Result<TableData<SalesVO>> getSalesList(@Valid SalesQueryDTO queryDTO) {

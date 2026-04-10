@@ -39,6 +39,7 @@ public class RoleController {
     @Autowired
     private IRoleService roleService;
 
+    // 带分页的角色列表查询接口，可以按角色名称搜索
     @Operation(summary = "查询角色")
     @GetMapping("/list")
     public Result<TableData<RoleVO>> getUserList(@Valid RoleQueryDTO queryDTO) {
@@ -55,6 +56,7 @@ public class RoleController {
         return Result.success(data);
     }
 
+    // 创建并保存一个新的系统角色
     @Operation(summary = "新增角色")
     @PostMapping
     public Result<?> addRole(@Valid @RequestBody RoleSaveDTO roleDTO) {
@@ -64,6 +66,7 @@ public class RoleController {
         return Result.success("新增角色成功");
     }
 
+    // 更新某个角色的信息设定，比如它绑定的菜单权限
     @Operation(summary = "修改角色")
     @PutMapping
     public Result<?> updateRole(@Valid @RequestBody RoleSaveDTO roleDTO) {
@@ -76,6 +79,7 @@ public class RoleController {
         return Result.success("修改角色成功");
     }
 
+    // 用角色ID来查找某一个具体角色的资料
     @Operation(summary = "根据ID查询单个角色")
     @GetMapping("/{id}")
     public Result<RoleVO> getRoleById(@PathVariable("id") Integer id) {
@@ -83,6 +87,7 @@ public class RoleController {
         return Result.success(toRoleVO(role));
     }
 
+    // 收除对应ID的角色，做逻辑软删处理
     @Operation(summary = "根据ID逻辑删除角色数据")
     @DeleteMapping("/{id}")
     public Result<?> deleteRoleById(@PathVariable("id") Integer id) {
@@ -90,6 +95,7 @@ public class RoleController {
         return Result.success("删除角色数据成功");
     }
 
+    // 获取整个系统所有的角色数据（不分页）
     @Operation(summary = "查询所有角色")
     @GetMapping("/all")
     public Result<List<RoleVO>> getAllRole() {

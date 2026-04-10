@@ -42,6 +42,7 @@ public class VipController {
     @Autowired
     private VipMapper vipMapper;
 
+    // 获取所有会员的数据，不分页
     @Operation(summary = "获取全部会员")
     @GetMapping("/all")
     public Result<List<VipVO>> getAllVip() {
@@ -49,6 +50,7 @@ public class VipController {
         return Result.success(list, "查询成功");
     }
 
+    // 添加新的会员，并生成会员卡号，还要校验手机号是否已被占用
     @Operation(summary = "新增会员")
     @PostMapping("")
     public Result<?> addVip(@Valid @RequestBody VipSaveDTO vipDTO) {
@@ -63,6 +65,7 @@ public class VipController {
         return Result.success("新增会员成功!");
     }
 
+    // 根据传入的会员信息更新数据，同样会拦截手机号被其他会员占用的情况
     @Operation(summary = "修改会员")
     @PutMapping("")
     public Result<?> updateVip(@Valid @RequestBody VipSaveDTO vipDTO) {
@@ -79,6 +82,7 @@ public class VipController {
         return Result.success("修改会员成功！");
     }
 
+    // 提供ID来单独获取某个会员的详细信息
     @Operation(summary = "根据ID查询会员")
     @GetMapping("/{id}")
     public Result<VipVO> getVipById(@PathVariable("id") Integer id) {
@@ -86,6 +90,7 @@ public class VipController {
         return Result.success(vip == null ? null : toVipVO(vip));
     }
 
+    // 通过ID去软删除（逻辑删除）某一个会员
     @Operation(summary = "根据ID逻辑删除会员数据")
     @DeleteMapping("/{id}")
     public Result<?> deleteVipById(@PathVariable("id") Integer id) {
@@ -93,6 +98,7 @@ public class VipController {
         return Result.success("删除会员数据成功！");
     }
 
+    // 分页查询会员列表，支持按姓名、卡号、手机号进行模糊搜索
     @Operation(summary = "查询会员")
     @GetMapping("/list")
     public Result<TableData<VipVO>> getVipList(@Valid VipQueryDTO queryDTO) {
