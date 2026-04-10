@@ -18,13 +18,6 @@ public class AppointmentUpdateDTO {
     @DateTimeFormat(pattern = "yyyy-MM-dd HH:mm:ss")
     private Date date;
 
-    private String vid;
-    private String name;
-    private String sex;
-
-    @NotBlank(message = "手机号不能为空！")
-    private String phone;
-
     @NotBlank(message = "预约内容不能为空！")
     private String content;
 }

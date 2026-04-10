@@ -10,6 +10,11 @@ import java.util.Date;
 @Data
 @EqualsAndHashCode(callSuper = true)
 public class SalesQueryDTO extends PageQueryDTO {
+    private String orderNo;
+
     @DateTimeFormat(pattern = "yyyy-MM-dd HH:mm:ss")
-    private Date date;
+    private Date startTime;
+
+    @DateTimeFormat(pattern = "yyyy-MM-dd HH:mm:ss")
+    private Date endTime;
 }

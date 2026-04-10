@@ -14,5 +14,8 @@ public class AppointmentQueryDTO extends PageQueryDTO {
     private String phone;
 
     @DateTimeFormat(pattern = "yyyy-MM-dd HH:mm:ss")
-    private Date date;
+    private Date startTime;
+
+    @DateTimeFormat(pattern = "yyyy-MM-dd HH:mm:ss")
+    private Date endTime;
 }

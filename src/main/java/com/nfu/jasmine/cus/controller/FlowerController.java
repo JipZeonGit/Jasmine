@@ -20,16 +20,7 @@ import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
-import java.util.stream.Collectors;
 
-/**
- * <p>
- * 前端控制器
- * </p>
- *
- * @author jipzeongit
- * @since 2023-07-06
- */
 @Tag(name = "花卉接口列表")
 @Validated
 @RestController
@@ -41,8 +32,7 @@ public class FlowerController {
     @Operation(summary = "获取全部花卉")
     @GetMapping("/all")
     public Result<List<FlowerVO>> getAllFlower() {
-        List<FlowerVO> list = flowerService.list().stream().map(this::toFlowerVO).collect(Collectors.toList());
-        return Result.success(list, "查询成功");
+        return Result.success(flowerService.list().stream().map(this::toFlowerVO).toList(), "查询成功");
     }
 
     @Operation(summary = "新增花卉")
@@ -50,6 +40,8 @@ public class FlowerController {
     public Result<?> addFlower(@Valid @RequestBody FlowerSaveDTO flowerDTO) {
         Flower flower = new Flower();
         BeanUtils.copyProperties(flowerDTO, flower);
+        flower.setCurrentStock(0);
+        flower.setDeleted(0);
         flowerService.save(flower);
         return Result.success("新增花卉成功！");
     }
@@ -60,27 +52,40 @@ public class FlowerController {
         if (flowerDTO.getId() == null) {
             return Result.fail(ResultCode.VALIDATE_FAILED, "花卉ID不能为空！");
         }
-        Flower flower = new Flower();
+
+        Flower flower = flowerService.getById(flowerDTO.getId());
+        if (flower == null) {
+            return Result.fail(ResultCode.NOT_FOUND, "花卉不存在！");
+        }
+
+        Integer currentStock = flower.getCurrentStock();
         BeanUtils.copyProperties(flowerDTO, flower);
+        flower.setCurrentStock(currentStock);
         flowerService.updateById(flower);
         return Result.success("修改花卉成功！");
     }
 
-    @Operation(summary = "根据ID查询单种花卉")
+    @Operation(summary = "根据ID查询花卉")
     @GetMapping("/{id}")
     public Result<FlowerVO> getFlowerById(@PathVariable("id") Integer id) {
-        Flower flower = flowerService.getById(id);
-        return Result.success(toFlowerVO(flower));
+        return Result.success(toFlowerVO(flowerService.getById(id)));
     }
 
-    @Operation(summary = "根据ID逻辑删除花卉数据")
+    @Operation(summary = "根据ID逻辑删除花卉")
     @DeleteMapping("/{id}")
     public Result<?> deleteFlowerById(@PathVariable("id") Integer id) {
+        Flower flower = flowerService.getById(id);
+        if (flower == null) {
+            return Result.fail(ResultCode.NOT_FOUND, "花卉不存在！");
+        }
+        if (flower.getCurrentStock() != null && flower.getCurrentStock() > 0) {
+            return Result.fail(ResultCode.CONFLICT, "当前库存不为 0 的花卉不能直接删除！");
+        }
         flowerService.removeById(id);
-        return Result.success("删除花卉数据成功！");
+        return Result.success("删除花卉成功！");
     }
 
-    @Operation(summary = "查询花卉")
+    @Operation(summary = "分页查询花卉")
     @GetMapping("/list")
     public Result<TableData<FlowerVO>> getFlowerList(@Valid FlowerQueryDTO queryDTO) {
         LambdaQueryWrapper<Flower> wrapper = new LambdaQueryWrapper<>();
@@ -92,8 +97,7 @@ public class FlowerController {
 
         TableData<FlowerVO> data = new TableData<>();
         data.setTotal(page.getTotal());
-        data.setRows(page.getRecords().stream().map(this::toFlowerVO).collect(Collectors.toList()));
-
+        data.setRows(page.getRecords().stream().map(this::toFlowerVO).toList());
         return Result.success(data);
     }
 

@@ -1,16 +1,27 @@
 package com.nfu.jasmine.cus.service;
 
-import com.nfu.jasmine.cus.entity.Sales;
 import com.baomidou.mybatisplus.extension.service.IService;
+import com.nfu.jasmine.common.vo.TableData;
+import com.nfu.jasmine.cus.dto.SalesQueryDTO;
+import com.nfu.jasmine.cus.dto.SalesSaveDTO;
+import com.nfu.jasmine.cus.entity.Sales;
+import com.nfu.jasmine.cus.vo.SalesVO;
+import com.nfu.jasmine.cus.vo.TodayBusinessSummaryVO;
 
-/**
- * <p>
- *  服务类
- * </p>
- *
- * @author jipzeongit
- * @since 2023-07-06
- */
+import java.util.List;
+
 public interface ISalesService extends IService<Sales> {
+    List<SalesVO> listSales();
 
+    TableData<SalesVO> pageSales(SalesQueryDTO queryDTO);
+
+    SalesVO getSalesDetail(Integer id);
+
+    TodayBusinessSummaryVO getTodayBusinessSummary();
+
+    void saveSales(SalesSaveDTO salesDTO, Integer operatorId);
+
+    void updateSales(SalesSaveDTO salesDTO, Integer operatorId);
+
+    void deleteSales(Integer id);
 }

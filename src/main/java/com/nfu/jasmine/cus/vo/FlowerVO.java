@@ -8,6 +8,10 @@ import java.math.BigDecimal;
 public class FlowerVO {
     private Integer id;
     private String name;
-    private BigDecimal unitprice;
-    private BigDecimal costs;
+    private String unit;
+    private BigDecimal salePrice;
+    private BigDecimal costPrice;
+    private Integer safeStock;
+    private Integer currentStock;
+    private Integer status;
 }

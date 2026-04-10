@@ -13,9 +13,18 @@ public class FlowerSaveDTO {
     @NotBlank(message = "花卉名称不能为空！")
     private String name;
 
-    @NotNull(message = "花卉单价不能为空！")
-    private BigDecimal unitprice;
+    @NotBlank(message = "计量单位不能为空！")
+    private String unit;
+
+    @NotNull(message = "花卉售价不能为空！")
+    private BigDecimal salePrice;
 
     @NotNull(message = "花卉成本不能为空！")
-    private BigDecimal costs;
+    private BigDecimal costPrice;
+
+    @NotNull(message = "安全库存不能为空！")
+    private Integer safeStock;
+
+    @NotNull(message = "在售状态不能为空！")
+    private Integer status;
 }
