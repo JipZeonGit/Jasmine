@@ -30,6 +30,7 @@ public class MenuController {
     @Autowired
     private IMenuService menuService;
 
+    // 一次性获取系统中所有的菜单和权限树
     @Operation(summary = "获取全部权限")
     @GetMapping
     public Result<List<MenuVO>> getAllMenu() {

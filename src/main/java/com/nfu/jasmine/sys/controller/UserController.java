@@ -51,6 +51,7 @@ public class UserController {
     @Autowired
     private PasswordEncoder passwordEncoder;
 
+    // 获取所有后台用户的列表数据
     @Operation(summary = "获取全部用户")
     @GetMapping("/all")
     public Result<List<UserVO>> getAllUser() {
@@ -58,6 +59,7 @@ public class UserController {
         return Result.success(list, "查询成功");
     }
 
+    // 账号密码登录接口，返回一对 Token
     @Operation(summary = "用户登录")
     @PostMapping("/login")
     public Result<LoginVO> login(@Valid @RequestBody LoginDTO loginDTO) {
@@ -68,6 +70,7 @@ public class UserController {
         return Result.fail(ResultCode.LOGIN_ERROR);
     }
 
+    // 通过无感刷新用的 Token 来获取新的身份令牌
     @Operation(summary = "刷新登录状态")
     @PostMapping("/refresh")
     public Result<LoginVO> refreshToken(@Valid @RequestBody RefreshTokenDTO refreshTokenDTO) {
@@ -78,6 +81,7 @@ public class UserController {
         return Result.fail(ResultCode.UNAUTHORIZED, "刷新令牌无效或已过期，请重新登录！");
     }
 
+    // 获取当前登录用户的个人基本信息和对应的权限路由
     @Operation(summary = "获取用户信息")
     @GetMapping("/info")
     public Result<UserInfoVO> getUserInfo(HttpServletRequest request) {
@@ -89,6 +93,7 @@ public class UserController {
         return Result.fail(ResultCode.UNAUTHORIZED, "用户登录信息无效，请重新登录！");
     }
 
+    // 注销清理后端的登录状态及 Token 设置失效
     @Operation(summary = "注销用户")
     @PostMapping("/logout")
     public Result<?> logout(HttpServletRequest request) {
@@ -97,6 +102,7 @@ public class UserController {
         return Result.success();
     }
 
+    // 分页查询和搜索用户信息列表
     @Operation(summary = "查询用户")
     @GetMapping("/list")
     public Result<TableData<UserVO>> getUserList(@Valid UserQueryDTO queryDTO) {
@@ -115,6 +121,7 @@ public class UserController {
         return Result.success(data);
     }
 
+    // 由管理员在后台直接新建账号
     @Operation(summary = "新增用户")
     @PostMapping("")
     public Result<?> addUser(@Valid @RequestBody UserCreateDTO userDTO) {
@@ -125,6 +132,7 @@ public class UserController {
         return Result.success("新增用户成功！");
     }
 
+    // 修改用户信息，也会对应更新所属角色等信息，但不涉及密码修改
     @Operation(summary = "修改用户")
     @PutMapping("")
     public Result<?> updateUser(@Valid @RequestBody UserUpdateDTO userDTO) {
@@ -135,6 +143,7 @@ public class UserController {
         return Result.success("修改用户成功！");
     }
 
+    // 通过传递ID定位和查询一个用户
     @Operation(summary = "根据ID查询单个用户")
     @GetMapping("/{id}")
     public Result<UserVO> getUserById(@PathVariable("id") Integer id) {
@@ -142,6 +151,7 @@ public class UserController {
         return Result.success(toUserVO(user));
     }
 
+    // 根据用户的ID把它软删掉
     @Operation(summary = "根据ID逻辑删除用户数据")
     @DeleteMapping("/{id}")
     public Result<?> deleteUserById(@PathVariable("id") Integer id) {
@@ -149,6 +159,7 @@ public class UserController {
         return Result.success("删除用户数据成功！");
     }
 
+    // 用户自己提供的旧密码和新密码进行修改
     @Operation(summary = "修改用户密码")
     @PutMapping("/changePassword")
     public Result<String> changePassword(@Valid @RequestBody ChangePasswordDTO request) {
