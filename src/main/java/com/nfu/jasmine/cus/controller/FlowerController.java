@@ -29,14 +29,14 @@ public class FlowerController {
     @Autowired
     private IFlowerService flowerService;
 
-$1// 获取全部花卉的信息列表
+// 获取全部花卉的信息列表
     @Operation(summary = "获取全部花卉")
     @GetMapping("/all")
     public Result<List<FlowerVO>> getAllFlower() {
         return Result.success(flowerService.list().stream().map(this::toFlowerVO).toList(), "查询成功");
     }
 
-$1// 添加一种新花卉到库里
+// 添加一种新花卉到库里
     @Operation(summary = "新增花卉")
     @PostMapping("")
     public Result<?> addFlower(@Valid @RequestBody FlowerSaveDTO flowerDTO) {
@@ -48,7 +48,7 @@ $1// 添加一种新花卉到库里
         return Result.success("新增花卉成功！");
     }
 
-$1// 根据花卉ID去修改更新对应的花卉信息
+// 根据花卉ID去修改更新对应的花卉信息
     @Operation(summary = "修改花卉")
     @PutMapping("")
     public Result<?> updateFlower(@Valid @RequestBody FlowerSaveDTO flowerDTO) {
@@ -68,14 +68,14 @@ $1// 根据花卉ID去修改更新对应的花卉信息
         return Result.success("修改花卉成功！");
     }
 
-$1// 根据ID获取这单种花卉的资料信息
+// 根据ID获取这单种花卉的资料信息
     @Operation(summary = "根据ID查询花卉")
     @GetMapping("/{id}")
     public Result<FlowerVO> getFlowerById(@PathVariable("id") Integer id) {
         return Result.success(toFlowerVO(flowerService.getById(id)));
     }
 
-$1// 逻辑删除特定ID的花卉
+// 逻辑删除特定ID的花卉
     @Operation(summary = "根据ID逻辑删除花卉")
     @DeleteMapping("/{id}")
     public Result<?> deleteFlowerById(@PathVariable("id") Integer id) {
@@ -90,7 +90,7 @@ $1// 逻辑删除特定ID的花卉
         return Result.success("删除花卉成功！");
     }
 
-$1// 带分页的花卉列表查询，查名字的时候能模糊匹配
+// 带分页的花卉列表查询，查名字的时候能模糊匹配
     @Operation(summary = "分页查询花卉")
     @GetMapping("/list")
     public Result<TableData<FlowerVO>> getFlowerList(@Valid FlowerQueryDTO queryDTO) {

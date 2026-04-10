@@ -29,14 +29,14 @@ public class InventoryController {
     @Autowired
     private IInventoryService inventoryService;
 
-$1// 获取仓库中所有的库存物资，不带翻页
+// 获取仓库中所有的库存物资，不带翻页
     @Operation(summary = "获取全部库存流水")
     @GetMapping("/all")
     public Result<List<InventoryVO>> getAllInventory() {
         return Result.success(inventoryService.listInventory(), "查询成功");
     }
 
-$1// 录入新的库存项，并由系统自动生成物资编号
+// 录入新的库存项，并由系统自动生成物资编号
     @Operation(summary = "新增库存动作")
     @PostMapping("")
     public Result<?> addInventory(@Valid @RequestBody InventorySaveDTO inventoryDTO, HttpServletRequest request) {
@@ -44,7 +44,7 @@ $1// 录入新的库存项，并由系统自动生成物资编号
         return Result.success("新增库存动作成功！");
     }
 
-$1// 编辑和更新现有的库存存量或其他物资改动
+// 编辑和更新现有的库存存量或其他物资改动
     @Operation(summary = "修改库存动作")
     @PutMapping("")
     public Result<?> updateInventory(@Valid @RequestBody InventorySaveDTO inventoryDTO, HttpServletRequest request) {
@@ -55,14 +55,14 @@ $1// 编辑和更新现有的库存存量或其他物资改动
         return Result.success("修改库存动作成功！");
     }
 
-$1// 传物资ID过来查看它的单个记录
+// 传物资ID过来查看它的单个记录
     @Operation(summary = "根据ID查询库存流水")
     @GetMapping("/{id}")
     public Result<InventoryVO> getInventoryById(@PathVariable("id") Integer id) {
         return Result.success(inventoryService.getInventoryDetail(id));
     }
 
-$1// 软删指定的库存物资记录
+// 软删指定的库存物资记录
     @Operation(summary = "根据ID逻辑删除库存流水")
     @DeleteMapping("/{id}")
     public Result<?> deleteInventoryById(@PathVariable("id") Integer id) {
@@ -70,7 +70,7 @@ $1// 软删指定的库存物资记录
         return Result.success("删除库存流水成功！");
     }
 
-$1// 分页获取库存列表数据，也能根据物资名或者编号来搜
+// 分页获取库存列表数据，也能根据物资名或者编号来搜
     @Operation(summary = "分页查询库存流水")
     @GetMapping("/list")
     public Result<TableData<InventoryVO>> getInventoryList(@Valid InventoryQueryDTO queryDTO) {
