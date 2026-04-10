@@ -1,56 +1,50 @@
 import request from '@/utils/request'
 
 export default {
-    // 分页查询预约列表
-    getAppointmentList(searchModel) {
-        return request({
-            url: '/appointment/list',
-            method: 'get',
-            params: {
-                name: searchModel.name,
-                phone: searchModel.phone,
-                date: searchModel.date,
-                pageNo: searchModel.pageNo,
-                pageSize: searchModel.pageSize
-            }
-        });
-    },
-    // 新增预约
-    addAppointment(appointment) {
-        return request({
-            url: '/appointment',
-            method: 'post',
-            data: appointment
-        });
-    },
-    // 修改预约
-    updateAppointment(appointment) {
-        return request({
-            url: '/appointment',
-            method: 'put',
-            data: appointment
-        });
-    },
-    // 根据id查询预约
-    getAppointmentById(id) {
-        return request({
-            url: `/appointment/${id}`,
-            method: 'get'
-        });
-    },
-    // 根据id逻辑删除预约
-    deleteAppointmentById(id) {
-        return request({
-            url: `/appointment/${id}`,
-            method: 'delete'
-        });
-    },
-    // 获取全部预约
-    getAllAppointmentList() {
-        return request({
-            url: '/appointment/all',
-            method: 'get'
-        });
-    }
-
+  getAppointmentList(searchModel) {
+    return request({
+      url: '/appointment/list',
+      method: 'get',
+      params: {
+        name: searchModel.name,
+        phone: searchModel.phone,
+        startTime: searchModel.dateRange && searchModel.dateRange[0] ? searchModel.dateRange[0] : '',
+        endTime: searchModel.dateRange && searchModel.dateRange[1] ? searchModel.dateRange[1] : '',
+        pageNo: searchModel.pageNo,
+        pageSize: searchModel.pageSize
+      }
+    })
+  },
+  addAppointment(appointment) {
+    return request({
+      url: '/appointment',
+      method: 'post',
+      data: appointment
+    })
+  },
+  updateAppointment(appointment) {
+    return request({
+      url: '/appointment',
+      method: 'put',
+      data: appointment
+    })
+  },
+  getAppointmentById(id) {
+    return request({
+      url: `/appointment/${id}`,
+      method: 'get'
+    })
+  },
+  deleteAppointmentById(id) {
+    return request({
+      url: `/appointment/${id}`,
+      method: 'delete'
+    })
+  },
+  getAllAppointmentList() {
+    return request({
+      url: '/appointment/all',
+      method: 'get'
+    })
+  }
 }

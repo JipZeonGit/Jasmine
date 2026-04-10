@@ -10,6 +10,7 @@ import java.util.Date;
 
 @Data
 public class AppointmentCreateDTO {
+    private Integer vipId;
     private String vid;
     private String phone;
 

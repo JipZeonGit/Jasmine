@@ -1,18 +1,23 @@
 package com.nfu.jasmine.cus.service;
 
 import com.baomidou.mybatisplus.extension.service.IService;
+import com.nfu.jasmine.common.vo.TableData;
+import com.nfu.jasmine.cus.dto.AppointmentCreateDTO;
+import com.nfu.jasmine.cus.dto.AppointmentQueryDTO;
+import com.nfu.jasmine.cus.dto.AppointmentUpdateDTO;
 import com.nfu.jasmine.cus.entity.Appointment;
+import com.nfu.jasmine.cus.vo.AppointmentVO;
 
-import java.util.Date;
+import java.util.List;
 
-/**
- * <p>
- *  服务类
- * </p>
- *
- * @author jipzeongit
- * @since 2023-07-06
- */
 public interface IAppointmentService extends IService<Appointment> {
-    boolean addAppointment(String vid, String phone, Date date, String content);
+    List<AppointmentVO> listAppointments();
+
+    TableData<AppointmentVO> pageAppointments(AppointmentQueryDTO queryDTO);
+
+    AppointmentVO getAppointmentDetail(Integer id);
+
+    void createAppointment(AppointmentCreateDTO appointmentDTO);
+
+    void updateAppointment(AppointmentUpdateDTO appointmentDTO);
 }

@@ -1,20 +1,17 @@
 <template>
   <div>
-    <!-- 搜索栏 -->
     <el-card id="search">
       <el-row>
         <el-col :span="20">
-          <el-input v-model="searchModel.name" placeholder="花名" clearable></el-input>
-          <el-button @click="getFlowerList" type="primary" round icon="el-icon-search">查询</el-button>
+          <el-input v-model="searchModel.name" placeholder="花卉名称" clearable />
+          <el-button type="primary" round icon="el-icon-search" @click="getFlowerList">查询</el-button>
         </el-col>
         <el-col :span="4" align="right">
-          <!-- 圆形按钮 -->
-          <el-button @click="openEditUI(null)" type="primary" icon="el-icon-plus" circle></el-button>
+          <el-button type="primary" icon="el-icon-plus" circle @click="openEditUI()" />
         </el-col>
       </el-row>
     </el-card>
 
-    <!-- 结果列表 -->
     <el-card>
       <el-table :data="flowerList" stripe style="width: 100%">
         <el-table-column type="index" label="#" width="80">
@@ -22,43 +19,66 @@
             {{ (searchModel.pageNo - 1) * searchModel.pageSize + scope.$index + 1 }}
           </template>
         </el-table-column>
-        <el-table-column prop="id" label="花卉ID" width="180"></el-table-column>
-        <el-table-column prop="name" label="花名" width="180"></el-table-column>
-        <el-table-column prop="unitprice" label="单价（元）" width="180"></el-table-column>
-        <el-table-column prop="costs" label="成本（元）"></el-table-column>
-        <el-table-column label="操作">
+        <el-table-column prop="id" label="花卉ID" width="100" />
+        <el-table-column prop="name" label="花名" width="160" />
+        <el-table-column prop="unit" label="单位" width="100" />
+        <el-table-column prop="salePrice" label="售价(元)" width="120" />
+        <el-table-column prop="costPrice" label="成本价(元)" width="120" />
+        <el-table-column prop="safeStock" label="安全库存" width="110" />
+        <el-table-column prop="currentStock" label="当前库存" width="110" />
+        <el-table-column label="状态" width="100">
           <template slot-scope="scope">
-            <!-- 编辑按钮 -->
-            <el-button @click="openEditUI(scope.row.id)" type="primary" icon="el-icon-edit" size="mini"></el-button>
-            <!-- 删除按钮 -->
-            <el-button @click="deleteFlower(scope.row)" type="danger" icon="el-icon-delete" size="mini"></el-button>
+            <el-tag :type="scope.row.status === 1 ? 'success' : 'info'">
+              {{ scope.row.status === 1 ? '在售' : '停售' }}
+            </el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column label="操作" width="150">
+          <template slot-scope="scope">
+            <el-button type="primary" icon="el-icon-edit" size="mini" @click="openEditUI(scope.row.id)" />
+            <el-button type="danger" icon="el-icon-delete" size="mini" @click="deleteFlower(scope.row)" />
           </template>
         </el-table-column>
       </el-table>
     </el-card>
 
-    <!-- 分页组件 -->
     <el-pagination
+      :current-page="searchModel.pageNo"
+      :page-size="searchModel.pageSize"
+      :page-sizes="[10, 25, 50, 100]"
+      :total="total"
+      layout="total, sizes, prev, pager, next, jumper"
       @size-change="handleSizeChange"
       @current-change="handleCurrentChange"
-      :current-page="searchModel.pageNo"
-      :page-sizes="[10, 25, 50, 100, 250, 500]"
-      :page-size="searchModel.pageSize"
-      layout="total, sizes, prev, pager, next, jumper"
-      :total="total">
-    </el-pagination>
+    />
 
-    <!-- 花卉信息新增/编辑对话框 -->
-    <el-dialog @close="clearForm" :title="title" :visible.sync="dialogFormVisible">
-      <el-form :model="flowerForm" ref="flowerFormRef" :rules="rules">
-        <el-form-item label="花名" prop="name" :label-width="formLabelWidth">
-          <el-input v-model="flowerForm.name" autocomplete="off"></el-input>
+    <el-dialog :title="title" :visible.sync="dialogFormVisible" @close="clearForm">
+      <el-form ref="flowerFormRef" :model="flowerForm" :rules="rules">
+        <el-form-item label="花卉名称" prop="name" :label-width="formLabelWidth">
+          <el-input v-model="flowerForm.name" autocomplete="off" />
         </el-form-item>
-        <el-form-item label="单价（元）" prop="unitprice" :label-width="formLabelWidth">
-          <el-input v-model="flowerForm.unitprice" autocomplete="off"></el-input>
+        <el-form-item label="单位" prop="unit" :label-width="formLabelWidth">
+          <el-select v-model="flowerForm.unit" placeholder="请选择单位">
+            <el-option label="枝" value="枝" />
+            <el-option label="束" value="束" />
+            <el-option label="扎" value="扎" />
+            <el-option label="盆" value="盆" />
+          </el-select>
         </el-form-item>
-        <el-form-item label="成本（元）" prop="costs" :label-width="formLabelWidth">
-          <el-input v-model="flowerForm.costs" autocomplete="off"></el-input>
+        <el-form-item label="售价(元)" prop="salePrice" :label-width="formLabelWidth">
+          <el-input-number v-model="flowerForm.salePrice" :min="0" :precision="2" :controls="false" />
+        </el-form-item>
+        <el-form-item label="成本价(元)" prop="costPrice" :label-width="formLabelWidth">
+          <el-input-number v-model="flowerForm.costPrice" :min="0" :precision="2" :controls="false" />
+        </el-form-item>
+        <el-form-item label="安全库存" prop="safeStock" :label-width="formLabelWidth">
+          <el-input-number v-model="flowerForm.safeStock" :min="0" :controls="false" />
+        </el-form-item>
+        <el-form-item label="销售状态" prop="status" :label-width="formLabelWidth">
+          <el-radio-group v-model="flowerForm.status">
+            <el-radio :label="1">在售</el-radio>
+            <el-radio :label="0">停售</el-radio>
+          </el-radio-group>
         </el-form-item>
       </el-form>
       <div slot="footer" class="dialog-footer">
@@ -74,38 +94,37 @@ import flowerApi from '@/api/flowerManage'
 
 export default {
   data() {
-    const checkMoney = (rule, value, callback) => {
-      const reg = /^\d+(\.\d{1,2})?$/
-      if (!reg.test(value)) {
-        return callback(new Error('价格格式错误'))
-      }
-      callback()
-    }
-
     return {
       formLabelWidth: '130px',
-      flowerForm: this.getDefaultFlowerForm(),
       dialogFormVisible: false,
       title: '',
       total: 0,
+      flowerList: [],
       searchModel: {
         name: '',
         pageNo: 1,
         pageSize: 10
       },
-      flowerList: [],
+      flowerForm: this.getDefaultFlowerForm(),
       rules: {
         name: [
-          { required: true, message: '请输入花名', trigger: 'blur' },
+          { required: true, message: '请输入花卉名称', trigger: 'blur' },
           { min: 2, max: 50, message: '长度在 2 到 50 个字符', trigger: 'blur' }
         ],
-        unitprice: [
-          { required: true, message: '请输入单价', trigger: 'blur' },
-          { validator: checkMoney, trigger: 'blur' }
+        unit: [
+          { required: true, message: '请选择单位', trigger: 'change' }
         ],
-        costs: [
-          { required: true, message: '请输入成本', trigger: 'blur' },
-          { validator: checkMoney, trigger: 'blur' }
+        salePrice: [
+          { required: true, message: '请输入售价', trigger: 'change' }
+        ],
+        costPrice: [
+          { required: true, message: '请输入成本价', trigger: 'change' }
+        ],
+        safeStock: [
+          { required: true, message: '请输入安全库存', trigger: 'change' }
+        ],
+        status: [
+          { required: true, message: '请选择销售状态', trigger: 'change' }
         ]
       }
     }
@@ -115,12 +134,34 @@ export default {
       return {
         id: null,
         name: '',
-        unitprice: '',
-        costs: ''
+        unit: '枝',
+        salePrice: 0,
+        costPrice: 0,
+        safeStock: 0,
+        status: 1
       }
     },
+    getFlowerList() {
+      flowerApi.getFlowerList(this.searchModel).then(response => {
+        this.flowerList = response.data.rows
+        this.total = response.data.total
+      })
+    },
+    saveFlower() {
+      this.$refs.flowerFormRef.validate(valid => {
+        if (!valid) {
+          return false
+        }
+
+        flowerApi.saveFlower(this.flowerForm).then(response => {
+          this.$message({ type: 'success', message: response.message })
+          this.dialogFormVisible = false
+          this.getFlowerList()
+        })
+      })
+    },
     deleteFlower(flower) {
-      this.$confirm(`您确认删除花卉 ${flower.name} 吗？`, '提示', {
+      this.$confirm(`确认删除花卉 ${flower.name} 吗？`, '提示', {
         confirmButtonText: '确定',
         cancelButtonText: '取消',
         type: 'warning'
@@ -129,20 +170,20 @@ export default {
           this.$message({ type: 'success', message: response.message })
           this.getFlowerList()
         })
-      }).catch(() => {
-        this.$message({ type: 'info', message: '已取消删除' })
       })
     },
-    saveFlower() {
-      this.$refs.flowerFormRef.validate(valid => {
-        if (!valid) {
-          return false
-        }
-        flowerApi.saveFlower(this.flowerForm).then(response => {
-          this.$message({ message: response.message, type: 'success' })
-          this.dialogFormVisible = false
-          this.getFlowerList()
-        })
+    openEditUI(id) {
+      if (id === null || id === undefined) {
+        this.title = '新增花卉'
+        this.flowerForm = this.getDefaultFlowerForm()
+        this.dialogFormVisible = true
+        return
+      }
+
+      this.title = '修改花卉'
+      flowerApi.getFlowerById(id).then(response => {
+        this.flowerForm = Object.assign(this.getDefaultFlowerForm(), response.data)
+        this.dialogFormVisible = true
       })
     },
     clearForm() {
@@ -151,22 +192,6 @@ export default {
         this.$refs.flowerFormRef.clearValidate()
       }
     },
-    openEditUI(id) {
-      if (id === null || id === undefined) {
-        // 新增操作
-        this.title = '新增花卉'
-        this.flowerForm = this.getDefaultFlowerForm()
-        this.dialogFormVisible = true
-        return
-      }
-
-      // 编辑操作
-      this.title = '修改花卉'
-      flowerApi.getFlowerById(id).then(response => {
-        this.flowerForm = Object.assign(this.getDefaultFlowerForm(), response.data)
-        this.dialogFormVisible = true
-      })
-    },
     handleSizeChange(pageSize) {
       this.searchModel.pageSize = pageSize
       this.getFlowerList()
@@ -174,12 +199,6 @@ export default {
     handleCurrentChange(pageNo) {
       this.searchModel.pageNo = pageNo
       this.getFlowerList()
-    },
-    getFlowerList() {
-      flowerApi.getFlowerList(this.searchModel).then(response => {
-        this.flowerList = response.data.rows
-        this.total = response.data.total
-      })
     }
   },
   created() {
@@ -190,7 +209,7 @@ export default {
 
 <style>
 #search .el-input {
-  width: 200px;
+  width: 220px;
   margin-right: 20px;
 }
 
@@ -198,7 +217,9 @@ export default {
   border-radius: 20px;
 }
 
-.el-dialog .el-input {
+.el-dialog .el-input,
+.el-dialog .el-select,
+.el-dialog .el-input-number {
   width: 85%;
 }
 </style>

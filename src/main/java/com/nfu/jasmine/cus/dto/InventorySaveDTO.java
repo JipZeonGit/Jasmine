@@ -6,25 +6,28 @@ import jakarta.validation.constraints.NotNull;
 import lombok.Data;
 import org.springframework.format.annotation.DateTimeFormat;
 
+import java.math.BigDecimal;
 import java.util.Date;
 
 @Data
 public class InventorySaveDTO {
     private Integer id;
 
-    @NotBlank(message = "花卉名称不能为空！")
-    private String name;
+    @NotNull(message = "花卉不能为空！")
+    private Integer flowerId;
 
-    private String num;
+    @NotBlank(message = "业务类型不能为空！")
+    private String bizType;
 
-    @NotNull(message = "库存数量不能为空！")
+    @NotNull(message = "变动数量不能为空！")
     private Integer quantity;
 
-    @NotNull(message = "入库时间不能为空！")
+    private BigDecimal unitCost;
+
+    @NotNull(message = "业务时间不能为空！")
     @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss", timezone = "GMT+8")
     @DateTimeFormat(pattern = "yyyy-MM-dd HH:mm:ss")
     private Date date;
 
-    @NotNull(message = "剩余数量不能为空！")
-    private Integer residue;
+    private String remark;
 }
