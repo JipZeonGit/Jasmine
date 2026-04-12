@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
-<mapper namespace="com.nfu.jasmine.sys.mapper.MenuMapper">
-    <select id="getMenuListByUserId" resultType="Menu">
+<mapper namespace="com.nfu.jasmine.iam.persistence.mapper.MenuMapper">
+    <select id="getMenuListByUserId" resultType="com.nfu.jasmine.iam.model.entity.Menu">
         SELECT distinct a.* FROM menu a,role_menu b,user_role c
                  WHERE a.`menu_id` = b.`menu_id`
                    AND b.`role_id` = c.`role_id`
@@ -9,3 +9,4 @@
                    AND a.`parent_id` = #{parentId}
     </select>
 </mapper>
+

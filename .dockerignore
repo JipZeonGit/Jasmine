@@ -27,7 +27,7 @@ target/test-classes
 target/*.original
 
 # 前端源代码（后端镜像不需要前端）
-vue-admin-template-4.4.0
+admin
 
 # 文档和配置文件（与运行无关）
 README.md

@@ -1,7 +1,7 @@
 package com.nfu.jasmine.common.dto;
 
-import com.nfu.jasmine.cus.dto.AppointmentCreateDTO;
-import com.nfu.jasmine.sys.dto.UserCreateDTO;
+import com.nfu.jasmine.appointment.web.dto.AppointmentCreateDTO;
+import com.nfu.jasmine.iam.web.dto.UserCreateDTO;
 import jakarta.validation.Validation;
 import jakarta.validation.Validator;
 import jakarta.validation.ValidatorFactory;

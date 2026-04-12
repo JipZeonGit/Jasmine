@@ -127,10 +127,10 @@
 
 前端涉及的核心页面已按新模型调整：
 
-- `vue-admin-template-4.4.0/src/views/custom/flowerManage.vue`
-- `vue-admin-template-4.4.0/src/views/custom/inventoryManage.vue`
-- `vue-admin-template-4.4.0/src/views/custom/salesManage.vue`
-- `vue-admin-template-4.4.0/src/views/custom/appointment.vue`
+- `admin/src/views/custom/flowerManage.vue`
+- `admin/src/views/custom/inventoryManage.vue`
+- `admin/src/views/custom/salesManage.vue`
+- `admin/src/views/custom/appointment.vue`
 
 页面语义改成更接近门店业务动作：
 

@@ -1,9 +1,9 @@
 package com.nfu.jasmine.config;
 
-import com.nfu.jasmine.filter.JwtAuthenticationFilter;
-import com.nfu.jasmine.filter.RequestTraceFilter;
-import com.nfu.jasmine.handler.JwtAccessDeniedHandler;
-import com.nfu.jasmine.handler.JwtAuthenticationEntryPoint;
+import com.nfu.jasmine.infra.security.filter.JwtAuthenticationFilter;
+import com.nfu.jasmine.infra.web.filter.RequestTraceFilter;
+import com.nfu.jasmine.infra.security.handler.JwtAccessDeniedHandler;
+import com.nfu.jasmine.infra.security.handler.JwtAuthenticationEntryPoint;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
