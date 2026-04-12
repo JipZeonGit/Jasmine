@@ -1,8 +1,8 @@
 package com.nfu.jasmine;
 
 import com.nfu.jasmine.config.AbstractIntegrationTest;
-import com.nfu.jasmine.sys.entity.User;
-import com.nfu.jasmine.sys.mapper.UserMapper;
+import com.nfu.jasmine.iam.model.entity.User;
+import com.nfu.jasmine.iam.persistence.mapper.UserMapper;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 

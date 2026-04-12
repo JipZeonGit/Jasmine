@@ -7,7 +7,7 @@ on:
       - '**.md'
       - '.gitignore'
       - '.dockerignore'
-      - 'vue-admin-template-4.4.0/.dockerignore'
+      - 'admin/.dockerignore'
       - '.env'
       - '.env.example'
       - 'LICENSE'
@@ -60,6 +60,6 @@ jobs:
       - name: 7. 构建并推送前端镜像
         uses: docker/build-push-action@v6
         with:
-          context: ./vue-admin-template-4.4.0
+          context: ./admin
           push: true
           tags: ghcr.io/${{ steps.lower.outputs.owner }}/jasmine-frontend:latest

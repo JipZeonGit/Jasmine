@@ -76,7 +76,7 @@ services:
   # Vue 前端服务
   frontend:
     build:
-      context: ./vue-admin-template-4.4.0
+      context: ./admin
       dockerfile: Dockerfile
     container_name: jasmine-frontend
     restart: always

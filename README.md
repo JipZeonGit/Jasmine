@@ -35,7 +35,7 @@ cd Jasmine
 ```
 2. 前端（8888 端口）
 ```bash
-cd Jasmine/vue-admin-template-4.4.0
+cd Jasmine/admin
 npm run dev
 ```
 
