@@ -99,7 +99,7 @@ public class RoleController {
     @Operation(summary = "查询所有角色")
     @GetMapping("/all")
     public Result<List<RoleVO>> getAllRole() {
-        List<RoleVO> roleList = roleService.list().stream().map(this::toRoleVO).collect(Collectors.toList());
+        List<RoleVO> roleList = roleService.listAllRoles().stream().map(this::toRoleVO).collect(Collectors.toList());
         return Result.success(roleList);
     }
 

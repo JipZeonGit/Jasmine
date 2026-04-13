@@ -33,7 +33,7 @@ public class FlowerController {
     @Operation(summary = "获取全部花卉")
     @GetMapping("/all")
     public Result<List<FlowerVO>> getAllFlower() {
-        return Result.success(flowerService.list().stream().map(this::toFlowerVO).toList(), "查询成功");
+        return Result.success(flowerService.listAllFlowers().stream().map(this::toFlowerVO).toList(), "查询成功");
     }
 
 // 添加一种新花卉到库里
@@ -44,7 +44,7 @@ public class FlowerController {
         BeanUtils.copyProperties(flowerDTO, flower);
         flower.setCurrentStock(0);
         flower.setDeleted(0);
-        flowerService.save(flower);
+        flowerService.addFlower(flower);
         return Result.success("新增花卉成功！");
     }
 
@@ -64,7 +64,7 @@ public class FlowerController {
         Integer currentStock = flower.getCurrentStock();
         BeanUtils.copyProperties(flowerDTO, flower);
         flower.setCurrentStock(currentStock);
-        flowerService.updateById(flower);
+        flowerService.updateFlower(flower);
         return Result.success("修改花卉成功！");
     }
 
@@ -72,7 +72,7 @@ public class FlowerController {
     @Operation(summary = "根据ID查询花卉")
     @GetMapping("/{id}")
     public Result<FlowerVO> getFlowerById(@PathVariable("id") Integer id) {
-        return Result.success(toFlowerVO(flowerService.getById(id)));
+        return Result.success(toFlowerVO(flowerService.getFlowerDetailById(id)));
     }
 
 // 逻辑删除特定ID的花卉
@@ -86,7 +86,7 @@ public class FlowerController {
         if (flower.getCurrentStock() != null && flower.getCurrentStock() > 0) {
             return Result.fail(ResultCode.CONFLICT, "当前库存不为 0 的花卉不能直接删除！");
         }
-        flowerService.removeById(id);
+        flowerService.deleteFlowerById(id);
         return Result.success("删除花卉成功！");
     }
 

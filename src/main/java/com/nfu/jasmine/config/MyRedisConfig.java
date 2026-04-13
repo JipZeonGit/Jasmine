@@ -1,5 +1,6 @@
 package com.nfu.jasmine.config;
 
+import com.nfu.jasmine.infra.cache.CacheNames;
 import jakarta.annotation.Resource;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
@@ -10,6 +11,10 @@ import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.serializer.GenericJackson2JsonRedisSerializer;
 import org.springframework.data.redis.serializer.RedisSerializationContext;
 import org.springframework.data.redis.serializer.StringRedisSerializer;
+
+import java.time.Duration;
+import java.util.HashMap;
+import java.util.Map;
 
 @Configuration
 @Profile("!test")
@@ -38,13 +43,23 @@ public class MyRedisConfig {
     @Bean
     public org.springframework.data.redis.cache.RedisCacheManager cacheManager(RedisConnectionFactory factory) {
         org.springframework.data.redis.cache.RedisCacheConfiguration config = org.springframework.data.redis.cache.RedisCacheConfiguration.defaultCacheConfig()
-                .entryTtl(java.time.Duration.ofMinutes(30))
+                .entryTtl(Duration.ofMinutes(30))
                 .serializeKeysWith(RedisSerializationContext.SerializationPair.fromSerializer(new StringRedisSerializer()))
                 .serializeValuesWith(RedisSerializationContext.SerializationPair.fromSerializer(new GenericJackson2JsonRedisSerializer()))
                 .disableCachingNullValues();
 
+        Map<String, org.springframework.data.redis.cache.RedisCacheConfiguration> cacheConfigurations = new HashMap<>();
+        // 用户、菜单、角色属于系统基础数据，允许缓存时间略长一些。
+        cacheConfigurations.put(CacheNames.USER, config.entryTtl(Duration.ofMinutes(30)));
+        cacheConfigurations.put(CacheNames.MENU_LIST, config.entryTtl(Duration.ofMinutes(30)));
+        cacheConfigurations.put(CacheNames.ROLE_LIST, config.entryTtl(Duration.ofMinutes(30)));
+        // 花卉主数据会被库存和销售联动修改，缓存时间保持更短，主要依赖显式失效保证一致性。
+        cacheConfigurations.put(CacheNames.FLOWER_LIST, config.entryTtl(Duration.ofMinutes(10)));
+        cacheConfigurations.put(CacheNames.FLOWER_DETAIL, config.entryTtl(Duration.ofMinutes(10)));
+
         return org.springframework.data.redis.cache.RedisCacheManager.builder(factory)
                 .cacheDefaults(config)
+                .withInitialCacheConfigurations(cacheConfigurations)
                 .build();
     }
 }

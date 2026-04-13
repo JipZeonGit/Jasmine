@@ -5,6 +5,7 @@ import com.nfu.jasmine.iam.model.entity.Menu;
 import com.nfu.jasmine.iam.persistence.mapper.MenuMapper;
 import com.nfu.jasmine.iam.application.IMenuService;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
+import com.nfu.jasmine.infra.cache.CacheNames;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -47,7 +48,7 @@ public class MenuServiceImpl extends ServiceImpl<MenuMapper, Menu> implements IM
     }
 
     @Override
-    @Cacheable(value = "menuList", key = "#userId")
+    @Cacheable(value = CacheNames.MENU_LIST, key = "#userId")
     public List<Menu> getMenuListByUserId(Integer userId) {
         // 一级菜单
         List<Menu> menuList = this.baseMapper.getMenuListByUserId(userId,0);

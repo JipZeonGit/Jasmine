@@ -7,7 +7,11 @@ import com.nfu.jasmine.iam.model.entity.RoleMenu;
 import com.nfu.jasmine.iam.persistence.mapper.RoleMapper;
 import com.nfu.jasmine.iam.persistence.mapper.RoleMenuMapper;
 import com.nfu.jasmine.iam.application.IRoleService;
+import com.nfu.jasmine.infra.cache.CacheNames;
 import jakarta.annotation.Resource;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
+import org.springframework.cache.annotation.Caching;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -28,7 +32,17 @@ public class RoleServiceImpl extends ServiceImpl<RoleMapper, Role> implements IR
     private RoleMenuMapper roleMenuMapper;
 
     @Override
+    @Cacheable(value = CacheNames.ROLE_LIST, key = "'all'")
+    public List<Role> listAllRoles() {
+        return this.list(new LambdaQueryWrapper<Role>().orderByAsc(Role::getRoleId));
+    }
+
+    @Override
     @Transactional
+    @Caching(evict = {
+            @CacheEvict(value = CacheNames.ROLE_LIST, allEntries = true),
+            @CacheEvict(value = CacheNames.MENU_LIST, allEntries = true)
+    })
     public void addRole(Role role) {
         // 写入角色表
         this.baseMapper.insert(role);
@@ -50,6 +64,10 @@ public class RoleServiceImpl extends ServiceImpl<RoleMapper, Role> implements IR
 
     @Override
     @Transactional
+    @Caching(evict = {
+            @CacheEvict(value = CacheNames.ROLE_LIST, allEntries = true),
+            @CacheEvict(value = CacheNames.MENU_LIST, allEntries = true)
+    })
     public void updateRole(Role role) {
         // 修改角色表
         this.baseMapper.updateById(role);
@@ -67,6 +85,10 @@ public class RoleServiceImpl extends ServiceImpl<RoleMapper, Role> implements IR
 
     @Override
     @Transactional
+    @Caching(evict = {
+            @CacheEvict(value = CacheNames.ROLE_LIST, allEntries = true),
+            @CacheEvict(value = CacheNames.MENU_LIST, allEntries = true)
+    })
     public void deleteRoleById(Integer id) {
         this.baseMapper.deleteById(id);
         // 删除原有权限
