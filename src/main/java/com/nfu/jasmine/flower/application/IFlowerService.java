@@ -12,5 +12,14 @@ import com.baomidou.mybatisplus.extension.service.IService;
  * @since 2023-07-06
  */
 public interface IFlowerService extends IService<Flower> {
+    java.util.List<Flower> listAllFlowers();
+
+    Flower getFlowerDetailById(Integer id);
+
+    void addFlower(Flower flower);
+
+    void updateFlower(Flower flower);
+
+    void deleteFlowerById(Integer id);
 
 }

@@ -6,6 +6,7 @@ import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.nfu.jasmine.common.exception.BusinessException;
 import com.nfu.jasmine.common.utils.BusinessNoUtil;
 import com.nfu.jasmine.common.vo.TableData;
+import com.nfu.jasmine.infra.cache.CacheNames;
 import com.nfu.jasmine.inventory.web.dto.InventoryQueryDTO;
 import com.nfu.jasmine.inventory.web.dto.InventorySaveDTO;
 import com.nfu.jasmine.flower.model.entity.Flower;
@@ -16,6 +17,8 @@ import com.nfu.jasmine.inventory.persistence.mapper.InventoryMapper;
 import com.nfu.jasmine.inventory.application.IInventoryService;
 import com.nfu.jasmine.inventory.web.vo.InventoryVO;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Caching;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -91,6 +94,10 @@ public class InventoryServiceImpl extends ServiceImpl<InventoryMapper, Inventory
 
     @Override
     @Transactional
+    @Caching(evict = {
+            @CacheEvict(value = CacheNames.FLOWER_LIST, allEntries = true),
+            @CacheEvict(value = CacheNames.FLOWER_DETAIL, allEntries = true)
+    })
     public void saveInventory(InventorySaveDTO inventoryDTO, Integer operatorId) {
         Flower flower = requireFlower(inventoryDTO.getFlowerId());
         InventoryBizType bizType = InventoryBizType.fromCode(inventoryDTO.getBizType());
@@ -128,6 +135,10 @@ public class InventoryServiceImpl extends ServiceImpl<InventoryMapper, Inventory
 
     @Override
     @Transactional
+    @Caching(evict = {
+            @CacheEvict(value = CacheNames.FLOWER_LIST, allEntries = true),
+            @CacheEvict(value = CacheNames.FLOWER_DETAIL, allEntries = true)
+    })
     public void updateInventory(InventorySaveDTO inventoryDTO, Integer operatorId) {
         Inventory existing = requireInventory(inventoryDTO.getId());
         InventoryBizType oldBizType = InventoryBizType.fromCode(existing.getBizType());
@@ -191,6 +202,10 @@ public class InventoryServiceImpl extends ServiceImpl<InventoryMapper, Inventory
 
     @Override
     @Transactional
+    @Caching(evict = {
+            @CacheEvict(value = CacheNames.FLOWER_LIST, allEntries = true),
+            @CacheEvict(value = CacheNames.FLOWER_DETAIL, allEntries = true)
+    })
     public void deleteInventory(Integer id) {
         Inventory existing = requireInventory(id);
         Flower flower = requireFlower(existing.getFlowerId());

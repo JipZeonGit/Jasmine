@@ -18,8 +18,10 @@ import com.nfu.jasmine.iam.application.IMenuService;
 import com.nfu.jasmine.iam.application.IUserService;
 import com.nfu.jasmine.iam.web.vo.LoginVO;
 import com.nfu.jasmine.iam.web.vo.UserInfoVO;
+import com.nfu.jasmine.infra.cache.CacheNames;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.cache.annotation.Caching;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -169,7 +171,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements IU
     }
 
     @Override
-    @Cacheable(value = "user", key = "#id")
+    @Cacheable(value = CacheNames.USER, key = "#id")
     public User getUserById(Integer id) {
         // 根据ID查询用户信息
         User user = this.baseMapper.selectById(id);
@@ -189,7 +191,10 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements IU
 
     @Override
     @Transactional
-    @CacheEvict(value = "user", key = "#user.id")
+    @Caching(evict = {
+            @CacheEvict(value = CacheNames.USER, key = "#user.id"),
+            @CacheEvict(value = CacheNames.MENU_LIST, key = "#user.id")
+    })
     public void updateUser(User user) {
         // 更新用户表
         this.baseMapper.updateById(user);
@@ -207,7 +212,10 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements IU
     }
 
     @Override
-    @CacheEvict(value = "user", key = "#id")
+    @Caching(evict = {
+            @CacheEvict(value = CacheNames.USER, key = "#id"),
+            @CacheEvict(value = CacheNames.MENU_LIST, key = "#id")
+    })
     public void deleteUserById(Integer id) {
         // 删除用户
         this.baseMapper.deleteById(id);
@@ -220,7 +228,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements IU
 
     // 修改用户密码
     @Override
-    @CacheEvict(value = "user", allEntries = true)
+    @CacheEvict(value = CacheNames.USER, allEntries = true)
     @Transactional
     public boolean changePassword(String username, String oldPassword, String newPassword) {
         // 根据用户名查询用户
