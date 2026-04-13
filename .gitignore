@@ -35,3 +35,6 @@ build/
 
 ### Docker ###
 .env
+ops/rabbitmq/.env
+ops/rabbitmq/data/
+ops/rabbitmq/log/

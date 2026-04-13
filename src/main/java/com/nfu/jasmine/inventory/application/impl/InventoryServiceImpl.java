@@ -6,6 +6,8 @@ import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.nfu.jasmine.common.exception.BusinessException;
 import com.nfu.jasmine.common.utils.BusinessNoUtil;
 import com.nfu.jasmine.common.vo.TableData;
+import com.nfu.jasmine.infra.mq.message.InventoryChangedMessage;
+import com.nfu.jasmine.infra.mq.publisher.MqMessagePublisher;
 import com.nfu.jasmine.inventory.web.dto.InventoryQueryDTO;
 import com.nfu.jasmine.inventory.web.dto.InventorySaveDTO;
 import com.nfu.jasmine.flower.model.entity.Flower;
@@ -21,6 +23,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 import java.math.BigDecimal;
+import java.util.Date;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -34,6 +37,9 @@ import java.util.stream.Collectors;
 public class InventoryServiceImpl extends ServiceImpl<InventoryMapper, Inventory> implements IInventoryService {
     @Autowired
     private FlowerMapper flowerMapper;
+
+    @Autowired
+    private MqMessagePublisher mqMessagePublisher;
 
     @Override
     public List<InventoryVO> listInventory() {
@@ -124,6 +130,20 @@ public class InventoryServiceImpl extends ServiceImpl<InventoryMapper, Inventory
         inventory.setDate(inventoryDTO.getDate());
         inventory.setDeleted(0);
         this.save(inventory);
+
+        // 手工库存动作也统一补事件，这样采购、损耗、退货和盘点都能复用同一条消息主链。
+        mqMessagePublisher.publishInventoryChangedAfterCommit(new InventoryChangedMessage(
+                inventory.getId(),
+                inventory.getBizNo(),
+                inventory.getFlowerId(),
+                inventory.getBizType(),
+                inventory.getQuantity(),
+                inventory.getBeforeStock(),
+                inventory.getAfterStock(),
+                inventory.getOperatorId(),
+                inventory.getDate(),
+                new Date()
+        ));
     }
 
     @Override

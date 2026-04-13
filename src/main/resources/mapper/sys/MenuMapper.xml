@@ -2,11 +2,22 @@
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.nfu.jasmine.iam.persistence.mapper.MenuMapper">
     <select id="getMenuListByUserId" resultType="com.nfu.jasmine.iam.model.entity.Menu">
-        SELECT distinct a.* FROM menu a,role_menu b,user_role c
-                 WHERE a.`menu_id` = b.`menu_id`
-                   AND b.`role_id` = c.`role_id`
-                   AND c.`user_id` = #{userId}
-                   AND a.`parent_id` = #{parentId}
+        WITH RECURSIVE authorized_menu AS (
+            SELECT DISTINCT m.*
+            FROM menu m
+                     JOIN role_menu rm ON m.menu_id = rm.menu_id
+                     JOIN user_role ur ON rm.role_id = ur.role_id
+            WHERE ur.user_id = #{userId}
+
+            UNION DISTINCT
+
+            SELECT parent.*
+            FROM menu parent
+                     JOIN authorized_menu child ON child.parent_id = parent.menu_id
+        )
+        SELECT DISTINCT *
+        FROM authorized_menu
+        WHERE parent_id = #{parentId}
     </select>
 </mapper>
 

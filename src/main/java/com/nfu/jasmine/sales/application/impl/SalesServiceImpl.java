@@ -6,6 +6,9 @@ import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.nfu.jasmine.common.exception.BusinessException;
 import com.nfu.jasmine.common.utils.BusinessNoUtil;
 import com.nfu.jasmine.common.vo.TableData;
+import com.nfu.jasmine.infra.mq.message.InventoryChangedMessage;
+import com.nfu.jasmine.infra.mq.message.SalesCreatedMessage;
+import com.nfu.jasmine.infra.mq.publisher.MqMessagePublisher;
 import com.nfu.jasmine.sales.web.dto.SalesItemSaveDTO;
 import com.nfu.jasmine.sales.web.dto.SalesQueryDTO;
 import com.nfu.jasmine.sales.web.dto.SalesSaveDTO;
@@ -57,6 +60,9 @@ public class SalesServiceImpl extends ServiceImpl<SalesMapper, Sales> implements
 
     @Autowired
     private VipMapper vipMapper;
+
+    @Autowired
+    private MqMessagePublisher mqMessagePublisher;
 
     @Override
     public List<SalesVO> listSales() {
@@ -155,6 +161,18 @@ public class SalesServiceImpl extends ServiceImpl<SalesMapper, Sales> implements
         BigDecimal totalAmount = rebuildSalesItems(sales, salesDTO.getItems(), operatorId);
         sales.setTotalAmount(totalAmount);
         this.updateById(sales);
+
+        // 销售单创建成功后补一条业务事件，后面统计、审计或同步别的模块都从这里接。
+        mqMessagePublisher.publishSalesCreatedAfterCommit(new SalesCreatedMessage(
+                sales.getId(),
+                sales.getOrderNo(),
+                sales.getVipId(),
+                operatorId,
+                salesDTO.getItems() == null ? 0 : salesDTO.getItems().size(),
+                totalAmount,
+                sales.getDate(),
+                new Date()
+        ));
     }
 
     @Override
@@ -247,6 +265,20 @@ public class SalesServiceImpl extends ServiceImpl<SalesMapper, Sales> implements
             inventory.setDate(sales.getDate());
             inventory.setDeleted(0);
             inventoryMapper.insert(inventory);
+
+            // 销售出库也统一发库存事件，后面做库存预警、异步统计时不需要再回头改销售事务。
+            mqMessagePublisher.publishInventoryChangedAfterCommit(new InventoryChangedMessage(
+                    inventory.getId(),
+                    inventory.getBizNo(),
+                    inventory.getFlowerId(),
+                    inventory.getBizType(),
+                    inventory.getQuantity(),
+                    inventory.getBeforeStock(),
+                    inventory.getAfterStock(),
+                    inventory.getOperatorId(),
+                    inventory.getDate(),
+                    new Date()
+            ));
 
             flower.setCurrentStock(afterStock);
             flowerMapper.updateById(flower);

@@ -3,18 +3,20 @@ package com.nfu.jasmine.appointment.application.impl;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
-import com.nfu.jasmine.common.enums.ResultCode;
-import com.nfu.jasmine.common.exception.BusinessException;
-import com.nfu.jasmine.common.vo.TableData;
+import com.nfu.jasmine.appointment.application.IAppointmentService;
+import com.nfu.jasmine.appointment.model.entity.Appointment;
+import com.nfu.jasmine.appointment.persistence.mapper.AppointmentMapper;
 import com.nfu.jasmine.appointment.web.dto.AppointmentCreateDTO;
 import com.nfu.jasmine.appointment.web.dto.AppointmentQueryDTO;
 import com.nfu.jasmine.appointment.web.dto.AppointmentUpdateDTO;
-import com.nfu.jasmine.appointment.model.entity.Appointment;
-import com.nfu.jasmine.vip.model.entity.Vip;
-import com.nfu.jasmine.appointment.persistence.mapper.AppointmentMapper;
-import com.nfu.jasmine.vip.persistence.mapper.VipMapper;
-import com.nfu.jasmine.appointment.application.IAppointmentService;
 import com.nfu.jasmine.appointment.web.vo.AppointmentVO;
+import com.nfu.jasmine.common.enums.ResultCode;
+import com.nfu.jasmine.common.exception.BusinessException;
+import com.nfu.jasmine.common.vo.TableData;
+import com.nfu.jasmine.infra.mq.message.AppointmentCreatedMessage;
+import com.nfu.jasmine.infra.mq.publisher.MqMessagePublisher;
+import com.nfu.jasmine.vip.model.entity.Vip;
+import com.nfu.jasmine.vip.persistence.mapper.VipMapper;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -22,6 +24,7 @@ import org.springframework.util.StringUtils;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Date;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -32,6 +35,9 @@ import java.util.stream.Collectors;
 public class AppointmentServiceImpl extends ServiceImpl<AppointmentMapper, Appointment> implements IAppointmentService {
     @Autowired
     private VipMapper vipMapper;
+
+    @Autowired
+    private MqMessagePublisher mqMessagePublisher;
 
     @Override
     public List<AppointmentVO> listAppointments() {
@@ -96,6 +102,17 @@ public class AppointmentServiceImpl extends ServiceImpl<AppointmentMapper, Appoi
         appointment.setContent(appointmentDTO.getContent());
         appointment.setDeleted(0);
         this.save(appointment);
+
+        // 第一版先把“预约创建成功”事件发出去，消费端目前只做模拟通知，后面再逐步接真实渠道。
+        mqMessagePublisher.publishAppointmentCreatedAfterCommit(new AppointmentCreatedMessage(
+                appointment.getId(),
+                vip.getId(),
+                vip.getName(),
+                vip.getPhone(),
+                appointment.getDate(),
+                appointment.getContent(),
+                new Date()
+        ));
     }
 
     @Override
@@ -120,6 +137,7 @@ public class AppointmentServiceImpl extends ServiceImpl<AppointmentMapper, Appoi
             vip = vipMapper.selectOne(new LambdaQueryWrapper<Vip>().eq(Vip::getPhone, phone));
         }
 
+        // 预约消息依赖明确的会员接收对象，因此这里不允许退回到“纯文本预约”的旧模式。
         if (vip == null) {
             throw new BusinessException(ResultCode.NOT_FOUND, "会员不存在，请先创建会员！");
         }
