@@ -19,6 +19,8 @@ management:
   health:
     redis:
       enabled: true
+    rabbit:
+      enabled: true
 
 logging:
   level:

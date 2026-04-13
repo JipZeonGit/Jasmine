@@ -587,3 +587,91 @@ spring:
 - 全量最终一致性框架
 
 这些仍然属于后面更重的阶段，而不是当前 `PR13` 继续膨胀进来的内容。
+
+## CI 集成测试 RabbitMQ 接入
+
+### 问题 7：CI 集成测试 `/actuator/health` 返回 503
+
+现象：
+
+- GitHub Actions 运行 `./mvnw -B verify -DskipUTs=true` 时，`UserControllerSecurityIT.actuatorHealthShouldBePublic` 报错：
+
+```text
+java.lang.AssertionError: Status expected:<200> but was:<503>
+```
+
+- 从 health 响应体可以看到：
+
+```json
+{
+  "status": "DOWN",
+  "components": {
+    "db": { "status": "UP" },
+    "redis": { "status": "UP" },
+    "rabbit": {
+      "status": "DOWN",
+      "details": {
+        "error": "org.springframework.amqp.AmqpConnectException: java.net.ConnectException: Connection refused"
+      }
+    }
+  }
+}
+```
+
+### 问题 7 的根因
+
+`AbstractIntegrationTest` 只启动了 MySQL 和 Redis 的 Testcontainer，没有启动 RabbitMQ。
+
+但 `spring-boot-starter-amqp` 在 classpath 上会自动注册 `RabbitHealthIndicator`，health check 请求时尝试连接 `localhost:5672` 被拒绝，导致 rabbit 组件 DOWN，整体 health status 变成 DOWN，HTTP 响应码变成 503。
+
+### 问题 7 的解决方案
+
+把 RabbitMQ 也纳入 Testcontainers，让集成测试环境拥有完整的 MySQL + Redis + RabbitMQ 三件套。
+
+#### 1. `pom.xml` 新增 Testcontainers RabbitMQ 模块
+
+```xml
+<dependency>
+    <groupId>org.testcontainers</groupId>
+    <artifactId>rabbitmq</artifactId>
+    <scope>test</scope>
+</dependency>
+```
+
+#### 2. `AbstractIntegrationTest.java` 新增 RabbitMQ 容器
+
+```java
+@Container
+private static final RabbitMQContainer RABBITMQ_CONTAINER =
+        new RabbitMQContainer(DockerImageName.parse("rabbitmq:4.2-management"));
+```
+
+并在 `registerContainerProperties` 中注册动态属性：
+
+```java
+// RabbitMQ
+registry.add("spring.rabbitmq.host", RABBITMQ_CONTAINER::getHost);
+registry.add("spring.rabbitmq.port", RABBITMQ_CONTAINER::getAmqpPort);
+registry.add("spring.rabbitmq.username", RABBITMQ_CONTAINER::getAdminUsername);
+registry.add("spring.rabbitmq.password", RABBITMQ_CONTAINER::getAdminPassword);
+registry.add("app.mq.enabled", () -> true);
+```
+
+#### 3. `application-integration.yml` 启用 rabbit 健康检查
+
+```yaml
+management:
+  health:
+    redis:
+      enabled: true
+    rabbit:
+      enabled: true
+```
+
+### 修复后的预期效果
+
+- CI 中每个集成测试类启动时会自动拉取 `rabbitmq:4.2-management` 镜像并启动容器
+- Spring Boot 连接真实 RabbitMQ，topology（exchange / queue / binding）自动声明
+- `@RabbitListener` 消费者正常启动
+- `/actuator/health` 中 rabbit 组件变为 UP，整体 health 返回 200
+- `RabbitMqTopologyConfig` 和所有 listener 因 `app.mq.enabled=true` 被激活，测试覆盖范围更完整
