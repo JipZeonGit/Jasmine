@@ -6,6 +6,7 @@ import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.nfu.jasmine.common.exception.BusinessException;
 import com.nfu.jasmine.common.utils.BusinessNoUtil;
 import com.nfu.jasmine.common.vo.TableData;
+import com.nfu.jasmine.infra.cache.CacheNames;
 import com.nfu.jasmine.infra.mq.message.InventoryChangedMessage;
 import com.nfu.jasmine.infra.mq.message.SalesCreatedMessage;
 import com.nfu.jasmine.infra.mq.publisher.MqMessagePublisher;
@@ -28,6 +29,8 @@ import com.nfu.jasmine.sales.web.vo.SalesItemVO;
 import com.nfu.jasmine.sales.web.vo.SalesVO;
 import com.nfu.jasmine.sales.web.vo.TodayBusinessSummaryVO;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Caching;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -145,6 +148,10 @@ public class SalesServiceImpl extends ServiceImpl<SalesMapper, Sales> implements
 
     @Override
     @Transactional
+    @Caching(evict = {
+            @CacheEvict(value = CacheNames.FLOWER_LIST, allEntries = true),
+            @CacheEvict(value = CacheNames.FLOWER_DETAIL, allEntries = true)
+    })
     public void saveSales(SalesSaveDTO salesDTO, Integer operatorId) {
         validateVipIfPresent(salesDTO.getVipId());
 
@@ -177,6 +184,10 @@ public class SalesServiceImpl extends ServiceImpl<SalesMapper, Sales> implements
 
     @Override
     @Transactional
+    @Caching(evict = {
+            @CacheEvict(value = CacheNames.FLOWER_LIST, allEntries = true),
+            @CacheEvict(value = CacheNames.FLOWER_DETAIL, allEntries = true)
+    })
     public void updateSales(SalesSaveDTO salesDTO, Integer operatorId) {
         Sales existing = requireSales(salesDTO.getId());
         validateVipIfPresent(salesDTO.getVipId());
@@ -195,6 +206,10 @@ public class SalesServiceImpl extends ServiceImpl<SalesMapper, Sales> implements
 
     @Override
     @Transactional
+    @Caching(evict = {
+            @CacheEvict(value = CacheNames.FLOWER_LIST, allEntries = true),
+            @CacheEvict(value = CacheNames.FLOWER_DETAIL, allEntries = true)
+    })
     public void deleteSales(Integer id) {
         Sales existing = requireSales(id);
         restoreSales(existing);

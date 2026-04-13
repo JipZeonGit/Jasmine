@@ -7,6 +7,7 @@ import org.springframework.cache.concurrent.ConcurrentMapCacheManager;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Profile;
+import com.nfu.jasmine.infra.cache.CacheNames;
 
 @Configuration
 @Profile("!test")
@@ -15,6 +16,12 @@ import org.springframework.context.annotation.Profile;
 public class MyCacheConfig {
     @Bean
     public CacheManager cacheManager() {
-        return new ConcurrentMapCacheManager("user", "menuList");
+        return new ConcurrentMapCacheManager(
+                CacheNames.USER,
+                CacheNames.MENU_LIST,
+                CacheNames.ROLE_LIST,
+                CacheNames.FLOWER_LIST,
+                CacheNames.FLOWER_DETAIL
+        );
     }
 }

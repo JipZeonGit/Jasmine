@@ -12,6 +12,7 @@ import com.baomidou.mybatisplus.extension.service.IService;
  * @since 2023-05-29
  */
 public interface IRoleService extends IService<Role> {
+    java.util.List<Role> listAllRoles();
 
     void addRole(Role role);
 
