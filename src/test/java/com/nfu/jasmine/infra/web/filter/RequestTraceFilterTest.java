@@ -1,5 +1,6 @@
 package com.nfu.jasmine.infra.web.filter;
 
+import com.nfu.jasmine.infra.mq.publisher.MqMessagePublisher;
 import jakarta.servlet.ServletException;
 import org.junit.jupiter.api.Test;
 import org.springframework.mock.web.MockFilterChain;
@@ -11,9 +12,18 @@ import java.io.IOException;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 class RequestTraceFilterTest {
-    private final RequestTraceFilter filter = new RequestTraceFilter();
+    private final MqMessagePublisher mqMessagePublisher = mock(MqMessagePublisher.class);
+    private final RequestTraceFilter filter = new RequestTraceFilter(mqMessagePublisher);
+
+    RequestTraceFilterTest() {
+        // 单测里只关心请求跟踪行为，不让 MQ 发布结果影响断言。
+        when(mqMessagePublisher.publishAccessLog(any())).thenReturn(false);
+    }
 
     @Test
     void shouldGenerateTraceIdAndRequestIdWhenHeadersAreMissing() throws ServletException, IOException {
