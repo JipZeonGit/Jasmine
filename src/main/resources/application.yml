@@ -26,6 +26,20 @@ app:
     jwt-expire-millis: ${JWT_EXPIRE_MILLIS:1800000}
     # Refresh Token 默认七天，可按环境变量覆盖
     jwt-refresh-expire-millis: ${JWT_REFRESH_EXPIRE_MILLIS:604800000}
+  mq:
+    # MQ 能力默认按环境决定是否启用，未启用时继续走同步本地逻辑
+    enabled: ${APP_MQ_ENABLED:false}
+    # 第一版默认启用死信交换机，方便后续排查消费失败消息
+    dead-letter-enabled: ${APP_MQ_DLX_ENABLED:true}
+    # 消费幂等键默认保留 24 小时，先覆盖开发联调与短期重复投递场景。
+    idempotency-ttl-hours: ${APP_MQ_IDEMPOTENCY_TTL_HOURS:24}
+    retry:
+      # 默认最多消费 3 次（首次 + 2 次重试），优先兜住瞬时故障。
+      max-attempts: ${APP_MQ_RETRY_MAX_ATTEMPTS:3}
+      # 退避从 1 秒起步，避免瞬时异常把消费者打成紧密热循环。
+      initial-interval-ms: ${APP_MQ_RETRY_INITIAL_INTERVAL_MS:1000}
+      multiplier: ${APP_MQ_RETRY_MULTIPLIER:2.0}
+      max-interval-ms: ${APP_MQ_RETRY_MAX_INTERVAL_MS:10000}
 
 logging:
   level:

@@ -1,5 +1,8 @@
 package com.nfu.jasmine.infra.web.filter;
 
+import com.nfu.jasmine.iam.model.entity.User;
+import com.nfu.jasmine.infra.mq.message.AccessLogMessage;
+import com.nfu.jasmine.infra.mq.publisher.MqMessagePublisher;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -14,8 +17,17 @@ import org.springframework.util.StringUtils;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
+import java.util.Date;
 import java.util.UUID;
 
+/**
+ * 请求追踪过滤器，优先级最高，所有业务请求均经过此过滤器。
+ * <p>
+ * 核心职责：
+ * 1. 为每个请求生成或复用 traceId / requestId 并写入 MDC，保证日志链路可追溯；
+ * 2. 请求结束后将访问日志异步发送到 MQ，MQ 不可用时回退到本地同步日志；
+ * 3. 过滤掉健康检查等高频公共端点，避免污染业务日志。
+ */
 @Component
 @Order(Ordered.HIGHEST_PRECEDENCE)
 public class RequestTraceFilter extends OncePerRequestFilter {
@@ -24,6 +36,12 @@ public class RequestTraceFilter extends OncePerRequestFilter {
     private static final String REQUEST_ID = "requestId";
     private static final String TRACE_HEADER = "X-Trace-Id";
     private static final String REQUEST_HEADER = "X-Request-Id";
+
+    private final MqMessagePublisher mqMessagePublisher;
+
+    public RequestTraceFilter(MqMessagePublisher mqMessagePublisher) {
+        this.mqMessagePublisher = mqMessagePublisher;
+    }
 
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
@@ -42,12 +60,30 @@ public class RequestTraceFilter extends OncePerRequestFilter {
             filterChain.doFilter(request, response);
         } finally {
             long duration = System.currentTimeMillis() - startTime;
-            accessLogger.info("method={} uri={} status={} durationMs={} clientIp={}",
+            User loginUser = resolveLoginUser(request);
+            // 访问日志现在优先异步发 MQ，只有 MQ 没开或发送失败时才回退到本地同步日志。
+            AccessLogMessage message = new AccessLogMessage(
+                    traceId,
+                    requestId,
+                    loginUser == null ? null : loginUser.getId(),
+                    loginUser == null ? null : loginUser.getUsername(),
                     request.getMethod(),
                     buildRequestUri(request),
                     response.getStatus(),
                     duration,
-                    resolveClientIp(request));
+                    resolveClientIp(request),
+                    new Date()
+            );
+            if (!mqMessagePublisher.publishAccessLog(message)) {
+                accessLogger.info("method={} uri={} status={} durationMs={} clientIp={} userId={} username={}",
+                        message.getMethod(),
+                        message.getUri(),
+                        message.getStatus(),
+                        message.getDurationMs(),
+                        message.getClientIp(),
+                        message.getUserId(),
+                        message.getUsername());
+            }
             MDC.remove(TRACE_ID);
             MDC.remove(REQUEST_ID);
         }
@@ -88,5 +124,13 @@ public class RequestTraceFilter extends OncePerRequestFilter {
             return forwardedFor.split(",")[0].trim();
         }
         return request.getRemoteAddr();
+    }
+
+    private User resolveLoginUser(HttpServletRequest request) {
+        Object loginUser = request.getAttribute("loginUser");
+        if (loginUser instanceof User user) {
+            return user;
+        }
+        return null;
     }
 }

@@ -7,6 +7,9 @@ import com.nfu.jasmine.common.exception.BusinessException;
 import com.nfu.jasmine.common.utils.BusinessNoUtil;
 import com.nfu.jasmine.common.vo.TableData;
 import com.nfu.jasmine.infra.cache.CacheNames;
+import com.nfu.jasmine.infra.mq.message.InventoryChangedMessage;
+import com.nfu.jasmine.infra.mq.message.SalesCreatedMessage;
+import com.nfu.jasmine.infra.mq.publisher.MqMessagePublisher;
 import com.nfu.jasmine.sales.web.dto.SalesItemSaveDTO;
 import com.nfu.jasmine.sales.web.dto.SalesQueryDTO;
 import com.nfu.jasmine.sales.web.dto.SalesSaveDTO;
@@ -60,6 +63,9 @@ public class SalesServiceImpl extends ServiceImpl<SalesMapper, Sales> implements
 
     @Autowired
     private VipMapper vipMapper;
+
+    @Autowired
+    private MqMessagePublisher mqMessagePublisher;
 
     @Override
     public List<SalesVO> listSales() {
@@ -162,6 +168,18 @@ public class SalesServiceImpl extends ServiceImpl<SalesMapper, Sales> implements
         BigDecimal totalAmount = rebuildSalesItems(sales, salesDTO.getItems(), operatorId);
         sales.setTotalAmount(totalAmount);
         this.updateById(sales);
+
+        // 销售单创建成功后补一条业务事件，后面统计、审计或同步别的模块都从这里接。
+        mqMessagePublisher.publishSalesCreatedAfterCommit(new SalesCreatedMessage(
+                sales.getId(),
+                sales.getOrderNo(),
+                sales.getVipId(),
+                operatorId,
+                salesDTO.getItems() == null ? 0 : salesDTO.getItems().size(),
+                totalAmount,
+                sales.getDate(),
+                new Date()
+        ));
     }
 
     @Override
@@ -174,6 +192,7 @@ public class SalesServiceImpl extends ServiceImpl<SalesMapper, Sales> implements
         Sales existing = requireSales(salesDTO.getId());
         validateVipIfPresent(salesDTO.getVipId());
 
+        // 修改采用“先回滚再重建”策略：把旧明细库存全部恢复，然后按新明细重新扣减。
         restoreSales(existing);
 
         existing.setVipId(salesDTO.getVipId());
@@ -198,6 +217,7 @@ public class SalesServiceImpl extends ServiceImpl<SalesMapper, Sales> implements
         this.removeById(id);
     }
 
+    // 回滚销售单对库存的影响：把已出库的数量加回花卉库存，然后清除明细和对应的库存流水。
     private void restoreSales(Sales sales) {
         List<SalesItem> items = listSalesItemsBySalesId(sales.getId());
         for (SalesItem item : items) {
@@ -262,6 +282,20 @@ public class SalesServiceImpl extends ServiceImpl<SalesMapper, Sales> implements
             inventory.setDate(sales.getDate());
             inventory.setDeleted(0);
             inventoryMapper.insert(inventory);
+
+            // 销售出库也统一发库存事件，后面做库存预警、异步统计时不需要再回头改销售事务。
+            mqMessagePublisher.publishInventoryChangedAfterCommit(new InventoryChangedMessage(
+                    inventory.getId(),
+                    inventory.getBizNo(),
+                    inventory.getFlowerId(),
+                    inventory.getBizType(),
+                    inventory.getQuantity(),
+                    inventory.getBeforeStock(),
+                    inventory.getAfterStock(),
+                    inventory.getOperatorId(),
+                    inventory.getDate(),
+                    new Date()
+            ));
 
             flower.setCurrentStock(afterStock);
             flowerMapper.updateById(flower);

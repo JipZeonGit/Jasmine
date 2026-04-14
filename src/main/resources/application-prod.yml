@@ -5,11 +5,23 @@ spring:
     username: ${MYSQL_USER}
     password: ${MYSQL_PASSWORD}
     url: jdbc:mysql://${MYSQL_HOST}:${MYSQL_PORT:3306}/jasmine?useUnicode=true&characterEncoding=UTF-8&connectionCollation=utf8mb4_0900_ai_ci&serverTimezone=Asia/Shanghai
-  redis:
+  data:
+    redis:
     # 生产环境 Redis 一律从环境变量注入
-    host: ${REDIS_HOST}
-    port: ${REDIS_PORT:6379}
-    password: ${REDIS_PASSWORD}
+      host: ${REDIS_HOST}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD}
+  rabbitmq:
+    # 生产环境 RabbitMQ 一律从环境变量注入
+    host: ${RABBITMQ_HOST}
+    port: ${RABBITMQ_PORT:5672}
+    username: ${RABBITMQ_USERNAME}
+    password: ${RABBITMQ_PASSWORD}
+    virtual-host: ${RABBITMQ_VHOST:/jasmine}
+    listener:
+      simple:
+        auto-startup: ${APP_MQ_ENABLED:true}
+        default-requeue-rejected: false
 
 app:
   cache:
@@ -18,3 +30,6 @@ app:
   security:
     # 生产环境必须显式注入 JWT 密钥，不提供默认值
     jwt-secret: ${JWT_SECRET}
+  mq:
+    # 生产环境默认启用 MQ
+    enabled: ${APP_MQ_ENABLED:true}

@@ -5,9 +5,13 @@ on:
     branches:
       - main
       - next
+    paths-ignore:
+      - '**.md'
   push:
     branches:
       - next
+    paths-ignore:
+      - '**.md'
 
 permissions:
   contents: read

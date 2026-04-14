@@ -7,6 +7,8 @@ import com.nfu.jasmine.common.exception.BusinessException;
 import com.nfu.jasmine.common.utils.BusinessNoUtil;
 import com.nfu.jasmine.common.vo.TableData;
 import com.nfu.jasmine.infra.cache.CacheNames;
+import com.nfu.jasmine.infra.mq.message.InventoryChangedMessage;
+import com.nfu.jasmine.infra.mq.publisher.MqMessagePublisher;
 import com.nfu.jasmine.inventory.web.dto.InventoryQueryDTO;
 import com.nfu.jasmine.inventory.web.dto.InventorySaveDTO;
 import com.nfu.jasmine.flower.model.entity.Flower;
@@ -24,6 +26,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 import java.math.BigDecimal;
+import java.util.Date;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -37,6 +40,9 @@ import java.util.stream.Collectors;
 public class InventoryServiceImpl extends ServiceImpl<InventoryMapper, Inventory> implements IInventoryService {
     @Autowired
     private FlowerMapper flowerMapper;
+
+    @Autowired
+    private MqMessagePublisher mqMessagePublisher;
 
     @Override
     public List<InventoryVO> listInventory() {
@@ -131,6 +137,20 @@ public class InventoryServiceImpl extends ServiceImpl<InventoryMapper, Inventory
         inventory.setDate(inventoryDTO.getDate());
         inventory.setDeleted(0);
         this.save(inventory);
+
+        // 手工库存动作也统一补事件，这样采购、损耗、退货和盘点都能复用同一条消息主链。
+        mqMessagePublisher.publishInventoryChangedAfterCommit(new InventoryChangedMessage(
+                inventory.getId(),
+                inventory.getBizNo(),
+                inventory.getFlowerId(),
+                inventory.getBizType(),
+                inventory.getQuantity(),
+                inventory.getBeforeStock(),
+                inventory.getAfterStock(),
+                inventory.getOperatorId(),
+                inventory.getDate(),
+                new Date()
+        ));
     }
 
     @Override
@@ -141,6 +161,7 @@ public class InventoryServiceImpl extends ServiceImpl<InventoryMapper, Inventory
     })
     public void updateInventory(InventorySaveDTO inventoryDTO, Integer operatorId) {
         Inventory existing = requireInventory(inventoryDTO.getId());
+        // 先计算旧流水对库存的净影响（入库为正、出库为负），后面用来回滚再重算。
         InventoryBizType oldBizType = InventoryBizType.fromCode(existing.getBizType());
         int oldDelta = oldBizType.apply(existing.getQuantity());
 
@@ -150,6 +171,7 @@ public class InventoryServiceImpl extends ServiceImpl<InventoryMapper, Inventory
         BigDecimal totalCost = buildTotalCost(unitCost, newQuantity);
 
         if (Objects.equals(existing.getFlowerId(), inventoryDTO.getFlowerId())) {
+            // 同一花卉：先回滚旧影响 -> 得到基准库存 -> 再叠加新影响。
             Flower flower = requireFlower(existing.getFlowerId());
             int baseStock = safeStock(flower) - oldDelta;
             ensureStockNotNegative(baseStock, flower.getName());
@@ -169,6 +191,7 @@ public class InventoryServiceImpl extends ServiceImpl<InventoryMapper, Inventory
             existing.setBeforeStock(baseStock);
             existing.setAfterStock(afterStock);
         } else {
+            // 换花卉：旧花卉回滚库存，新花卉按新业务类型重新计算库存。
             Flower oldFlower = requireFlower(existing.getFlowerId());
             int restoredOldStock = safeStock(oldFlower) - oldDelta;
             ensureStockNotNegative(restoredOldStock, oldFlower.getName());
