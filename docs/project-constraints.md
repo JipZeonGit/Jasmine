@@ -26,6 +26,20 @@
 
 如果某个英文名是协议字段、类名、配置项、代码常量或命令行参数的一部分，可以保留英文；但正文说明优先继续使用中文表达。
 
+### 3. 引用文件时优先使用相对路径
+
+- 文档、PR、说明文字中如果需要引用项目内文件，请优先使用仓库相对路径
+- 不要写成自己电脑上的绝对路径
+
+例如优先写：
+
+- `docs/upgrade/pr13-mq-contract.md`
+- `src/main/java/com/nfu/jasmine/infra/mq/config/RabbitMqTopologyConfig.java`
+
+不要写：
+
+- `D:\Software Engineering\Code Library\IdeaProjects\Jasmine\docs\upgrade\pr13-mq-contract.md`
+
 ## 二、文本编码约定
 
 ### 1. 优先使用 UTF-8 无 BOM
