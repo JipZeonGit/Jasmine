@@ -161,6 +161,7 @@ public class InventoryServiceImpl extends ServiceImpl<InventoryMapper, Inventory
     })
     public void updateInventory(InventorySaveDTO inventoryDTO, Integer operatorId) {
         Inventory existing = requireInventory(inventoryDTO.getId());
+        // 先计算旧流水对库存的净影响（入库为正、出库为负），后面用来回滚再重算。
         InventoryBizType oldBizType = InventoryBizType.fromCode(existing.getBizType());
         int oldDelta = oldBizType.apply(existing.getQuantity());
 
@@ -170,6 +171,7 @@ public class InventoryServiceImpl extends ServiceImpl<InventoryMapper, Inventory
         BigDecimal totalCost = buildTotalCost(unitCost, newQuantity);
 
         if (Objects.equals(existing.getFlowerId(), inventoryDTO.getFlowerId())) {
+            // 同一花卉：先回滚旧影响 -> 得到基准库存 -> 再叠加新影响。
             Flower flower = requireFlower(existing.getFlowerId());
             int baseStock = safeStock(flower) - oldDelta;
             ensureStockNotNegative(baseStock, flower.getName());
@@ -189,6 +191,7 @@ public class InventoryServiceImpl extends ServiceImpl<InventoryMapper, Inventory
             existing.setBeforeStock(baseStock);
             existing.setAfterStock(afterStock);
         } else {
+            // 换花卉：旧花卉回滚库存，新花卉按新业务类型重新计算库存。
             Flower oldFlower = requireFlower(existing.getFlowerId());
             int restoredOldStock = safeStock(oldFlower) - oldDelta;
             ensureStockNotNegative(restoredOldStock, oldFlower.getName());

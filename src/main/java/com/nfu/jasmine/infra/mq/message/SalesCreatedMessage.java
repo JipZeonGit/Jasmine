@@ -8,6 +8,9 @@ import java.io.Serializable;
 import java.math.BigDecimal;
 import java.util.Date;
 
+/**
+ * 销售单创建消息体，在销售事务提交后发布，供统计、审计等下游消费者使用。
+ */
 @Data
 @NoArgsConstructor
 @AllArgsConstructor

@@ -7,6 +7,9 @@ import lombok.NoArgsConstructor;
 import java.io.Serializable;
 import java.util.Date;
 
+/**
+ * 预约创建消息体，在预约事务提交后发布，消费端用于触发通知（短信、微信等）。
+ */
 @Data
 @NoArgsConstructor
 @AllArgsConstructor

@@ -12,6 +12,12 @@ import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.utility.DockerImageName;
 
+/**
+ * 集成测试基类，通过 Testcontainers 自动拉起 MySQL、Redis、RabbitMQ 三个容器。
+ * <p>
+ * 所有集成测试继承此类即可获得完整的中间件环境，容器在测试类生命周期内共享复用，
+ * 测试结束后由 {@code @DirtiesContext} 清理 Spring 上下文避免状态泄漏。
+ */
 @Testcontainers(disabledWithoutDocker = true)
 @SpringBootTest
 @ActiveProfiles("integration")

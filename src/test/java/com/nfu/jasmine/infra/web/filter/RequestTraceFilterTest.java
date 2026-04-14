@@ -16,6 +16,11 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+/**
+ * RequestTraceFilter 单元测试。
+ * 验证 traceId/requestId 的生成与复用、以及公共端点的过滤逻辑。
+ * MQ 发布被 mock 掉，只关注请求追踪行为本身。
+ */
 class RequestTraceFilterTest {
     private final MqMessagePublisher mqMessagePublisher = mock(MqMessagePublisher.class);
     private final RequestTraceFilter filter = new RequestTraceFilter(mqMessagePublisher);

@@ -12,6 +12,12 @@ import org.springframework.amqp.rabbit.annotation.RabbitListener;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
+/**
+ * 访问日志审计消费者。
+ * <p>
+ * 将请求追踪过滤器异步发来的访问日志落地到独立的 ACCESS_LOG logger，
+ * 并在 MDC 中还原 traceId / requestId 以保持日志链路完整。
+ */
 @Component
 @ConditionalOnProperty(name = "app.mq.enabled", havingValue = "true")
 public class AccessLogAuditListener {

@@ -20,6 +20,14 @@ import java.io.IOException;
 import java.util.Date;
 import java.util.UUID;
 
+/**
+ * 请求追踪过滤器，优先级最高，所有业务请求均经过此过滤器。
+ * <p>
+ * 核心职责：
+ * 1. 为每个请求生成或复用 traceId / requestId 并写入 MDC，保证日志链路可追溯；
+ * 2. 请求结束后将访问日志异步发送到 MQ，MQ 不可用时回退到本地同步日志；
+ * 3. 过滤掉健康检查等高频公共端点，避免污染业务日志。
+ */
 @Component
 @Order(Ordered.HIGHEST_PRECEDENCE)
 public class RequestTraceFilter extends OncePerRequestFilter {

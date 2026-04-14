@@ -28,6 +28,12 @@ import org.springframework.retry.policy.SimpleRetryPolicy;
 import java.util.HashMap;
 import java.util.Map;
 
+/**
+ * RabbitMQ 拓扑与基础设施配置。
+ * <p>
+ * 通过 {@code app.mq.enabled=true} 开关控制是否激活，未开启时整个 MQ 层不注册任何 Bean。
+ * 职责包括：声明交换机/队列/绑定关系、配置 JSON 消息转换器、统一重试策略和死信路由。
+ */
 @Configuration
 @EnableRabbit
 @ConditionalOnProperty(name = "app.mq.enabled", havingValue = "true")

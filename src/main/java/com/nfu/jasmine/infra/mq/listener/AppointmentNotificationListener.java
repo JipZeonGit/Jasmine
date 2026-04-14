@@ -11,6 +11,11 @@ import org.springframework.amqp.rabbit.annotation.RabbitListener;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
+/**
+ * 预约通知消费者。
+ * <p>
+ * 当前先用日志模拟通知发送，确认消息链跑通后再接短信或企业微信等真实通知渠道。
+ */
 @Component
 @ConditionalOnProperty(name = "app.mq.enabled", havingValue = "true")
 public class AppointmentNotificationListener {

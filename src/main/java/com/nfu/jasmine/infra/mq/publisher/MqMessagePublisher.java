@@ -13,6 +13,15 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
+/**
+ * 统一的 MQ 消息发布服务。
+ * <p>
+ * 业务事件通过 {@code publishXxxAfterCommit} 系列方法注册到事务同步回调，
+ * 确保只有事务真正提交后才发布消息，避免下游消费到未持久化的"幽灵消息"。
+ * 非事务场景（如访问日志）使用 {@code publishNow} 直接发送。
+ * <p>
+ * MQ 发送失败时仅记录日志不抛异常，保证主业务链路不受 MQ 瞬时不可用影响。
+ */
 @Service
 public class MqMessagePublisher {
     private static final Logger log = LoggerFactory.getLogger(MqMessagePublisher.class);

@@ -11,6 +11,11 @@ import org.springframework.amqp.rabbit.annotation.RabbitListener;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
+/**
+ * 销售事件消费者。
+ * <p>
+ * 消费模式：前置校验 -> 幂等去重 -> 业务处理（当前为日志模拟，后续接报表/审计）。
+ */
 @Component
 @ConditionalOnProperty(name = "app.mq.enabled", havingValue = "true")
 public class SalesEventListener {

@@ -192,6 +192,7 @@ public class SalesServiceImpl extends ServiceImpl<SalesMapper, Sales> implements
         Sales existing = requireSales(salesDTO.getId());
         validateVipIfPresent(salesDTO.getVipId());
 
+        // 修改采用“先回滚再重建”策略：把旧明细库存全部恢复，然后按新明细重新扣减。
         restoreSales(existing);
 
         existing.setVipId(salesDTO.getVipId());
@@ -216,6 +217,7 @@ public class SalesServiceImpl extends ServiceImpl<SalesMapper, Sales> implements
         this.removeById(id);
     }
 
+    // 回滚销售单对库存的影响：把已出库的数量加回花卉库存，然后清除明细和对应的库存流水。
     private void restoreSales(Sales sales) {
         List<SalesItem> items = listSalesItemsBySalesId(sales.getId());
         for (SalesItem item : items) {

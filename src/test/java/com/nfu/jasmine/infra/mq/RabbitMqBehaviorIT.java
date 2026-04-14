@@ -34,6 +34,12 @@ import java.util.function.Supplier;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.fail;
 
+/**
+ * RabbitMQ 行为集成测试。
+ * <p>
+ * 覆盖场景：重试成功、重试耗尽进死信、幂等去重、坏消息拒绝、事务提交后发布、事务回滚不发布。
+ * 通过内部 {@code RetryProbeListener} 和 {@code RetryProbeState} 配合验证 MQ 各项行为是否符合预期。
+ */
 @Import(RabbitMqBehaviorIT.TestRabbitMqConfig.class)
 class RabbitMqBehaviorIT extends AbstractIntegrationTest {
 
@@ -198,12 +204,14 @@ class RabbitMqBehaviorIT extends AbstractIntegrationTest {
         fail(description);
     }
 
+    // 测试用探针模式：控制 listener 在不同场景下的行为。
     enum ProbeMode {
         RETRY_THEN_SUCCESS,
         ALWAYS_FAIL,
         IDEMPOTENT
     }
 
+    // 测试专用消息体，携带业务 key 和探针模式来驱动不同的测试分支。
     static class RetryProbeMessage {
         private String key;
         private String mode;
@@ -233,6 +241,7 @@ class RabbitMqBehaviorIT extends AbstractIntegrationTest {
         }
     }
 
+    // 记录测试 listener 的执行状态（尝试次数、成功消费数、重复跳过数），供测试断言使用。
     static class RetryProbeState {
         private final Map<String, AtomicInteger> attempts = new ConcurrentHashMap<>();
         private final Map<String, AtomicInteger> processed = new ConcurrentHashMap<>();
@@ -269,6 +278,7 @@ class RabbitMqBehaviorIT extends AbstractIntegrationTest {
         }
     }
 
+    // 测试专用 listener，根据 ProbeMode 分别模拟重试成功、持续失败、幂等去重等场景。
     static class RetryProbeListener {
         private final MqIdempotencyService mqIdempotencyService;
         private final RetryProbeState retryProbeState;
@@ -306,6 +316,7 @@ class RabbitMqBehaviorIT extends AbstractIntegrationTest {
         }
     }
 
+    // 测试配置：注册测试专用的交换机、队列绑定和 listener，与业务拓扑隔离。
     @TestConfiguration
     static class TestRabbitMqConfig {
         @Bean
