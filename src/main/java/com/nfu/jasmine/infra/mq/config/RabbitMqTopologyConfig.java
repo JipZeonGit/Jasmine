@@ -8,16 +8,25 @@ import org.springframework.amqp.core.Declarables;
 import org.springframework.amqp.core.Queue;
 import org.springframework.amqp.core.QueueBuilder;
 import org.springframework.amqp.core.TopicExchange;
+import org.springframework.amqp.rabbit.config.RetryInterceptorBuilder;
 import org.springframework.amqp.rabbit.annotation.EnableRabbit;
 import org.springframework.amqp.rabbit.config.SimpleRabbitListenerContainerFactory;
 import org.springframework.amqp.rabbit.connection.ConnectionFactory;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
+import org.springframework.amqp.rabbit.retry.RejectAndDontRequeueRecoverer;
 import org.springframework.amqp.support.converter.Jackson2JsonMessageConverter;
+import org.springframework.amqp.support.converter.MessageConversionException;
 import org.springframework.amqp.support.converter.MessageConverter;
+import org.springframework.amqp.AmqpRejectAndDontRequeueException;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.retry.interceptor.RetryOperationsInterceptor;
+import org.springframework.retry.policy.SimpleRetryPolicy;
+
+import java.util.HashMap;
+import java.util.Map;
 
 @Configuration
 @EnableRabbit
@@ -26,6 +35,18 @@ public class RabbitMqTopologyConfig {
 
     @Value("${app.mq.dead-letter-enabled:true}")
     private boolean deadLetterEnabled;
+
+    @Value("${app.mq.retry.max-attempts:3}")
+    private int retryMaxAttempts;
+
+    @Value("${app.mq.retry.initial-interval-ms:1000}")
+    private long retryInitialIntervalMs;
+
+    @Value("${app.mq.retry.multiplier:2.0}")
+    private double retryMultiplier;
+
+    @Value("${app.mq.retry.max-interval-ms:10000}")
+    private long retryMaxIntervalMs;
 
     @Bean
     public MessageConverter rabbitMessageConverter(ObjectMapper objectMapper) {
@@ -48,7 +69,32 @@ public class RabbitMqTopologyConfig {
         factory.setMessageConverter(rabbitMessageConverter);
         // 第一版不把失败消息直接打回原队列，避免消费异常时出现无休止重试。
         factory.setDefaultRequeueRejected(false);
+        // 所有 listener 共用同一套重试规则，先把瞬时故障兜住，再决定是否进死信。
+        factory.setAdviceChain(rabbitRetryInterceptor());
         return factory;
+    }
+
+    @Bean
+    public RetryOperationsInterceptor rabbitRetryInterceptor() {
+        Map<Class<? extends Throwable>, Boolean> retryableExceptions = new HashMap<>();
+        // 这两类基本都属于“坏消息”，继续重试没有意义，直接拒绝更合适。
+        retryableExceptions.put(AmqpRejectAndDontRequeueException.class, false);
+        retryableExceptions.put(MessageConversionException.class, false);
+
+        // 其余异常默认按“可恢复”处理，先给几次机会，避免一抖动就直接打进死信。
+        SimpleRetryPolicy retryPolicy = new SimpleRetryPolicy(
+                retryMaxAttempts,
+                retryableExceptions,
+                true,
+                true
+        );
+
+        return RetryInterceptorBuilder.stateless()
+                .retryPolicy(retryPolicy)
+                // 这里统一做指数退避，避免消费者在故障期间高频空转刷日志。
+                .backOffOptions(retryInitialIntervalMs, retryMultiplier, retryMaxIntervalMs)
+                .recoverer(new RejectAndDontRequeueRecoverer())
+                .build();
     }
 
     @Bean

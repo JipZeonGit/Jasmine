@@ -675,3 +675,240 @@ management:
 - `@RabbitListener` 消费者正常启动
 - `/actuator/health` 中 rabbit 组件变为 UP，整体 health 返回 200
 - `RabbitMqTopologyConfig` 和所有 listener 因 `app.mq.enabled=true` 被激活，测试覆盖范围更完整
+
+## 第三阶段完成了什么
+
+第三阶段不再继续加更多业务事件，而是集中收口“消息到底能不能稳定跑、能不能测试、能不能排障”这三件事。
+
+本阶段最终完成：
+
+- 重试策略第一版
+- 死信排查手册
+- MQ 行为测试
+- 契约文档收口
+
+### 重试策略第一版
+
+已经完成：
+
+- 在 `src/main/java/com/nfu/jasmine/infra/mq/config/RabbitMqTopologyConfig.java` 中为 listener 容器挂载统一重试拦截器
+- 在 `src/main/resources/application.yml` 中增加：
+  - `app.mq.retry.max-attempts`
+  - `app.mq.retry.initial-interval-ms`
+  - `app.mq.retry.multiplier`
+  - `app.mq.retry.max-interval-ms`
+- 在 `src/test/resources/application-integration.yml` 中把测试环境重试间隔压低，避免行为测试等待过长
+
+当前默认重试参数：
+
+- 最大消费次数：`3`
+- 初始间隔：`1000ms`
+- 倍数：`2.0`
+- 最大间隔：`10000ms`
+
+当前直接判定为不重试的异常：
+
+- `AmqpRejectAndDontRequeueException`
+- `MessageConversionException`
+
+### 死信排查手册
+
+已经完成：
+
+- 新增 `docs/upgrade/pr13-dead-letter-runbook.md`
+
+这份手册已经收口：
+
+- 如何看 `jasmine.dlq`
+- 如何读 `x-death`
+- 当前常见坏消息 / 重试耗尽场景
+- 哪些死信适合补发，哪些不适合直接重放
+
+### MQ 行为测试
+
+已经完成：
+
+- 新增 `src/test/java/com/nfu/jasmine/infra/mq/RabbitMqBehaviorIT.java`
+
+当前已覆盖的行为：
+
+- 可恢复异常重试后成功
+- 重试耗尽后进入死信
+- 重复消息被幂等跳过
+- 坏消息进入死信
+- 事务提交后发布消息
+- 事务回滚时不发布消息
+
+### 文档收口
+
+已经完成：
+
+- `docs/upgrade/pr13-mq-contract.md`
+- `docs/upgrade/pr13-final-stage.md`
+
+这意味着 `PR13` 当前的 MQ 文档已经不再只是“设计意图”，而是和真实实现、真实联调结果对齐。
+
+## 第三阶段测试方法
+
+### 1. 本地启用 MQ 调试日志启动后端
+
+建议确认：
+
+- JDK 为 `21`
+- `APP_MQ_ENABLED=true`
+- RabbitMQ 连接指向 NAS 的 `5673`
+
+启动成功后重点观察：
+
+- `Publishing message`
+- `Received message`
+- `Processing [GenericMessage ...]`
+- 最终消费者的 `INFO` 日志
+
+### 2. 测试访问日志异步链
+
+操作方法：
+
+- 登录前端
+- 打开销售、库存、花卉、会员等常用页面
+
+验证点：
+
+- 后端日志持续出现 `ACCESS_LOG`
+- RabbitMQ 管理台速率图有短时波峰
+- 队列最终不积压
+
+### 3. 测试库存事件链
+
+操作方法：
+
+- 新增一条采购入库流水
+
+验证点：
+
+- 后端日志出现：
+  - `模拟消费库存事件`
+
+本轮实际联调示例：
+
+```text
+模拟消费库存事件 inventoryId=18 bizNo=INV202604142058191311 flowerId=3 bizType=PURCHASE_IN quantity=100 beforeStock=43 afterStock=143
+```
+
+### 4. 测试销售事件链
+
+操作方法：
+
+- 新建一张销售单
+
+验证点：
+
+- 后端日志出现：
+  - `模拟消费销售事件`
+  - `模拟消费库存事件`
+
+本轮实际联调示例：
+
+```text
+模拟消费库存事件 inventoryId=19 bizNo=SO202604142100038879 flowerId=1 bizType=SALE_OUT quantity=10 beforeStock=109 afterStock=99 bizTime=Tue Apr 14 20:59:36 HKT 2026
+模拟消费销售事件 salesId=6 orderNo=SO202604142100038879 vipId=3 operatorId=1 itemCount=1 totalAmount=130 salesTime=Tue Apr 14 20:59:36 HKT 2026
+```
+
+### 5. 观察 RabbitMQ 管理台
+
+本轮实际现象：
+
+- `Exchanges` 中能看到：
+  - `jasmine.appointment.event`
+  - `jasmine.audit.event`
+  - `jasmine.trade.event`
+  - `jasmine.dlx`
+- `Queues and Streams` 中能看到：
+  - `jasmine.appointment.notification`
+  - `jasmine.audit.access-log`
+  - `jasmine.sales.event-log`
+  - `jasmine.inventory.event-log`
+  - `jasmine.dlq`
+- `Ready`、`Unacked`、`Total` 最终归零
+- `Message rates` 有短时锯齿波
+
+这属于正常表现，说明消息已经被及时消费，没有形成堆积。
+
+## 第三阶段遇到的问题与解决方案
+
+### 问题 8：本地 PowerShell 启动时一度混入旧 JDK
+
+现象：
+
+- 使用 `spring-boot:run` 时出现：
+
+```text
+UnsupportedClassVersionError
+class file version 65.0
+only recognizes class file versions up to 61.0
+```
+
+根因：
+
+- 项目已经按 JDK 21 编译
+- 但某些本地终端会话或启动链路里仍可能混入 JDK 17
+
+解决方案：
+
+- 启动前显式确认：
+  - `java -version`
+  - `./mvnw.cmd -version`
+- 确保当前会话使用的是 JDK 21
+
+### 问题 9：无 Docker 的本地环境里 MQ 行为测试会全部跳过
+
+现象：
+
+- `RabbitMqBehaviorIT`、`UserControllerSecurityIT` 等集成测试在本地显示 `Skipped`
+
+根因：
+
+- `AbstractIntegrationTest` 使用了 `Testcontainers`
+- 当前机器若没有可用 Docker 环境，`@Testcontainers(disabledWithoutDocker = true)` 会自动跳过相关测试
+
+解决方案：
+
+- 把这种结果视为预期行为，不误判成测试编写失败
+- 在具备 Docker 的 CI 或本地环境中再执行真实集成验证
+
+### 问题 10：打开 DEBUG 后一度误以为“Retry: count=0”是在反复重试
+
+现象：
+
+- 日志中大量出现：
+
+```text
+Retry: count=0
+```
+
+容易误判成：
+
+- 消费者一直在重试
+
+根因：
+
+- 当前 listener 容器已经统一接入 RetryTemplate
+- 每条消息第一次进入 listener 时就会打印 `count=0`
+- 这只是第一次执行，并不代表已经发生失败后的重试
+
+解决方案：
+
+- 把 `count=0` 视为“首次进入重试模板”
+- 只有后续继续出现更高计数，才表示异常后的真正重复尝试
+
+## 第三阶段结论
+
+第三阶段完成后，`PR13` 已经进一步推进到：
+
+- MQ 具备第一版本地重试能力
+- MQ 具备死信排查手册
+- MQ 具备专门的行为测试
+- 契约文档与真实实现对齐
+- 手工联调确认访问日志、库存事件、销售事件全部正常
+
+也就是说，当前 `PR13` 已经不再只是“把 RabbitMQ 接进来”，而是把消息链路的运行规则、测试方式和排障方式一起立住了。

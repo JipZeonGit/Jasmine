@@ -1,260 +1,197 @@
-# PR13 最终阶段分析
+# PR13 最终阶段总结
 
 ## 背景
 
-`PR13` 前两个阶段已经完成了 RabbitMQ 基础设施接入、拓扑声明、四条事件链路的发布与消费骨架、消费幂等第一版以及死信与坏消息的初步分类。
+`PR13` 前两个阶段已经完成了 RabbitMQ 基础设施接入、拓扑声明、预约/访问日志/销售/库存四条事件链路、消费幂等第一版以及死信与消息契约第一版。
 
-在 `pr13-rabbitmq-bootstrap.md` 最后提出了四项"建议优先做的内容"，本文档对这四项逐一进行现状评估、待决设计点梳理以及实施方案建议。
+最终阶段的目标不是继续扩交换机和队列，也不是把系统一下子改成复杂消息平台，而是把当前这套消息骨架收口成“可以稳定跑、可以测试、可以排障、可以继续维护”的状态。
 
-## 一、重试策略第一版
+本阶段最终完成了四件事：
 
-### 当前现状
+1. MQ 重试策略第一版
+2. 死信排查手册
+3. MQ 行为测试
+4. 契约文档收口
 
-- `RabbitMqTopologyConfig` 中 `rabbitListenerContainerFactory` 设置了 `setDefaultRequeueRejected(false)`
-- 所有消费者通过 `MqMessageSupport.rejectIfNull` / `rejectIfBlank` 校验关键字段，校验失败时抛出 `AmqpRejectAndDontRequeueException`，消息直接进入死信
-- 除此以外，没有任何重试机制
-- 如果消费者在执行业务逻辑过程中遇到瞬时故障（如数据库连接超时、Redis 暂时不可达），消息同样会直接进入死信，不做任何重试
+## 一、重试策略第一版已完成
 
-### 问题
+### 已落地内容
 
-当前策略过于简单粗暴：**一次失败即永久死信**。
+- 在 `RabbitMqTopologyConfig.rabbitListenerContainerFactory` 中挂载统一的 `RetryOperationsInterceptor`
+- 保持 `defaultRequeueRejected=false`，避免异常消息无限回原队列
+- 对可恢复异常启用本地重试，对不可恢复异常直接拒绝
+- 重试参数已外化到 `app.mq.retry.*`
 
-在实际运行中，瞬时故障是最常见的消费失败原因（网络抖动、连接池满、下游短暂不可用），直接丢进死信意味着需要人工干预才能恢复，这不合理。
+当前默认策略：
 
-### 需要区分的三类异常
+- 最大消费次数：`3`
+- 退避策略：指数退避
+- 初始间隔：`1000ms`
+- 倍数：`2.0`
+- 最大间隔：`10000ms`
+- 重试耗尽后由 `RejectAndDontRequeueRecoverer` 拒绝并进入死信
 
-| 异常分类 | 典型场景 | 处理策略 |
-|---------|---------|---------|
-| **不可恢复异常** | 消息体 null、关键字段缺失、反序列化失败、业务校验不通过 | 直接拒绝，进入死信 |
-| **瞬时可恢复异常** | 数据库连接超时、Redis 短暂不可达、HTTP 调用超时 | 本地重试若干次，间隔递增 |
-| **长期不可恢复异常** | 本地重试次数耗尽仍未成功 | 放弃重试，进入死信 |
+当前直接判定为不重试的异常：
 
-### 实施方案
+- `AmqpRejectAndDontRequeueException`
+- `MessageConversionException`
 
-在 `rabbitListenerContainerFactory` 上配置 Spring Retry 的 `RetryInterceptor`：
+### 本阶段结论
 
-```
-最大重试次数：3
-退避策略：指数退避，初始间隔 1 秒，倍数 2，上限 10 秒
-不可恢复异常白名单：AmqpRejectAndDontRequeueException、MessageConversionException
-```
+`PR13` 当前已经不再是“一次失败即永久死信”的粗放策略，而是具备了第一版可恢复异常重试能力。
 
-具体实现方式：
+## 二、死信排查手册已完成
 
-1. 在 `RabbitMqTopologyConfig.rabbitListenerContainerFactory` 中通过 `factory.setAdviceChain(retryInterceptor)` 注入重试拦截器
-2. 可恢复异常由 Spring Retry 自动重试，超过最大次数后由 `RejectAndDontRequeueRecoverer` 最终拒绝入死信
-3. 不可恢复异常（如 `AmqpRejectAndDontRequeueException`）应在分类器中标记为不重试，直接进死信
+### 已落地内容
 
-### 待决设计点
+- 新增 `docs/upgrade/pr13-dead-letter-runbook.md`
 
-- 最大重试次数取 3 还是 5？建议先取 3，观察死信量后再调整
-- 是否需要把重试参数外化为配置项（`app.mq.retry.max-attempts`、`app.mq.retry.initial-interval-ms`）？建议第一版先写死常量，后续确定需要动态调整时再外化
-- 是否需要对不同队列配置不同的重试策略？当前四条链路性质相近，建议第一版统一策略
+手册已经覆盖：
 
----
+- 如何在 RabbitMQ 管理台查看 `jasmine.dlq`
+- 如何解读 `x-death`
+- 当前常见死信原因分类
+- 哪些消息适合补发，哪些不适合直接重放
+- 日常巡检建议
 
-## 二、下游业务消费者第一版
+### 本阶段结论
 
-### 当前现状
+`PR13` 当前已经不只是“有 DLQ”，而是具备了实际可用的排障入口和排查说明。
 
-四个消费者的消费逻辑全部停留在打日志阶段：
+## 三、MQ 行为测试已完成
 
-| 消费者 | 当前行为 | 代码中的注释原文 |
-|-------|---------|---------------|
-| `SalesEventListener` | `log.info("模拟消费销售事件")` | "后面再让统计或审计真正接这个事件做下游处理" |
-| `InventoryEventListener` | `log.info("模拟消费库存事件")` | "后面要接预警、审计或统计时不用再回头改主业务事务" |
-| `AppointmentNotificationListener` | `log.info("模拟发送预约通知")` | "再接短信或企业微信之类的真实通知渠道" |
-| `AccessLogAuditListener` | 写结构化日志到 logback | 已有真实副作用，当前不需要改动 |
+### 已落地内容
 
-### 需要决策的问题
+- 新增 `src/test/java/com/nfu/jasmine/infra/mq/RabbitMqBehaviorIT.java`
+- 新增测试专用 MQ 探针 listener 和队列，用来验证基础设施行为而不是改业务逻辑本身
 
-#### 2.1 销售事件消费者
+当前覆盖的行为包括：
 
-销售事件消费后最自然的落点是**日维度销售汇总**。
+- 可恢复异常重试后成功
+- 重试耗尽后进入死信
+- 幂等键命中后跳过重复消费
+- 坏消息进入统一死信队列
+- 事务提交后发布业务事件
+- 事务回滚时不发布业务事件
 
-当前数据库中已有 `sales` 和 `sales_item` 表，但没有独立的汇总统计表。
+同时，集成测试基线继续保留：
 
-**选项 A**：新建 `daily_sales_summary` 表
+- `AbstractIntegrationTest` 中的 MySQL + Redis + RabbitMQ Testcontainers
+- `application-integration.yml` 中的 rabbit 健康检查与测试重试参数
 
-```sql
-CREATE TABLE `daily_sales_summary` (
-  `id`            int NOT NULL AUTO_INCREMENT,
-  `summary_date`  date NOT NULL,
-  `order_count`   int NOT NULL DEFAULT 0,
-  `total_amount`  decimal(12,2) NOT NULL DEFAULT 0,
-  `total_cost`    decimal(12,2) NOT NULL DEFAULT 0,
-  `gross_profit`  decimal(12,2) NOT NULL DEFAULT 0,
-  `updated_at`    datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  PRIMARY KEY (`id`),
-  UNIQUE KEY `uk_summary_date` (`summary_date`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
-```
+### 验证说明
 
-消费者在收到 `sales.created` 事件后，按 `salesTime` 提取日期，对该日汇总行做 upsert：订单数 +1、总金额累加、毛利润累加。
+- 在具备 Docker 的环境中，上述 MQ 行为测试会使用真实 RabbitMQ 跑集成验证
+- 在没有 Docker 的本地环境中，`Testcontainers` 会自动跳过这类测试，这属于预期行为，不代表实现无效
 
-优势：
+### 本阶段结论
 
-- 前端可以直接查询汇总表展示当日/历史销售数据，不再需要每次实时聚合 `sales` + `sales_item`
-- 统计逻辑与主业务事务解耦
+`PR13` 当前已经具备了专门的 MQ 行为测试，不再完全依赖人工点点点看日志。
 
-风险：
+## 四、契约文档收口已完成
 
-- 如果消费者异常或消息丢失，汇总数据会与 `sales` 表不一致
-- 需要考虑后续补数据或对账机制
+### 已落地内容
 
-**选项 B**：暂不建表，先把消费者改为查询聚合并写日志
+`docs/upgrade/pr13-mq-contract.md` 已补齐并更新为当前真实状态，覆盖：
 
-把 `log.info("模拟消费")` 改为真正查询 `sales` + `sales_item` 做一次实时聚合，将结果写入业务日志。
+- 全部交换机、队列、路由键
+- 全部消息体字段
+- 发布入口与发布时机
+- 当前消费者行为
+- 幂等 key 规则与实现策略
+- 重试规则
+- 失败分类规则
+- 死信处理约定
+- 测试与联调状态
 
-优势：
+### 本阶段结论
 
-- 不引入新表，风险最小
-- 验证消费链路的真实性
+`PR13` 的 MQ 契约已经从“命名草稿”升级成“可运行、可排障、可验证”的运行文档。
 
-劣势：
+## 五、为什么这轮没有继续做下游建表消费者
 
-- 没有持久化的统计结果，前端仍然需要实时聚合
+本阶段最终明确决定：
 
-#### 2.2 库存事件消费者
+- 暂不在 `PR13` 内继续推进 `daily_sales_summary`
+- 暂不在 `PR13` 内继续推进 `inventory_alert`
+- 预约通知仍保持日志模拟，不提前引入通知记录表
 
-当前 `flower` 表已有 `safe_stock`（安全库存）和 `current_stock`（当前库存）字段。
+原因不是这些方向永远没价值，而是当前时机不合适：
 
-**选项 A**：消费者检查库存阈值，触发预警
+1. 当前事件主要覆盖 `created`
 
-消费者在收到 `inventory.changed` 事件后，查询对应花材的 `current_stock` 和 `safe_stock`，如果 `current_stock < safe_stock`，则：
+- `sales.created`
+- `inventory.changed`
 
-- 写一张 `inventory_alert` 表记录预警事件
-- 或者直接写一条 WARN 级别日志
+但销售、库存本身还有修改和删除路径，如果现在直接让下游去维护持久化读模型，很容易出现读模型与主表漂移。
 
-```sql
-CREATE TABLE `inventory_alert` (
-  `id`            int NOT NULL AUTO_INCREMENT,
-  `flower_id`     int NOT NULL,
-  `flower_name`   varchar(50) NOT NULL,
-  `current_stock` int NOT NULL,
-  `safe_stock`    int NOT NULL,
-  `alerted_at`    datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  PRIMARY KEY (`id`),
-  KEY `idx_alert_flower_id` (`flower_id`),
-  KEY `idx_alert_alerted_at` (`alerted_at`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
-```
+2. 当前系统已经有同步统计能力
 
-**选项 B**：不建新表，消费者只做日志预警
+- 销售页的“今日经营统计”已经由同步聚合提供
+- 这轮更应该优先把 MQ 的可靠性、可测性和可观测性做稳
 
-收到事件后检查阈值，如果触发预警只写 WARN 日志，不建表。
+3. PR13 的定位仍然是“消息基础骨架”
 
-优势：改动最小。劣势：预警信息只在日志中，不可查询不可展示。
+- 先稳消息边界
+- 再扩复杂读模型
 
-#### 2.3 预约通知消费者
+这也意味着后面如果真要推进统计表或预警表，更适合放在下一轮专门做，而不是混在 `PR13` 最终收尾里一起膨胀。
 
-**选项 A**：接入真实通知渠道
+## 六、本阶段最终验收结果
 
-需要确定具体要接什么渠道：短信 SDK、企业微信 Webhook、还是其他。这取决于项目当前的外部集成能力。
+### 代码与测试层面
 
-**选项 B**：写通知发送记录表
+- 离线 `verify` 已通过
+- 单元测试正常通过
+- MQ 行为测试已纳入测试集
+- 在无 Docker 环境下，相关集成测试被 `Testcontainers` 按预期跳过
 
-消费者收到预约事件后，写一张 `notification_log` 表，记录"应该发送的通知"。真实发送渠道后续接入时直接查这张表补发。
+### 手工联调层面
 
-**选项 C**：维持现状
+已确认：
 
-预约通知的真实渠道尚未确定，继续保持日志模拟，不做改动。
+- RabbitMQ 交换机和队列全部声明成功
+- `ACCESS_LOG` 异步链正常
+- 手工库存新增后 `InventoryEventListener` 正常消费
+- 销售单创建后 `SalesEventListener` 与 `InventoryEventListener` 都能正常消费
+- RabbitMQ 管理台中 `Ready` / `Unacked` / `Total` 最终归零
+- `jasmine.dlq` 在本轮联调中没有出现异常积压
 
-### 建议
+### 日志观察层面
 
-| 消费者 | 建议选项 | 理由 |
-|-------|---------|------|
-| `SalesEventListener` | 选项 A（建 `daily_sales_summary` 表） | 前端已经有销售管理页面，汇总表能直接支撑后续的仪表盘或报表需求 |
-| `InventoryEventListener` | 选项 A（建 `inventory_alert` 表） | `flower.safe_stock` 已经存在，检查逻辑简单，预警记录持久化后可在前端展示或做批量查询 |
-| `AppointmentNotificationListener` | 选项 C（维持现状） | 真实通知渠道未确定，过早建表反而增加维护负担 |
+本轮手工联调里出现的：
 
----
+- `Publishing message`
+- `Received message`
+- `Processing [GenericMessage ...]`
+- `Retry: count=0`
 
-## 三、死信消息观察与排查手册
+都属于当前打开 DEBUG 日志后的正常表现。
 
-### 当前现状
+其中 `Retry: count=0` 只表示消息进入了重试模板的第一次执行，并不等于已经发生了真正重试；只有后续继续出现更高计数，才代表异常后的重复尝试。
 
-- 死信队列 `jasmine.dlq` 已声明
-- 所有业务队列均绑定了死信交换机 `jasmine.dlx`
-- 消费者中所有校验失败和不可恢复异常都会通过 `AmqpRejectAndDontRequeueException` 将消息路由到死信队列
-- 但是没有任何文档说明如何观察和排查死信消息
+## 七、最终结论
 
-### 排查手册应覆盖的内容
+`PR13` 最终已经完成收尾，当前可以明确确认：
 
-1. **如何查看死信消息**
-   - RabbitMQ 管理台 → Queues → `jasmine.dlq` → Get messages
-   - 通过消息头的 `x-death` 字段判断原始队列、死亡原因、死亡次数
+- RabbitMQ 基础设施接入完成
+- 四条消息链路真实可跑
+- Redis 幂等第一版完成
+- 死信与失败分类第一版完成
+- 本地重试第一版完成
+- 死信排查手册完成
+- MQ 行为测试完成
+- 契约文档收口完成
 
-2. **常见死信原因分类**
+也就是说，`PR13` 当前已经不是“RabbitMQ 接入演示”，而是形成了一个具备以下特征的消息基础骨架：
 
-   | 死信原因 | 典型表现 | 排查方向 |
-   |---------|---------|---------|
-   | 消息体为 null 或缺少关键字段 | `x-death.reason=rejected`，应用日志有 `MQ 消息缺少必要字段` | 检查发布端是否正常构建消息体 |
-   | 反序列化失败 | `MessageConversionException`，消息体内容与消费者期望的 POJO 不匹配 | 检查消息体 JSON 结构是否与消息类字段一致 |
-   | 消费者业务异常且重试耗尽 | `x-death.count` 等于最大重试次数 | 检查消费者日志中最后一轮异常堆栈 |
-   | 队列 TTL 过期 | `x-death.reason=expired` | 检查队列是否配置了 `x-message-ttl` |
+- 能发布
+- 能消费
+- 能幂等
+- 能重试
+- 能进死信
+- 能排障
+- 能测试
+- 能继续扩展
 
-3. **死信消息的处理策略**
-   - 坏消息（反序列化失败、字段缺失）：分析原因后丢弃或归档
-   - 瞬时故障导致的死信：修复下游问题后，从 `jasmine.dlq` 手工重新发布到原始交换机
-   - 重复消息导致的死信：幂等机制正常工作的情况下不应出现在死信中（重复消息会被跳过而非拒绝）
-
-4. **日常巡检建议**
-   - 定期检查 `jasmine.dlq` 的 `Ready` 数值
-   - 如果 `Ready > 0`，说明存在未处理的死信消息
-   - 配合后端 WARN 日志关键字 `MQ 消息缺少必要字段` 进行交叉定位
-
-### 实施方案
-
-将上述内容整理为独立文档 `docs/upgrade/pr13-dead-letter-runbook.md`。
-
----
-
-## 四、文档收口
-
-### 当前现状
-
-`docs/upgrade/pr13-mq-contract.md` 已经覆盖：
-
-- 全部交换机和队列声明
-- 全部消息体字段定义
-- 幂等 key 命名规则和实现位置
-- 失败分类规则（直接死信、直接跳过、还未细化）
-- 发布时机约定
-
-### 待完善的内容
-
-| 章节 | 现状 | 需要更新的时机 |
-|-----|------|-------------|
-| 失败分类规则 → "还未细化的情况" | 明确标注了"后续会继续细化" | 重试策略第一版实施后，需更新为具体的重试参数和异常分类规则 |
-| 消费者行为描述 | 只写了消费者类名 | 下游业务消费者实施后，需补充每个消费者的实际副作用描述 |
-| 死信处理策略 | 未记录 | 排查手册完成后，在契约文档中引用排查手册链接 |
-
-### 实施方案
-
-不需要独立启动任务，在上述三项完成后同步更新 `pr13-mq-contract.md` 即可。
-
----
-
-## 建议实施顺序
-
-```
-第一步：重试策略
-  ↓ 不依赖任何业务决策，纯基础设施改动
-第二步：死信排查手册
-  ↓ 纯文档工作，重试策略上线后有更完整的场景可以收录
-第三步：下游业务消费者
-  ↓ 需要确认建表方案后再实施
-第四步：文档收口
-  ↓ 跟随前三步的产出同步更新
-```
-
-其中第一步和第二步可以立即启动，不需要额外的业务决策。
-
-第三步需要确认：
-
-1. 是否新建 `daily_sales_summary` 表？
-2. 是否新建 `inventory_alert` 表？
-3. 预约通知是否维持现状？
-
-确认后即可实施。
+下一轮如果继续演进，更适合围绕“消息驱动下的真实下游能力”展开，而不是回头再补基础设施兜底。

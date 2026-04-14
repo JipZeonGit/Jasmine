@@ -38,3 +38,6 @@ build/
 ops/rabbitmq/.env
 ops/rabbitmq/data/
 ops/rabbitmq/log/
+
+### Local scripts ###
+start-backend.ps1

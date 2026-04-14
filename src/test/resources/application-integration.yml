@@ -14,6 +14,12 @@ app:
     type: redis
   security:
     jwt-secret: jasmine-integration-jwt-secret-for-testcontainers-2026
+  mq:
+    retry:
+      # 集成测试把回退时间压低，保证行为测试能快速完成。
+      initial-interval-ms: 50
+      multiplier: 1.0
+      max-interval-ms: 50
 
 management:
   health:
