@@ -6,6 +6,9 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Profile;
+import org.springframework.data.redis.cache.RedisCacheConfiguration;
+import org.springframework.data.redis.cache.RedisCacheManager;
+import org.springframework.data.redis.cache.RedisCacheWriter;
 import org.springframework.data.redis.connection.RedisConnectionFactory;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.serializer.GenericJackson2JsonRedisSerializer;
@@ -15,6 +18,7 @@ import org.springframework.data.redis.serializer.StringRedisSerializer;
 import java.time.Duration;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.ThreadLocalRandom;
 
 @Configuration
 @Profile("!test")
@@ -41,25 +45,31 @@ public class MyRedisConfig {
     }
 
     @Bean
-    public org.springframework.data.redis.cache.RedisCacheManager cacheManager(RedisConnectionFactory factory) {
-        org.springframework.data.redis.cache.RedisCacheConfiguration config = org.springframework.data.redis.cache.RedisCacheConfiguration.defaultCacheConfig()
+    public RedisCacheManager cacheManager(RedisConnectionFactory factory) {
+        RedisCacheConfiguration config = RedisCacheConfiguration.defaultCacheConfig()
                 .entryTtl(Duration.ofMinutes(30))
                 .serializeKeysWith(RedisSerializationContext.SerializationPair.fromSerializer(new StringRedisSerializer()))
-                .serializeValuesWith(RedisSerializationContext.SerializationPair.fromSerializer(new GenericJackson2JsonRedisSerializer()))
-                .disableCachingNullValues();
+                .serializeValuesWith(RedisSerializationContext.SerializationPair.fromSerializer(new GenericJackson2JsonRedisSerializer()));
 
-        Map<String, org.springframework.data.redis.cache.RedisCacheConfiguration> cacheConfigurations = new HashMap<>();
-        // 用户、菜单、角色属于系统基础数据，允许缓存时间略长一些。
-        cacheConfigurations.put(CacheNames.USER, config.entryTtl(Duration.ofMinutes(30)));
-        cacheConfigurations.put(CacheNames.MENU_LIST, config.entryTtl(Duration.ofMinutes(30)));
-        cacheConfigurations.put(CacheNames.ROLE_LIST, config.entryTtl(Duration.ofMinutes(30)));
-        // 花卉主数据会被库存和销售联动修改，缓存时间保持更短，主要依赖显式失效保证一致性。
-        cacheConfigurations.put(CacheNames.FLOWER_LIST, config.entryTtl(Duration.ofMinutes(10)));
-        cacheConfigurations.put(CacheNames.FLOWER_DETAIL, config.entryTtl(Duration.ofMinutes(10)));
+        Map<String, RedisCacheConfiguration> cacheConfigurations = new HashMap<>();
+        // 用户、菜单、角色属于系统基础数据，基础 TTL 30 分钟，再随机加 0-5 分钟抖动，避免同批 key 一起过期。
+        cacheConfigurations.put(CacheNames.USER, withJitter(config, Duration.ofMinutes(30), 300));
+        cacheConfigurations.put(CacheNames.MENU_LIST, withJitter(config, Duration.ofMinutes(30), 300));
+        cacheConfigurations.put(CacheNames.ROLE_LIST, withJitter(config, Duration.ofMinutes(30), 300));
+        // 花卉主数据会被库存和销售联动修改，基础 TTL 10 分钟，再随机加 0-2 分钟抖动，降低集中回源。
+        cacheConfigurations.put(CacheNames.FLOWER_LIST, withJitter(config, Duration.ofMinutes(10), 120));
+        cacheConfigurations.put(CacheNames.FLOWER_DETAIL, withJitter(config, Duration.ofMinutes(10), 120));
 
-        return org.springframework.data.redis.cache.RedisCacheManager.builder(factory)
+        return RedisCacheManager.builder(factory)
                 .cacheDefaults(config)
                 .withInitialCacheConfigurations(cacheConfigurations)
                 .build();
+    }
+
+    private RedisCacheConfiguration withJitter(RedisCacheConfiguration baseConfig, Duration ttl, long maxJitterSeconds) {
+        return baseConfig.entryTtl((RedisCacheWriter.TtlFunction) (key, value) -> {
+            long jitterSeconds = maxJitterSeconds <= 0 ? 0 : ThreadLocalRandom.current().nextLong(maxJitterSeconds + 1);
+            return ttl.plusSeconds(jitterSeconds);
+        });
     }
 }

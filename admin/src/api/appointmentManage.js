@@ -1,4 +1,5 @@
 import request from '@/utils/request'
+import { buildCreateIdempotencyKey } from '@/utils/idempotency'
 
 export default {
   getAppointmentList(searchModel) {
@@ -19,6 +20,9 @@ export default {
     return request({
       url: '/appointment',
       method: 'post',
+      headers: {
+        'X-Idempotency-Key': buildCreateIdempotencyKey('appointment:create', appointment)
+      },
       data: appointment
     })
   },

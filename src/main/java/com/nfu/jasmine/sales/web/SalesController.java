@@ -9,6 +9,7 @@ import com.nfu.jasmine.sales.application.ISalesService;
 import com.nfu.jasmine.sales.web.vo.SalesVO;
 import com.nfu.jasmine.sales.web.vo.TodayBusinessSummaryVO;
 import com.nfu.jasmine.iam.model.entity.User;
+import com.nfu.jasmine.infra.idempotency.RequestIdempotencyService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
@@ -23,6 +24,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -35,6 +37,9 @@ import java.util.List;
 public class SalesController {
     @Autowired
     private ISalesService salesService;
+
+    @Autowired
+    private RequestIdempotencyService requestIdempotencyService;
 
 // 一次性把所有的销售订单拉出来
     @Operation(summary = "获取全部销售单")
@@ -49,11 +54,20 @@ public class SalesController {
         return Result.success(salesService.getTodayBusinessSummary());
     }
 
-// 结账新增一笔销售单记录
+    // 结账新增一笔销售单记录
     @Operation(summary = "新增销售单")
     @PostMapping("")
-    public Result<?> addSales(@Valid @RequestBody SalesSaveDTO salesDTO, HttpServletRequest request) {
-        salesService.saveSales(salesDTO, getCurrentUserId(request));
+    public Result<?> addSales(@Valid @RequestBody SalesSaveDTO salesDTO,
+                              @RequestHeader(value = RequestIdempotencyService.IDEMPOTENCY_HEADER, required = false) String idempotencyKey,
+                              HttpServletRequest request) {
+        Integer currentUserId = getCurrentUserId(request);
+        requestIdempotencyService.executeCreate(
+                "sales:create",
+                currentUserId,
+                idempotencyKey,
+                salesDTO,
+                () -> salesService.saveSales(salesDTO, currentUserId)
+        );
         return Result.success("新增销售单成功！");
     }
 

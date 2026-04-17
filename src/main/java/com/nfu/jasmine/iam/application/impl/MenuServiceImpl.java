@@ -48,7 +48,7 @@ public class MenuServiceImpl extends ServiceImpl<MenuMapper, Menu> implements IM
     }
 
     @Override
-    @Cacheable(value = CacheNames.MENU_LIST, key = "#userId")
+    @Cacheable(value = CacheNames.MENU_LIST, key = "#userId", sync = true)
     public List<Menu> getMenuListByUserId(Integer userId) {
         // 一级菜单
         List<Menu> menuList = this.baseMapper.getMenuListByUserId(userId,0);

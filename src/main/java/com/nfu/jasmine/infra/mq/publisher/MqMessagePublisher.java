@@ -7,11 +7,14 @@ import com.nfu.jasmine.infra.mq.message.InventoryChangedMessage;
 import com.nfu.jasmine.infra.mq.message.SalesCreatedMessage;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.amqp.rabbit.connection.CorrelationData;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
+
+import java.util.UUID;
 
 /**
  * 统一的 MQ 消息发布服务。
@@ -73,7 +76,7 @@ public class MqMessagePublisher {
             return false;
         }
         try {
-            rabbitTemplate.convertAndSend(exchange, routingKey, payload);
+            rabbitTemplate.convertAndSend(exchange, routingKey, payload, new CorrelationData(UUID.randomUUID().toString()));
             return true;
         } catch (Exception ex) {
             // 第一版先确保主业务链不因为 MQ 暂时不可用而整体失败，失败信息留在日志里继续追。

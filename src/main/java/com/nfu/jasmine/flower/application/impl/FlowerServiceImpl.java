@@ -32,7 +32,7 @@ public class FlowerServiceImpl extends ServiceImpl<FlowerMapper, Flower> impleme
     }
 
     @Override
-    @Cacheable(value = CacheNames.FLOWER_DETAIL, key = "#id")
+    @Cacheable(value = CacheNames.FLOWER_DETAIL, key = "#id", sync = true)
     public Flower getFlowerDetailById(Integer id) {
         return this.getById(id);
     }

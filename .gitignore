@@ -41,3 +41,5 @@ ops/rabbitmq/log/
 
 ### Local scripts ###
 start-backend.ps1
+start-backend-redis.ps1
+start-frontend-bun.ps1
