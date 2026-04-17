@@ -9,6 +9,7 @@ import com.nfu.jasmine.inventory.web.dto.InventorySaveDTO;
 import com.nfu.jasmine.inventory.application.IInventoryService;
 import com.nfu.jasmine.inventory.web.vo.InventoryVO;
 import com.nfu.jasmine.iam.model.entity.User;
+import com.nfu.jasmine.infra.idempotency.RequestIdempotencyService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
@@ -29,6 +30,9 @@ public class InventoryController {
     @Autowired
     private IInventoryService inventoryService;
 
+    @Autowired
+    private RequestIdempotencyService requestIdempotencyService;
+
 // 获取仓库中所有的库存物资，不带翻页
     @Operation(summary = "获取全部库存流水")
     @GetMapping("/all")
@@ -36,11 +40,20 @@ public class InventoryController {
         return Result.success(inventoryService.listInventory(), "查询成功");
     }
 
-// 录入新的库存项，并由系统自动生成物资编号
+    // 录入新的库存项，并由系统自动生成物资编号
     @Operation(summary = "新增库存动作")
     @PostMapping("")
-    public Result<?> addInventory(@Valid @RequestBody InventorySaveDTO inventoryDTO, HttpServletRequest request) {
-        inventoryService.saveInventory(inventoryDTO, getCurrentUserId(request));
+    public Result<?> addInventory(@Valid @RequestBody InventorySaveDTO inventoryDTO,
+                                  @RequestHeader(value = RequestIdempotencyService.IDEMPOTENCY_HEADER, required = false) String idempotencyKey,
+                                  HttpServletRequest request) {
+        Integer currentUserId = getCurrentUserId(request);
+        requestIdempotencyService.executeCreate(
+                "inventory:create",
+                currentUserId,
+                idempotencyKey,
+                inventoryDTO,
+                () -> inventoryService.saveInventory(inventoryDTO, currentUserId)
+        );
         return Result.success("新增库存动作成功！");
     }
 

@@ -6,6 +6,7 @@ import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.nfu.jasmine.common.exception.BusinessException;
 import com.nfu.jasmine.common.utils.BusinessNoUtil;
 import com.nfu.jasmine.common.vo.TableData;
+import com.nfu.jasmine.flower.application.support.FlowerStockService;
 import com.nfu.jasmine.infra.cache.CacheNames;
 import com.nfu.jasmine.infra.mq.message.InventoryChangedMessage;
 import com.nfu.jasmine.infra.mq.message.SalesCreatedMessage;
@@ -29,8 +30,8 @@ import com.nfu.jasmine.sales.web.vo.SalesItemVO;
 import com.nfu.jasmine.sales.web.vo.SalesVO;
 import com.nfu.jasmine.sales.web.vo.TodayBusinessSummaryVO;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.cache.annotation.CacheEvict;
-import org.springframework.cache.annotation.Caching;
+import org.springframework.cache.Cache;
+import org.springframework.cache.CacheManager;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -42,6 +43,7 @@ import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Date;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -66,6 +68,12 @@ public class SalesServiceImpl extends ServiceImpl<SalesMapper, Sales> implements
 
     @Autowired
     private MqMessagePublisher mqMessagePublisher;
+
+    @Autowired
+    private FlowerStockService flowerStockService;
+
+    @Autowired
+    private CacheManager cacheManager;
 
     @Override
     public List<SalesVO> listSales() {
@@ -148,10 +156,6 @@ public class SalesServiceImpl extends ServiceImpl<SalesMapper, Sales> implements
 
     @Override
     @Transactional
-    @Caching(evict = {
-            @CacheEvict(value = CacheNames.FLOWER_LIST, allEntries = true),
-            @CacheEvict(value = CacheNames.FLOWER_DETAIL, allEntries = true)
-    })
     public void saveSales(SalesSaveDTO salesDTO, Integer operatorId) {
         validateVipIfPresent(salesDTO.getVipId());
 
@@ -165,7 +169,8 @@ public class SalesServiceImpl extends ServiceImpl<SalesMapper, Sales> implements
         sales.setDeleted(0);
         this.save(sales);
 
-        BigDecimal totalAmount = rebuildSalesItems(sales, salesDTO.getItems(), operatorId);
+        Set<Integer> affectedFlowerIds = new HashSet<>();
+        BigDecimal totalAmount = rebuildSalesItems(sales, salesDTO.getItems(), operatorId, affectedFlowerIds);
         sales.setTotalAmount(totalAmount);
         this.updateById(sales);
 
@@ -180,19 +185,17 @@ public class SalesServiceImpl extends ServiceImpl<SalesMapper, Sales> implements
                 sales.getDate(),
                 new Date()
         ));
+        evictFlowerCaches(affectedFlowerIds);
     }
 
     @Override
     @Transactional
-    @Caching(evict = {
-            @CacheEvict(value = CacheNames.FLOWER_LIST, allEntries = true),
-            @CacheEvict(value = CacheNames.FLOWER_DETAIL, allEntries = true)
-    })
     public void updateSales(SalesSaveDTO salesDTO, Integer operatorId) {
         Sales existing = requireSales(salesDTO.getId());
         validateVipIfPresent(salesDTO.getVipId());
 
         // 修改采用“先回滚再重建”策略：把旧明细库存全部恢复，然后按新明细重新扣减。
+        Set<Integer> affectedFlowerIds = new HashSet<>(collectFlowerIds(listSalesItemsBySalesId(existing.getId())));
         restoreSales(existing);
 
         existing.setVipId(salesDTO.getVipId());
@@ -200,31 +203,27 @@ public class SalesServiceImpl extends ServiceImpl<SalesMapper, Sales> implements
         existing.setRemark(salesDTO.getRemark());
         existing.setOperatorId(operatorId);
 
-        BigDecimal totalAmount = rebuildSalesItems(existing, salesDTO.getItems(), operatorId);
+        BigDecimal totalAmount = rebuildSalesItems(existing, salesDTO.getItems(), operatorId, affectedFlowerIds);
         existing.setTotalAmount(totalAmount);
         this.updateById(existing);
+        evictFlowerCaches(affectedFlowerIds);
     }
 
     @Override
     @Transactional
-    @Caching(evict = {
-            @CacheEvict(value = CacheNames.FLOWER_LIST, allEntries = true),
-            @CacheEvict(value = CacheNames.FLOWER_DETAIL, allEntries = true)
-    })
     public void deleteSales(Integer id) {
         Sales existing = requireSales(id);
+        Set<Integer> affectedFlowerIds = new HashSet<>(collectFlowerIds(listSalesItemsBySalesId(existing.getId())));
         restoreSales(existing);
         this.removeById(id);
+        evictFlowerCaches(affectedFlowerIds);
     }
 
     // 回滚销售单对库存的影响：把已出库的数量加回花卉库存，然后清除明细和对应的库存流水。
     private void restoreSales(Sales sales) {
         List<SalesItem> items = listSalesItemsBySalesId(sales.getId());
         for (SalesItem item : items) {
-            Flower flower = requireFlower(item.getFlowerId());
-            int restoredStock = safeStock(flower) + item.getQuantity();
-            flower.setCurrentStock(restoredStock);
-            flowerMapper.updateById(flower);
+            flowerStockService.adjustStock(item.getFlowerId(), item.getQuantity(), null, false, null);
         }
 
         salesItemMapper.delete(new LambdaQueryWrapper<SalesItem>().eq(SalesItem::getSalesId, sales.getId()));
@@ -233,23 +232,27 @@ public class SalesServiceImpl extends ServiceImpl<SalesMapper, Sales> implements
                 .eq(Inventory::getBizType, InventoryBizType.SALE_OUT.name()));
     }
 
-    private BigDecimal rebuildSalesItems(Sales sales, List<SalesItemSaveDTO> items, Integer operatorId) {
+    private BigDecimal rebuildSalesItems(Sales sales, List<SalesItemSaveDTO> items, Integer operatorId, Set<Integer> affectedFlowerIds) {
         if (items == null || items.isEmpty()) {
             throw new BusinessException("销售明细不能为空！");
         }
 
         BigDecimal totalAmount = BigDecimal.ZERO;
         for (SalesItemSaveDTO itemDTO : items) {
-            Flower flower = requireFlower(itemDTO.getFlowerId());
             int quantity = requirePositiveQuantity(itemDTO.getQuantity(), "销售数量必须大于 0！");
+            FlowerStockService.StockChangeResult stockChange = flowerStockService.adjustStock(
+                    itemDTO.getFlowerId(),
+                    -quantity,
+                    null,
+                    false,
+                    "库存不足，请调整销售数量！"
+            );
+            Flower flower = stockChange.flower();
             BigDecimal unitPrice = requirePositivePrice(itemDTO.getUnitPrice(), "销售单价必须大于 0！");
             BigDecimal unitCost = requirePositivePrice(flower.getCostPrice(), "请先维护花卉成本价，再创建销售单！");
-
-            int beforeStock = safeStock(flower);
-            int afterStock = beforeStock - quantity;
-            if (afterStock < 0) {
-                throw new BusinessException(flower.getName() + "库存不足，请调整销售数量！");
-            }
+            int beforeStock = stockChange.beforeStock();
+            int afterStock = stockChange.afterStock();
+            affectedFlowerIds.add(flower.getId());
 
             BigDecimal amount = unitPrice.multiply(BigDecimal.valueOf(quantity));
             BigDecimal costAmount = unitCost.multiply(BigDecimal.valueOf(quantity));
@@ -296,11 +299,12 @@ public class SalesServiceImpl extends ServiceImpl<SalesMapper, Sales> implements
                     inventory.getDate(),
                     new Date()
             ));
-
-            flower.setCurrentStock(afterStock);
-            flowerMapper.updateById(flower);
         }
         return totalAmount;
+    }
+
+    private Set<Integer> collectFlowerIds(List<SalesItem> items) {
+        return items.stream().map(SalesItem::getFlowerId).collect(Collectors.toSet());
     }
 
     private List<SalesVO> buildSalesVOs(List<Sales> records) {
@@ -409,8 +413,17 @@ public class SalesServiceImpl extends ServiceImpl<SalesMapper, Sales> implements
         return price;
     }
 
-    private int safeStock(Flower flower) {
-        return flower.getCurrentStock() == null ? 0 : flower.getCurrentStock();
+    private void evictFlowerCaches(Set<Integer> flowerIds) {
+        Cache flowerListCache = cacheManager.getCache(CacheNames.FLOWER_LIST);
+        if (flowerListCache != null) {
+            flowerListCache.evict("all");
+        }
+        Cache flowerDetailCache = cacheManager.getCache(CacheNames.FLOWER_DETAIL);
+        if (flowerDetailCache != null) {
+            for (Integer flowerId : flowerIds) {
+                flowerDetailCache.evict(flowerId);
+            }
+        }
     }
 
     private BigDecimal sumBigDecimal(List<BigDecimal> values) {

@@ -1,4 +1,5 @@
 import request from '@/utils/request'
+import { buildCreateIdempotencyKey } from '@/utils/idempotency'
 
 export default {
   getSalesList(searchModel) {
@@ -24,6 +25,9 @@ export default {
     return request({
       url: '/sales',
       method: 'post',
+      headers: {
+        'X-Idempotency-Key': buildCreateIdempotencyKey('sales:create', sales)
+      },
       data: sales
     })
   },

@@ -6,6 +6,7 @@ import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.nfu.jasmine.common.exception.BusinessException;
 import com.nfu.jasmine.common.utils.BusinessNoUtil;
 import com.nfu.jasmine.common.vo.TableData;
+import com.nfu.jasmine.flower.application.support.FlowerStockService;
 import com.nfu.jasmine.infra.cache.CacheNames;
 import com.nfu.jasmine.infra.mq.message.InventoryChangedMessage;
 import com.nfu.jasmine.infra.mq.publisher.MqMessagePublisher;
@@ -19,16 +20,17 @@ import com.nfu.jasmine.inventory.persistence.mapper.InventoryMapper;
 import com.nfu.jasmine.inventory.application.IInventoryService;
 import com.nfu.jasmine.inventory.web.vo.InventoryVO;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.cache.annotation.CacheEvict;
-import org.springframework.cache.annotation.Caching;
+import org.springframework.cache.Cache;
+import org.springframework.cache.CacheManager;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 import java.math.BigDecimal;
-import java.util.Date;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Date;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -43,6 +45,12 @@ public class InventoryServiceImpl extends ServiceImpl<InventoryMapper, Inventory
 
     @Autowired
     private MqMessagePublisher mqMessagePublisher;
+
+    @Autowired
+    private FlowerStockService flowerStockService;
+
+    @Autowired
+    private CacheManager cacheManager;
 
     @Override
     public List<InventoryVO> listInventory() {
@@ -100,36 +108,28 @@ public class InventoryServiceImpl extends ServiceImpl<InventoryMapper, Inventory
 
     @Override
     @Transactional
-    @Caching(evict = {
-            @CacheEvict(value = CacheNames.FLOWER_LIST, allEntries = true),
-            @CacheEvict(value = CacheNames.FLOWER_DETAIL, allEntries = true)
-    })
     public void saveInventory(InventorySaveDTO inventoryDTO, Integer operatorId) {
-        Flower flower = requireFlower(inventoryDTO.getFlowerId());
         InventoryBizType bizType = InventoryBizType.fromCode(inventoryDTO.getBizType());
         int quantity = requirePositiveQuantity(inventoryDTO.getQuantity());
 
-        // 当前库存永远从花卉主数据读取，再由本次业务动作推导出变动后库存。
-        int beforeStock = safeStock(flower);
-        int afterStock = beforeStock + bizType.apply(quantity);
-        ensureStockNotNegative(afterStock, flower.getName());
-
         BigDecimal unitCost = resolveUnitCost(bizType, inventoryDTO.getUnitCost());
         BigDecimal totalCost = buildTotalCost(unitCost, quantity);
-
-        flower.setCurrentStock(afterStock);
-        if (bizType == InventoryBizType.PURCHASE_IN && unitCost != null) {
-          flower.setCostPrice(unitCost);
-        }
-        flowerMapper.updateById(flower);
+        FlowerStockService.StockChangeResult stockChange = flowerStockService.adjustStock(
+                inventoryDTO.getFlowerId(),
+                bizType.apply(quantity),
+                unitCost,
+                bizType == InventoryBizType.PURCHASE_IN && unitCost != null,
+                requireFlower(inventoryDTO.getFlowerId()).getName() + "库存不足，请先补货后再操作！"
+        );
+        Flower flower = stockChange.flower();
 
         Inventory inventory = new Inventory();
         inventory.setBizNo(BusinessNoUtil.generateInventoryBizNo());
         inventory.setFlowerId(flower.getId());
         inventory.setBizType(bizType.name());
         inventory.setQuantity(quantity);
-        inventory.setBeforeStock(beforeStock);
-        inventory.setAfterStock(afterStock);
+        inventory.setBeforeStock(stockChange.beforeStock());
+        inventory.setAfterStock(stockChange.afterStock());
         inventory.setUnitCost(unitCost);
         inventory.setTotalCost(totalCost);
         inventory.setRemark(inventoryDTO.getRemark());
@@ -151,14 +151,11 @@ public class InventoryServiceImpl extends ServiceImpl<InventoryMapper, Inventory
                 inventory.getDate(),
                 new Date()
         ));
+        evictFlowerCaches(Set.of(flower.getId()));
     }
 
     @Override
     @Transactional
-    @Caching(evict = {
-            @CacheEvict(value = CacheNames.FLOWER_LIST, allEntries = true),
-            @CacheEvict(value = CacheNames.FLOWER_DETAIL, allEntries = true)
-    })
     public void updateInventory(InventorySaveDTO inventoryDTO, Integer operatorId) {
         Inventory existing = requireInventory(inventoryDTO.getId());
         // 先计算旧流水对库存的净影响（入库为正、出库为负），后面用来回滚再重算。
@@ -169,50 +166,43 @@ public class InventoryServiceImpl extends ServiceImpl<InventoryMapper, Inventory
         int newQuantity = requirePositiveQuantity(inventoryDTO.getQuantity());
         BigDecimal unitCost = resolveUnitCost(newBizType, inventoryDTO.getUnitCost());
         BigDecimal totalCost = buildTotalCost(unitCost, newQuantity);
+        Set<Integer> affectedFlowerIds = new HashSet<>();
 
         if (Objects.equals(existing.getFlowerId(), inventoryDTO.getFlowerId())) {
             // 同一花卉：先回滚旧影响 -> 得到基准库存 -> 再叠加新影响。
-            Flower flower = requireFlower(existing.getFlowerId());
-            int baseStock = safeStock(flower) - oldDelta;
-            ensureStockNotNegative(baseStock, flower.getName());
+            FlowerStockService.StockChangeResult stockChange = flowerStockService.adjustStock(
+                    existing.getFlowerId(),
+                    newBizType.apply(newQuantity) - oldDelta,
+                    unitCost,
+                    newBizType == InventoryBizType.PURCHASE_IN && unitCost != null,
+                    requireFlower(existing.getFlowerId()).getName() + "库存不足，请先补货后再操作！"
+            );
+            int baseStock = stockChange.beforeStock() - oldDelta;
+            int afterStock = stockChange.afterStock();
+            affectedFlowerIds.add(existing.getFlowerId());
 
-            int afterStock = baseStock + newBizType.apply(newQuantity);
-            ensureStockNotNegative(afterStock, flower.getName());
-
-            flower.setCurrentStock(afterStock);
-            if (newBizType == InventoryBizType.PURCHASE_IN && unitCost != null) {
-                flower.setCostPrice(unitCost);
-            }
-            flowerMapper.updateById(flower);
-
-            existing.setFlowerId(flower.getId());
             existing.setBizType(newBizType.name());
             existing.setQuantity(newQuantity);
             existing.setBeforeStock(baseStock);
             existing.setAfterStock(afterStock);
         } else {
             // 换花卉：旧花卉回滚库存，新花卉按新业务类型重新计算库存。
-            Flower oldFlower = requireFlower(existing.getFlowerId());
-            int restoredOldStock = safeStock(oldFlower) - oldDelta;
-            ensureStockNotNegative(restoredOldStock, oldFlower.getName());
-            oldFlower.setCurrentStock(restoredOldStock);
-            flowerMapper.updateById(oldFlower);
+            flowerStockService.adjustStock(existing.getFlowerId(), -oldDelta, null, false, null);
+            FlowerStockService.StockChangeResult stockChange = flowerStockService.adjustStock(
+                    inventoryDTO.getFlowerId(),
+                    newBizType.apply(newQuantity),
+                    unitCost,
+                    newBizType == InventoryBizType.PURCHASE_IN && unitCost != null,
+                    requireFlower(inventoryDTO.getFlowerId()).getName() + "库存不足，请先补货后再操作！"
+            );
+            affectedFlowerIds.add(existing.getFlowerId());
+            affectedFlowerIds.add(inventoryDTO.getFlowerId());
 
-            Flower newFlower = requireFlower(inventoryDTO.getFlowerId());
-            int beforeStock = safeStock(newFlower);
-            int afterStock = beforeStock + newBizType.apply(newQuantity);
-            ensureStockNotNegative(afterStock, newFlower.getName());
-            newFlower.setCurrentStock(afterStock);
-            if (newBizType == InventoryBizType.PURCHASE_IN && unitCost != null) {
-                newFlower.setCostPrice(unitCost);
-            }
-            flowerMapper.updateById(newFlower);
-
-            existing.setFlowerId(newFlower.getId());
+            existing.setFlowerId(inventoryDTO.getFlowerId());
             existing.setBizType(newBizType.name());
             existing.setQuantity(newQuantity);
-            existing.setBeforeStock(beforeStock);
-            existing.setAfterStock(afterStock);
+            existing.setBeforeStock(stockChange.beforeStock());
+            existing.setAfterStock(stockChange.afterStock());
         }
 
         existing.setUnitCost(unitCost);
@@ -221,24 +211,17 @@ public class InventoryServiceImpl extends ServiceImpl<InventoryMapper, Inventory
         existing.setOperatorId(operatorId);
         existing.setDate(inventoryDTO.getDate());
         this.updateById(existing);
+        evictFlowerCaches(affectedFlowerIds);
     }
 
     @Override
     @Transactional
-    @Caching(evict = {
-            @CacheEvict(value = CacheNames.FLOWER_LIST, allEntries = true),
-            @CacheEvict(value = CacheNames.FLOWER_DETAIL, allEntries = true)
-    })
     public void deleteInventory(Integer id) {
         Inventory existing = requireInventory(id);
-        Flower flower = requireFlower(existing.getFlowerId());
         int delta = InventoryBizType.fromCode(existing.getBizType()).apply(existing.getQuantity());
-        int afterStock = safeStock(flower) - delta;
-        ensureStockNotNegative(afterStock, flower.getName());
-
-        flower.setCurrentStock(afterStock);
-        flowerMapper.updateById(flower);
+        flowerStockService.adjustStock(existing.getFlowerId(), -delta, null, false, null);
         this.removeById(id);
+        evictFlowerCaches(Set.of(existing.getFlowerId()));
     }
 
     private List<InventoryVO> buildInventoryVOs(List<Inventory> records) {
@@ -297,16 +280,6 @@ public class InventoryServiceImpl extends ServiceImpl<InventoryMapper, Inventory
         return quantity;
     }
 
-    private int safeStock(Flower flower) {
-        return flower.getCurrentStock() == null ? 0 : flower.getCurrentStock();
-    }
-
-    private void ensureStockNotNegative(int stock, String flowerName) {
-        if (stock < 0) {
-            throw new BusinessException(flowerName + "库存不足，请先补货后再操作！");
-        }
-    }
-
     private BigDecimal resolveUnitCost(InventoryBizType bizType, BigDecimal unitCost) {
         if (bizType == InventoryBizType.PURCHASE_IN) {
             if (unitCost == null || unitCost.compareTo(BigDecimal.ZERO) <= 0) {
@@ -322,6 +295,19 @@ public class InventoryServiceImpl extends ServiceImpl<InventoryMapper, Inventory
             return null;
         }
         return unitCost.multiply(BigDecimal.valueOf(quantity));
+    }
+
+    private void evictFlowerCaches(Set<Integer> flowerIds) {
+        Cache flowerListCache = cacheManager.getCache(CacheNames.FLOWER_LIST);
+        if (flowerListCache != null) {
+            flowerListCache.evict("all");
+        }
+        Cache flowerDetailCache = cacheManager.getCache(CacheNames.FLOWER_DETAIL);
+        if (flowerDetailCache != null) {
+            for (Integer flowerId : flowerIds) {
+                flowerDetailCache.evict(flowerId);
+            }
+        }
     }
 }
 

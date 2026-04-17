@@ -2,6 +2,8 @@ package com.nfu.jasmine.infra.mq.config;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nfu.jasmine.infra.mq.JasmineMqConstants;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.amqp.core.Binding;
 import org.springframework.amqp.core.BindingBuilder;
 import org.springframework.amqp.core.Declarables;
@@ -38,6 +40,7 @@ import java.util.Map;
 @EnableRabbit
 @ConditionalOnProperty(name = "app.mq.enabled", havingValue = "true")
 public class RabbitMqTopologyConfig {
+    private static final Logger log = LoggerFactory.getLogger(RabbitMqTopologyConfig.class);
 
     @Value("${app.mq.dead-letter-enabled:true}")
     private boolean deadLetterEnabled;
@@ -64,6 +67,21 @@ public class RabbitMqTopologyConfig {
     public RabbitTemplate rabbitTemplate(ConnectionFactory connectionFactory, MessageConverter rabbitMessageConverter) {
         RabbitTemplate rabbitTemplate = new RabbitTemplate(connectionFactory);
         rabbitTemplate.setMessageConverter(rabbitMessageConverter);
+        rabbitTemplate.setMandatory(true);
+        rabbitTemplate.setConfirmCallback((correlationData, ack, cause) -> {
+            if (!ack) {
+                log.error("MQ 发布未获 broker 确认 correlationId={} cause={}",
+                        correlationData == null ? null : correlationData.getId(),
+                        cause);
+            }
+        });
+        rabbitTemplate.setReturnsCallback(returned -> log.error(
+                "MQ 消息路由失败 exchange={} routingKey={} replyCode={} replyText={}",
+                returned.getExchange(),
+                returned.getRoutingKey(),
+                returned.getReplyCode(),
+                returned.getReplyText()
+        ));
         return rabbitTemplate;
     }
 

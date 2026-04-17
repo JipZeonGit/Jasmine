@@ -171,10 +171,13 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements IU
     }
 
     @Override
-    @Cacheable(value = CacheNames.USER, key = "#id")
+    @Cacheable(value = CacheNames.USER, key = "#id", sync = true)
     public User getUserById(Integer id) {
         // 根据ID查询用户信息
         User user = this.baseMapper.selectById(id);
+        if (user == null) {
+            return null;
+        }
 
         // 构建查询条件，查询用户角色列表
         LambdaQueryWrapper<UserRole> wrapper = new LambdaQueryWrapper<>();

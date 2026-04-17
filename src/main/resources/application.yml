@@ -15,6 +15,12 @@ spring:
     baseline-on-migrate: true
     baseline-version: 1
     clean-disabled: true
+  rabbitmq:
+    # 发布确认用于判断 broker 是否真正收到消息，避免业务方误以为“发送成功”。
+    publisher-confirm-type: correlated
+    publisher-returns: true
+    template:
+      mandatory: true
 
 # 自定义应用级配置
 app:
@@ -40,6 +46,9 @@ app:
       initial-interval-ms: ${APP_MQ_RETRY_INITIAL_INTERVAL_MS:1000}
       multiplier: ${APP_MQ_RETRY_MULTIPLIER:2.0}
       max-interval-ms: ${APP_MQ_RETRY_MAX_INTERVAL_MS:10000}
+  idempotency:
+    # 创建类写接口默认防重 30 秒，优先拦截双击、浏览器重试和短时重复提交。
+    create-ttl-seconds: ${APP_CREATE_IDEMPOTENCY_TTL_SECONDS:30}
 
 logging:
   level:

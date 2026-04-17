@@ -2,5 +2,16 @@
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.nfu.jasmine.flower.persistence.mapper.FlowerMapper">
 
+    <update id="compareAndSetStock">
+        UPDATE flower
+        SET current_stock = #{newStock}
+        <if test="updateCostPrice">
+            , cost_price = #{costPrice}
+        </if>
+        WHERE id = #{id}
+          AND deleted = 0
+          AND current_stock = #{expectedStock}
+    </update>
+
 </mapper>
 

@@ -1,4 +1,5 @@
 import request from '@/utils/request'
+import { buildCreateIdempotencyKey } from '@/utils/idempotency'
 
 export default {
   getInventoryList(searchModel) {
@@ -20,6 +21,9 @@ export default {
     return request({
       url: '/inventory',
       method: 'post',
+      headers: {
+        'X-Idempotency-Key': buildCreateIdempotencyKey('inventory:create', inventory)
+      },
       data: inventory
     })
   },
