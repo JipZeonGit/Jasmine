@@ -188,6 +188,10 @@ chmod +x ops/prod/up.sh ops/prod/down.sh
 ./ops/prod/up.sh
 ```
 
+当前 NAS 实际部署与联调记录见：
+
+- `docs/upgrade/pr14-nas-deploy-validation.md`
+
 ## 管理台与联调入口
 
 部署后建议重点检查：
