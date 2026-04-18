@@ -74,13 +74,14 @@ loadVipList()
     </div>
   </el-card>
   <el-card class="page-card">
-    <el-table :data="vipList" stripe>
+    <el-table :data="vipList" style="width: 100%">
       <el-table-column type="index" label="#" width="70" />
       <el-table-column prop="id" label="会员ID" width="100" />
       <el-table-column prop="vid" label="会员卡号" width="180" />
       <el-table-column prop="name" label="姓名" width="120" />
       <el-table-column prop="sex" label="性别" width="80" />
       <el-table-column prop="phone" label="手机号" width="160" />
+      <el-table-column min-width="100" />
       <el-table-column label="操作" width="160">
         <template #default="{ row }">
           <el-button type="primary" size="small" @click="openDialog(row.id)">编辑</el-button>
@@ -88,7 +89,7 @@ loadVipList()
         </template>
       </el-table-column>
     </el-table>
-    <div style="margin-top: 16px; display: flex; justify-content: flex-end;">
+    <div class="pagination-container">
       <el-pagination v-model:current-page="searchModel.pageNo" v-model:page-size="searchModel.pageSize" :page-sizes="[10,25,50,100]" layout="total, sizes, prev, pager, next, jumper" :total="total" @change="loadVipList" />
     </div>
   </el-card>

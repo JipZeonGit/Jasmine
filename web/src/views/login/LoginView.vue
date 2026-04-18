@@ -60,20 +60,21 @@ async function handleLogin() {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: radial-gradient(circle at top, rgba(116, 203, 255, 0.24), transparent 40%), #1b2636;
+  background-color: var(--el-bg-color-page);
 }
 
 .login-card {
-  width: 460px;
-  padding: 18px;
-  border-radius: 20px;
+  width: 400px;
+  padding: 8px;
+  border-radius: 8px;
 }
 
 .login-title {
-  font-size: 28px;
-  font-weight: 700;
+  font-size: 24px;
+  font-weight: 600;
   text-align: center;
-  margin-bottom: 28px;
+  margin-bottom: 24px;
+  color: var(--el-text-color-primary);
 }
 
 .login-button {

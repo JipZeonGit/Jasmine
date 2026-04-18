@@ -31,7 +31,11 @@ export const useAuthStore = defineStore('auth', {
     },
     async logout() {
       if (this.token) {
-        await logout()
+        try {
+          await logout()
+        } catch (e) {
+          // Ignore backend errors because we should force logout locally anyway
+        }
       }
       this.resetSession()
     },

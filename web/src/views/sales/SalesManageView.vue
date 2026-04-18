@@ -136,7 +136,7 @@ loadTodaySummary()
   </el-card>
 
   <el-card class="page-card">
-    <el-table :data="salesList" stripe>
+    <el-table :data="salesList" style="width: 100%">
       <el-table-column type="index" label="#" width="70" />
       <el-table-column prop="id" label="销售ID" width="100" />
       <el-table-column prop="orderNo" label="销售单号" width="200" />
@@ -148,7 +148,7 @@ loadTodaySummary()
       <el-table-column prop="remark" label="备注" min-width="180" />
       <el-table-column label="操作" width="160"><template #default="{ row }"><el-button type="primary" size="small" @click="openDialog(row.id)">编辑</el-button><el-button type="danger" size="small" @click="deleteSales(row)">删除</el-button></template></el-table-column>
     </el-table>
-    <div style="margin-top:16px;display:flex;justify-content:flex-end;"><el-pagination v-model:current-page="searchModel.pageNo" v-model:page-size="searchModel.pageSize" :page-sizes="[10,25,50,100]" layout="total, sizes, prev, pager, next, jumper" :total="total" @change="loadSalesList" /></div>
+    <div class="pagination-container"><el-pagination v-model:current-page="searchModel.pageNo" v-model:page-size="searchModel.pageSize" :page-sizes="[10,25,50,100]" layout="total, sizes, prev, pager, next, jumper" :total="total" @change="loadSalesList" /></div>
   </el-card>
 
   <el-dialog v-model="dialogVisible" :title="dialogTitle" width="920px">

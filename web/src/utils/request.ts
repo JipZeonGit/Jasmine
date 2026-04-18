@@ -5,12 +5,14 @@ import { ElMessage } from 'element-plus'
 import { getToken, removeToken } from './auth'
 import type { ResultEnvelope } from '@/types'
 
+NProgress.configure({ showSpinner: false })
+
 const service: any = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL || '/prod-api',
   timeout: 10000,
 })
 
-const AUTH_FREE_ENDPOINTS = ['/user/login', '/user/logout', '/user/refreshToken']
+const AUTH_FREE_ENDPOINTS = ['/user/login']
 
 service.interceptors.request.use((config) => {
   NProgress.start()

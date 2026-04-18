@@ -92,7 +92,7 @@ loadVipOptions()
     </div>
   </el-card>
   <el-card class="page-card">
-    <el-table :data="list" stripe>
+    <el-table :data="list" style="width: 100%">
       <el-table-column type="index" label="#" width="70" />
       <el-table-column prop="id" label="预约ID" width="100" />
       <el-table-column prop="vid" label="会员卡号" width="150" />
@@ -108,7 +108,7 @@ loadVipOptions()
         </template>
       </el-table-column>
     </el-table>
-    <div style="margin-top: 16px; display: flex; justify-content: flex-end;">
+    <div class="pagination-container">
       <el-pagination v-model:current-page="searchModel.pageNo" v-model:page-size="searchModel.pageSize" :page-sizes="[10,25,50,100]" layout="total, sizes, prev, pager, next, jumper" :total="total" @change="loadList" />
     </div>
   </el-card>

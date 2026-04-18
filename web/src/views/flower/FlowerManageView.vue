@@ -76,10 +76,10 @@ loadFlowerList()
   </el-card>
 
   <el-card class="page-card">
-    <el-table :data="flowerList" stripe>
+    <el-table :data="flowerList" style="width: 100%">
       <el-table-column type="index" label="#" width="70" />
       <el-table-column prop="id" label="花卉ID" width="100" />
-      <el-table-column prop="name" label="花名" min-width="140" />
+      <el-table-column prop="name" label="花名" width="160" />
       <el-table-column prop="unit" label="单位" width="90" />
       <el-table-column prop="salePrice" label="售价(元)" width="120" />
       <el-table-column prop="costPrice" label="成本价(元)" width="120" />
@@ -90,6 +90,7 @@ loadFlowerList()
           <el-tag :type="row.status === 1 ? 'success' : 'info'">{{ row.status === 1 ? '在售' : '停售' }}</el-tag>
         </template>
       </el-table-column>
+      <el-table-column min-width="100" />
       <el-table-column label="操作" width="160">
         <template #default="{ row }">
           <el-button type="primary" size="small" @click="openDialog(row.id)">编辑</el-button>
@@ -97,7 +98,7 @@ loadFlowerList()
         </template>
       </el-table-column>
     </el-table>
-    <div style="margin-top: 16px; display: flex; justify-content: flex-end;">
+    <div class="pagination-container">
       <el-pagination v-model:current-page="searchModel.pageNo" v-model:page-size="searchModel.pageSize" :page-sizes="[10,25,50,100]" layout="total, sizes, prev, pager, next, jumper" :total="total" @change="loadFlowerList" />
     </div>
   </el-card>

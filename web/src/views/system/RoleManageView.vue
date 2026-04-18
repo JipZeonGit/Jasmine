@@ -75,14 +75,14 @@ loadMenus()
     </div>
   </el-card>
   <el-card class="page-card">
-    <el-table :data="list" stripe>
+    <el-table :data="list" style="width: 100%">
       <el-table-column type="index" label="#" width="70" />
       <el-table-column prop="roleId" label="角色编号" width="120" />
       <el-table-column prop="roleName" label="角色名称" width="160" />
       <el-table-column prop="roleDesc" label="角色描述" min-width="220" />
       <el-table-column label="操作" width="160"><template #default="{ row }"><el-button type="primary" size="small" @click="openDialog(row.roleId)">编辑</el-button><el-button type="danger" size="small" @click="deleteRole(row)">删除</el-button></template></el-table-column>
     </el-table>
-    <div style="margin-top:16px;display:flex;justify-content:flex-end;"><el-pagination v-model:current-page="searchModel.pageNo" v-model:page-size="searchModel.pageSize" :page-sizes="[5,10,20,50]" layout="total, sizes, prev, pager, next, jumper" :total="total" @change="loadList" /></div>
+    <div class="pagination-container"><el-pagination v-model:current-page="searchModel.pageNo" v-model:page-size="searchModel.pageSize" :page-sizes="[5,10,20,50]" layout="total, sizes, prev, pager, next, jumper" :total="total" @change="loadList" /></div>
   </el-card>
   <el-dialog v-model="dialogVisible" :title="dialogTitle" width="720px">
     <el-form ref="formRef" :model="form" :rules="rules" label-width="100px">

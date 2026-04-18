@@ -75,7 +75,7 @@ loadList()
     </div>
   </el-card>
   <el-card class="page-card">
-    <el-table :data="list" stripe>
+    <el-table :data="list" style="width: 100%">
       <el-table-column type="index" label="#" width="70" />
       <el-table-column prop="id" label="用户ID" width="100" />
       <el-table-column prop="username" label="用户名" width="160" />
@@ -84,7 +84,7 @@ loadList()
       <el-table-column prop="email" label="电子邮件" min-width="220" />
       <el-table-column label="操作" width="160"><template #default="{ row }"><el-button type="primary" size="small" @click="openDialog(row.id)">编辑</el-button><el-button type="danger" size="small" @click="deleteUser(row)">删除</el-button></template></el-table-column>
     </el-table>
-    <div style="margin-top:16px;display:flex;justify-content:flex-end;"><el-pagination v-model:current-page="searchModel.pageNo" v-model:page-size="searchModel.pageSize" :page-sizes="[10,25,50,100]" layout="total, sizes, prev, pager, next, jumper" :total="total" @change="loadList" /></div>
+    <div class="pagination-container"><el-pagination v-model:current-page="searchModel.pageNo" v-model:page-size="searchModel.pageSize" :page-sizes="[10,25,50,100]" layout="total, sizes, prev, pager, next, jumper" :total="total" @change="loadList" /></div>
   </el-card>
   <el-dialog v-model="dialogVisible" :title="dialogTitle" width="640px">
     <el-form ref="formRef" :model="form" :rules="rules" label-width="100px">
