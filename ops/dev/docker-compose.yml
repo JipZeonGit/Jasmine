@@ -107,7 +107,7 @@ services:
 
   frontend:
     build:
-      context: ../../admin
+      context: ../../web
       dockerfile: Dockerfile
     image: jasmine-frontend:dev
     container_name: jasmine-dev-frontend

@@ -8,6 +8,7 @@ on:
       - '.gitignore'
       - '.dockerignore'
       - 'admin/.dockerignore'
+      - 'web/.dockerignore'
       - '.env'
       - '.env.example'
       - 'LICENSE'
@@ -80,6 +81,6 @@ jobs:
       - name: 8. 构建并推送前端镜像
         uses: docker/build-push-action@v6
         with:
-          context: ./admin
+          context: ./web
           push: true
           tags: ${{ steps.tags.outputs.frontend_tags }}
