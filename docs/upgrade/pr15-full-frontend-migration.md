@@ -141,3 +141,92 @@ bun run build
 - 把前端 Docker / CI / 本地构建链同步切到了 `web/`
 
 这意味着后续前端主线已经可以正式围绕 `web/` 继续推进，而不必再回头从 `admin/` 慢慢拆页。
+
+## 迁移中遇到的问题与修复
+
+### 1. 新前端开发代理路径错误
+
+现象：
+
+- 新前端请求登录时，后端日志显示：
+  - `uri=/prod-api/user/login`
+- 返回 `403`
+
+根因：
+
+- `Vite` 代理没有像旧 `Nginx` 那样自动剥掉 `/prod-api`
+
+修复：
+
+- 在 `web/vite.config.ts` 中补：
+
+```ts
+rewrite: (path) => path.replace(/^\/prod-api/, '')
+```
+
+### 2. 新前端登录请求误带旧 token
+
+现象：
+
+- 登录接口仍然被拦
+- 即使用户名密码正确也返回 `403`
+
+根因：
+
+- 前端请求拦截器会给 `/user/login` 自动附带旧 `Authorization`
+
+修复：
+
+- 在 `web/src/utils/request.ts` 中对这些接口跳过自动带 token：
+  - `/user/login`
+  - `/user/logout`
+  - `/user/refreshToken`
+
+### 3. 新前端本地开发端口 `5173` 未进入后端 CORS 白名单
+
+现象：
+
+- 新前端继续登录失败
+- 后端日志显示：
+  - `uri=/user/login status=403`
+
+根因：
+
+- 后端默认只放行了旧前端 `8888`
+- 新前端 `http://localhost:5173` 和 `http://127.0.0.1:5173` 没进白名单
+
+修复：
+
+- 更新：
+  - `src/main/resources/application.yml`
+  - `src/main/java/com/nfu/jasmine/config/MyCorsConfig.java`
+- 默认允许：
+  - `http://localhost:5173`
+  - `http://127.0.0.1:5173`
+
+### 4. 新前端工程初始化后无法构建
+
+现象：
+
+- `web/` 初始脚手架无法直接构建
+- 出现：
+  - 别名无法识别
+  - Element Plus 图标导出错误
+  - `vue-tsc` / Axios 类型拦截报错
+
+修复：
+
+- 补齐：
+  - `tsconfig.app.json`
+  - `vite-env.d.ts`
+  - `@` 路径别名
+- 修正图标名
+- 请求层改成迁移优先的宽松模式
+- API 模块去掉当前阶段不必要的泛型约束
+
+最终 `web/` 已可以：
+
+```bash
+bun x vue-tsc -b
+bun run build
+```
