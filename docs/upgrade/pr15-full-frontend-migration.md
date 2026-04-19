@@ -81,6 +81,9 @@
 - 新增 `web/default.conf`
 - GitHub Actions 镜像构建切换到 `web/`
 - `ops/dev/docker-compose.yml` 的前端构建上下文切换到 `web/`
+- `ops/prod/docker-compose.yml` 的前端镜像运行基线继续承接 `web/`
+- 当前前端部署与联调主入口明确收口到 `ops/dev` 与 `ops/prod`
+- Docker 镜像发布改为先等待“后端基础检查”通过，再执行镜像打包与推送
 
 ## 构建结果
 
@@ -104,17 +107,20 @@ bun run build
 
 ## 说明
 
-### 1. 为什么这轮仍保留 `admin/`
+### 1. 旧前端 `admin/` 的最终去留
 
-当前保留 `admin/` 的原因不是继续以它为主，而是：
+在迁移初稿阶段，`admin/` 一度被保留为对照与兜底。
 
-- 作为迁移对照
-- 作为老页面逻辑参考
-- 在新前端完全稳定前提供兜底
+但在当前分支继续完成以下收口后：
 
-但新的迁移主线已经明确切到：
+- 新前端页面已全部补齐
+- 新前端 Docker / CI 已切换到 `web/`
+- 登录、菜单、业务页、部署链都已在新前端上验证
 
-- `web/`
+当前已经明确：
+
+- `web/` 是唯一前端主线
+- `admin/` 已从仓库中删除，不再保留
 
 ### 2. 当前边界
 
@@ -250,3 +256,45 @@ rewrite: (path) => path.replace(/^\/prod-api/, '')
 bun x vue-tsc -b
 bun run build
 ```
+
+### 5. Refresh Token 链路缺陷
+
+现象：
+
+- 新前端虽然拿到了后端返回的 `refreshToken`
+- 但本地没有真正持久化，也没有在访问令牌失效时尝试刷新
+- 一旦登录态过期，只会直接清掉访问令牌，容易留下 Pinia 状态和浏览器实际登录页跳转不同步的问题
+
+根因：
+
+- `web/src/utils/auth.ts` 只管理了 access token
+- `web/src/stores/auth.ts` 登录后没有保存 refresh token
+- `web/src/utils/request.ts` 没有补 `/user/refresh` 刷新链，也没有把刷新接口纳入免鉴权白名单
+
+修复：
+
+- 为前端补齐 refresh token 的读写与删除
+- 登录成功后同时保存 access token 和 refresh token
+- 请求拦截器补 `/user/refresh`
+- 响应拦截器在令牌失效时先尝试刷新，再重放原请求
+- 刷新失败后统一强制回到登录页，避免页面状态残留
+
+### 6. Docker 镜像发布绕过集成验证
+
+现象：
+
+- 之前 Docker 镜像工作流会直接在 `main` / `next` 推送时执行
+- 即使后端基础检查还没通过，镜像仍可能被发布
+
+根因：
+
+- `.github/workflows/docker-publish.yml` 和 `.github/workflows/backend-ci.yml` 是并行关系
+- 镜像发布没有依赖“后端基础检查”成功
+
+修复：
+
+- 镜像发布工作流改为监听“后端基础检查”完成事件
+- 只有检查结论为 `success` 时，才允许自动打包并推送镜像
+- 同时保留 `workflow_dispatch` 作为人工兜底入口
+
+

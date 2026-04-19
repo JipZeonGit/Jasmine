@@ -5,6 +5,10 @@ export function login(payload: LoginPayload) {
   return request.post('/user/login', payload)
 }
 
+export function refreshToken(payload: { refreshToken: string }) {
+  return request.post('/user/refresh', payload)
+}
+
 export function getUserInfo() {
   return request.get('/user/info')
 }

@@ -1,21 +1,13 @@
 name: 构建并发布 Docker 镜像
 
 on:
-  push:
-    branches: [ "main", "next" ]
-    paths-ignore:
-      - '**.md'
-      - '.gitignore'
-      - '.dockerignore'
-      - 'admin/.dockerignore'
-      - 'web/.dockerignore'
-      - '.env'
-      - '.env.example'
-      - 'LICENSE'
-      - 'Jasmine.sql'
-      - '.idea/**'
-      - '.vscode/**'
-      - '.agent/**'
+  workflow_run:
+    workflows: [ "后端基础检查" ]
+    types:
+      - completed
+    branches:
+      - main
+      - next
   workflow_dispatch:
 
 permissions:
@@ -23,12 +15,63 @@ permissions:
   packages: write
 
 jobs:
+  detect-build-scope:
+    runs-on: ubuntu-latest
+    outputs:
+      should_build: ${{ steps.scope.outputs.should_build }}
+
+    steps:
+      - name: 1. 拉取最新代码
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
+          fetch-depth: 2
+
+      - name: 2. 判断本次改动是否需要构建镜像
+        id: scope
+        shell: bash
+        run: |
+          if [ "${GITHUB_EVENT_NAME}" = "workflow_dispatch" ]; then
+            echo "should_build=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          if git rev-parse HEAD^ >/dev/null 2>&1; then
+            changed_files=$(git diff --name-only HEAD^ HEAD)
+          else
+            changed_files=$(git ls-files)
+          fi
+
+          should_build=false
+          while IFS= read -r file; do
+            [ -z "$file" ] && continue
+            case "$file" in
+              *.md|.gitignore|.dockerignore|web/.dockerignore|.env|.env.example|LICENSE|Jasmine.sql|.idea/*|.vscode/*|.agent/*)
+                ;;
+              *)
+                should_build=true
+                break
+                ;;
+            esac
+          done <<< "$changed_files"
+
+          echo "should_build=$should_build" >> "$GITHUB_OUTPUT"
+
   build-and-push:
+    needs: detect-build-scope
+    if: >
+      (github.event_name == 'workflow_dispatch' && needs.detect-build-scope.outputs.should_build == 'true') ||
+      (github.event_name == 'workflow_run' &&
+       github.event.workflow_run.conclusion == 'success' &&
+       (github.event.workflow_run.head_branch == 'main' || github.event.workflow_run.head_branch == 'next') &&
+       needs.detect-build-scope.outputs.should_build == 'true')
     runs-on: ubuntu-latest
 
     steps:
       - name: 1. 拉取最新代码
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
 
       - name: 2. 配置 Java 21 环境
         uses: actions/setup-java@v4
@@ -49,9 +92,16 @@ jobs:
         id: tags
         shell: bash
         run: |
-          ref_name="${GITHUB_REF_NAME}"
+          if [ "${GITHUB_EVENT_NAME}" = "workflow_run" ]; then
+            ref_name="${{ github.event.workflow_run.head_branch }}"
+            commit_sha="${{ github.event.workflow_run.head_sha }}"
+          else
+            ref_name="${GITHUB_REF_NAME}"
+            commit_sha="${GITHUB_SHA}"
+          fi
+
           safe_ref=$(echo "$ref_name" | tr '[:upper:]' '[:lower:]' | sed 's#[^a-z0-9._-]#-#g')
-          short_sha=$(echo "${GITHUB_SHA}" | cut -c1-7)
+          short_sha=$(echo "$commit_sha" | cut -c1-7)
 
           if [ "$safe_ref" = "main" ]; then
             backend_tags="ghcr.io/${{ steps.lower.outputs.owner }}/jasmine-backend:latest,ghcr.io/${{ steps.lower.outputs.owner }}/jasmine-backend:sha-${short_sha}"

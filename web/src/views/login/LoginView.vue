@@ -35,7 +35,9 @@ async function handleLogin() {
 
 <template>
   <div class="login-shell">
+    <div class="login-backdrop" />
     <el-card class="login-card" shadow="never">
+      <div class="login-eyebrow">Jasmine Flower Shop</div>
       <div class="login-title">欢迎使用小茉莉花店管理系统</div>
       <el-form ref="formRef" :model="form" :rules="rules" size="large">
         <el-form-item prop="username">
@@ -56,28 +58,102 @@ async function handleLogin() {
 
 <style scoped>
 .login-shell {
+  position: relative;
   min-height: 100vh;
   display: flex;
   align-items: center;
   justify-content: center;
-  background-color: var(--el-bg-color-page);
+  overflow: hidden;
+  background:
+    linear-gradient(135deg, rgba(13, 18, 28, 0.68), rgba(19, 31, 44, 0.38)),
+    url('@/assets/bg.jpg') center center / cover no-repeat;
+}
+
+.login-backdrop {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(circle at 18% 22%, rgba(255, 255, 255, 0.18), transparent 32%),
+    radial-gradient(circle at 82% 20%, rgba(107, 166, 255, 0.18), transparent 28%),
+    linear-gradient(180deg, rgba(6, 10, 18, 0.18), rgba(6, 10, 18, 0.5));
+  backdrop-filter: blur(4px);
 }
 
 .login-card {
+  position: relative;
+  z-index: 1;
   width: 400px;
-  padding: 8px;
-  border-radius: 8px;
+  padding: 12px;
+  border-radius: 18px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: rgba(248, 250, 252, 0.88);
+  box-shadow: 0 24px 60px rgba(7, 14, 23, 0.22);
+}
+
+.login-eyebrow {
+  margin-bottom: 10px;
+  font-size: 12px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  text-align: center;
+  color: #5d6b7e;
 }
 
 .login-title {
-  font-size: 24px;
+  font-size: 28px;
   font-weight: 600;
   text-align: center;
-  margin-bottom: 24px;
-  color: var(--el-text-color-primary);
+  margin-bottom: 12px;
+  color: #132235;
 }
 
 .login-button {
   width: 100%;
+  margin-top: 6px;
+}
+
+:deep(.el-input__wrapper) {
+  min-height: 44px;
+  background: rgba(255, 255, 255, 0.9);
+}
+
+html.dark .login-card {
+  background: rgba(19, 28, 40, 0.82);
+  border-color: rgba(255, 255, 255, 0.12);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.36);
+}
+
+html.dark .login-eyebrow {
+  color: rgba(191, 207, 227, 0.78);
+}
+
+html.dark .login-title {
+  color: #f8fbff !important;
+  text-shadow: 0 2px 12px rgba(0, 0, 0, 0.28);
+}
+
+html.dark :deep(.el-input__wrapper) {
+  background: rgba(8, 14, 24, 0.72);
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.06) inset;
+}
+
+html.dark :deep(.el-input__inner) {
+  color: #eef4ff;
+}
+
+html.dark :deep(.el-input__prefix-inner) {
+  color: rgba(191, 207, 227, 0.72);
+}
+
+@media (max-width: 640px) {
+  .login-shell {
+    padding: 20px;
+    background-position: 58% center;
+  }
+
+  .login-card {
+    width: 100%;
+    max-width: 400px;
+  }
 }
 </style>

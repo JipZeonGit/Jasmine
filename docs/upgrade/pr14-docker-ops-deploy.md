@@ -50,7 +50,7 @@
 当前镜像构建文件包括：
 
 - 后端：`Dockerfile`
-- 前端：`admin/Dockerfile`
+- 前端：`web/Dockerfile`
 
 后端镜像额外补了：
 
@@ -144,8 +144,7 @@ docker compose ps
 
 本轮已经调整为：
 
-- `push` 到 `main` 时自动构建并推送正式镜像
-- `push` 到 `next` 时自动构建并推送 `next` 通道镜像
+- `main` / `next` 先通过“后端基础检查”，再自动构建并推送镜像
 - 支持手动 `workflow_dispatch`
 
 当前标签策略：
@@ -256,3 +255,16 @@ chmod +x ops/prod/up.sh ops/prod/down.sh
 - 运维入口、健康检查、日志位置、启动方式和回滚方式都清楚
 
 这就是后面继续做 `PR15` 前端迁移之前，最需要补齐的部署基线。
+
+## 后续收口说明
+
+随着 `PR15` 新前端迁移完成，当前 `ops/prod` 实际承接的前端已经统一为：
+
+- `web/`
+
+也就是说：
+
+- NAS 上通过 `ops/prod/up.sh` 拉取并运行的前端镜像，已经是新前端镜像
+- 旧前端 `admin/` 不再作为生产部署入口的一部分
+
+

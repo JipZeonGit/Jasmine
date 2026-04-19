@@ -2,7 +2,7 @@ import { defineStore } from 'pinia'
 
 import { changePassword, getUserInfo, login, logout } from '@/api/auth'
 import type { MenuItem, UserInfoVO } from '@/types'
-import { getToken, removeToken, setToken } from '@/utils/auth'
+import { getToken, removeRefreshToken, removeToken, setRefreshToken, setToken } from '@/utils/auth'
 
 export const useAuthStore = defineStore('auth', {
   state: () => ({
@@ -22,6 +22,7 @@ export const useAuthStore = defineStore('auth', {
       const response = await login(payload)
       this.token = response.data.token
       setToken(response.data.token)
+      setRefreshToken(response.data.refreshToken)
     },
     async loadUserInfo() {
       const response = await getUserInfo()
@@ -47,6 +48,7 @@ export const useAuthStore = defineStore('auth', {
       this.userInfo = null
       this.menuRoutes = []
       removeToken()
+      removeRefreshToken()
     },
   },
 })

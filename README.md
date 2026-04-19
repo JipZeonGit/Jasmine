@@ -72,7 +72,6 @@
 - `src/main/resources/`：配置、Mapper XML、Flyway 迁移
 - `src/test/java/`：单元测试与集成测试
 - `web/`：当前新前端管理端
-- `admin/`：旧前端保留目录，可作为迁移对照
 - `ops/`：Docker / Compose / 部署基线
 - `docs/upgrade/`：升级路线、阶段记录、实施文档
 
@@ -115,7 +114,7 @@ bun run dev
 
 如果开启了前端：
 
-- 前端开发地址：`http://localhost:8888`
+- 前端开发地址：`http://localhost:5173`
 
 ## Docker / Ops 基线
 
@@ -192,8 +191,7 @@ chmod +x ops/prod/up.sh ops/prod/down.sh
 
 当前支持：
 
-- `push` 到 `main` 自动构建并推送正式镜像
-- `push` 到 `next` 自动构建并推送 `next` 通道镜像
+- `main` / `next` 在通过后端基础检查后自动构建并推送镜像
 - 手动 `workflow_dispatch`
 
 镜像仓库：
@@ -243,10 +241,10 @@ chmod +x ops/prod/up.sh ops/prod/down.sh
 ## 说明
 
 - 当前 `web/` 已作为正式前端迁移主线
-- `admin/` 保留用于迁移过渡与对照
 - 当前 `PR18` 会继续承接更重的高并发与一致性能力，例如：
   - Outbox / 本地消息表
   - 延迟消息体系
   - 真实统计 / 预警类下游消费者
   - Redis 分布式锁
   - 热点库存专项方案
+

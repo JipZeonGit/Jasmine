@@ -171,7 +171,7 @@
 
 - `ops/`
 - 分环境 `compose`
-- `.env.example`
+- `ops/.env.example`
 - MySQL / Redis / RabbitMQ 联调环境
 - 初始化脚本
 - 部署文档
@@ -303,3 +303,4 @@
 - 先稳业务模型，再稳模块边界
 - 先把 Redis 用准，再把 MQ 用深
 - 先把单体整理干净，再评估是否值得拆分
+
