@@ -9,6 +9,7 @@ on:
       - '**.md'
   push:
     branches:
+      - main
       - next
     paths-ignore:
       - '**.md'

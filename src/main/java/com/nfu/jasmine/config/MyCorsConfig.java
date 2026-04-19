@@ -11,7 +11,7 @@ import java.util.List;
 @Configuration
 public class MyCorsConfig {
 
-    @Value("${app.cors.allowed-origins:http://localhost:8888,http://localhost}")
+    @Value("${app.cors.allowed-origins:http://localhost:8888,http://localhost:5173,http://127.0.0.1:5173,http://localhost}")
     private List<String> allowedOrigins;
     //全局跨域请求配置
     @Bean

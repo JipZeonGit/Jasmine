@@ -25,8 +25,8 @@ spring:
 # 自定义应用级配置
 app:
   cors:
-    # 这里配置跨域白名单，默认放行本地前端开发环境与 Docker Nginx
-    allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:8888,http://localhost}
+    # 这里配置跨域白名单，默认放行旧前端 8888、新前端 Vite 5173 和本地同源访问。
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:8888,http://localhost:5173,http://127.0.0.1:5173,http://localhost}
   security:
     # Access Token 默认半小时，可按环境变量覆盖
     jwt-expire-millis: ${JWT_EXPIRE_MILLIS:1800000}

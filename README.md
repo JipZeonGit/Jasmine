@@ -3,7 +3,7 @@
 一个面向花店门店场景的管理系统，当前包含：
 
 - 后端：Spring Boot 单体应用
-- 前端：基于 `admin/` 的 Vue 2 后台管理端
+- 前端：基于 `web/` 的 Vue 3 + Element Plus 管理端
 - 中间件：MySQL、Redis、RabbitMQ
 
 当前主线已经完成：
@@ -35,12 +35,13 @@
 
 | 技术 | 说明 | 当前版本 |
 |:---|:---|:---|
-| Vue | 前端框架 | 2.6.10 |
-| Vue Router | 路由 | 3.0.6 |
-| Vuex | 状态管理 | 3.1.0 |
-| Element UI | 组件库 | 2.13.2 |
-| Axios | HTTP 请求 | 0.18.1 |
-| Vue CLI | 构建工具链 | 4.4.4 |
+| Vue | 前端框架 | 3.5.x |
+| Vue Router | 路由 | 4.6.x |
+| Pinia | 状态管理 | 3.0.x |
+| Element Plus | 组件库 | 2.13.x |
+| Axios | HTTP 请求 | 1.15.x |
+| Vite | 构建工具链 | 8.0.x |
+| Bun | 本地开发与依赖管理 | 1.3.x |
 
 ### 中间件与部署
 
@@ -70,7 +71,7 @@
 - `src/main/java/`：后端业务与基础设施代码
 - `src/main/resources/`：配置、Mapper XML、Flyway 迁移
 - `src/test/java/`：单元测试与集成测试
-- `admin/`：当前旧前端管理端
+- `web/`：当前新前端管理端
 - `ops/`：Docker / Compose / 部署基线
 - `docs/upgrade/`：升级路线、阶段记录、实施文档
 
@@ -86,8 +87,10 @@
 
 前端：
 
-```powershell
-./start-frontend-bun.ps1
+```bash
+cd web
+bun install
+bun run dev
 ```
 
 如果需要在本地直接验证 Redis 缓存模式，可使用：
@@ -100,7 +103,7 @@
 
 - `start-backend.ps1`：默认 `dev` + MQ 打开
 - `start-backend-redis.ps1`：`dev` + `APP_CACHE_TYPE=redis`
-- `start-frontend-bun.ps1`：自动切到 `admin/` 并使用 Bun 启动前端
+- 新前端默认目录：`web/`
 
 ## API 与调试入口
 
@@ -111,7 +114,7 @@
 
 如果开启了前端：
 
-- 前端开发地址：`http://localhost:8888`
+- 前端开发地址：`http://localhost:5173`
 
 ## Docker / Ops 基线
 
@@ -188,8 +191,7 @@ chmod +x ops/prod/up.sh ops/prod/down.sh
 
 当前支持：
 
-- `push` 到 `main` 自动构建并推送正式镜像
-- `push` 到 `next` 自动构建并推送 `next` 通道镜像
+- `main` / `next` 在通过后端基础检查后自动构建并推送镜像
 - 手动 `workflow_dispatch`
 
 镜像仓库：
@@ -233,15 +235,16 @@ chmod +x ops/prod/up.sh ops/prod/down.sh
 - `docs/upgrade/pr13-mq-contract.md`
 - `docs/upgrade/pr13-5-redis-mq-hardening.md`
 - `docs/upgrade/pr14-docker-ops-deploy.md`
+- `docs/upgrade/pr15-full-frontend-migration.md`
 - `docs/project-constraints.md`
 
 ## 说明
 
-- 当前 `admin/` 仍然是正式可运行前端
-- 后续 `PR15` 开始才会进入新前端迁移主线
+- 当前 `web/` 已作为正式前端迁移主线
 - 当前 `PR18` 会继续承接更重的高并发与一致性能力，例如：
   - Outbox / 本地消息表
   - 延迟消息体系
   - 真实统计 / 预警类下游消费者
   - Redis 分布式锁
   - 热点库存专项方案
+

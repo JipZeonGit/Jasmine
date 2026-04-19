@@ -1,0 +1,188 @@
+:root {
+  /* Semi Design Inspired Clean Minimalist Theme */
+  --el-color-primary: #1677ff; /* Clean Tech Blue */
+  --el-color-success: #1fc177; 
+  --el-color-warning: #ff8800;
+  --el-color-danger: #ea4646;
+
+  --jasmine-bg: #f4f5f5; /* Semi Design Light Body Ground */
+  --jasmine-card-bg: #ffffff;
+  --jasmine-text-main: #1c1f23;
+  --jasmine-text-muted: #86909c;
+  --jasmine-border: transparent;
+  --jasmine-border-solid: #e5e6eb;
+
+  /* Form & Component compact sizes */
+  --el-component-size-large: 32px;
+  --el-component-size: 28px;
+  --el-component-size-small: 24px;
+}
+
+html.dark {
+  /* Semi Design Dark Mode Standards */
+  --el-color-primary: #2d81ff;
+  --el-bg-color: #16161a;
+  --el-bg-color-page: #000000;
+  --el-text-color-primary: #c9cdd4;
+  --el-text-color-regular: #a9aeb8;
+  --el-border-color: rgba(255, 255, 255, 0.08);
+  --el-border-color-light: rgba(255, 255, 255, 0.04);
+  --el-border-color-lighter: rgba(255, 255, 255, 0.02);
+  --el-fill-color-blank: #232324;
+  
+  --jasmine-bg: #16161a;
+  --jasmine-card-bg: #232324;
+  --jasmine-text-main: #f3f3f4;
+  --jasmine-text-muted: #86909c;
+  --jasmine-border: rgba(255,255,255,0.08);
+  --jasmine-border-solid: rgba(255,255,255,0.08);
+}
+
+html,
+body,
+#app {
+  margin: 0;
+  min-height: 100%;
+}
+
+body {
+  min-width: 1200px;
+  background: var(--jasmine-bg);
+  color: var(--jasmine-text-main);
+  transition: background-color 0.2s ease, color 0.2s ease;
+  font-family: 'Inter', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  font-size: 14px;
+  line-height: 1.4;
+  -webkit-font-smoothing: antialiased;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+/* Semi Design Cards: Strict flat look */
+.el-card {
+  border-radius: 8px !important;
+  border: 1px solid var(--jasmine-border) !important;
+  box-shadow: none !important;
+  background-color: var(--jasmine-card-bg) !important;
+}
+
+/* Extremely compact layout */
+.el-card__body {
+  padding: 16px !important;
+}
+
+.page-card + .page-card {
+  margin-top: 12px;
+}
+
+/* Page Headers / Search Arrays compressed */
+.page-toolbar {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.page-search {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.page-search .el-input,
+.page-search .el-date-editor {
+  margin-bottom: 0;
+}
+
+/* Summary Cards (Dashboard) */
+.summary-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.summary-card {
+  min-height: 90px;
+  background: var(--jasmine-card-bg);
+  border: 1px solid var(--jasmine-border-solid) !important;
+}
+
+.summary-label {
+  color: var(--jasmine-text-muted);
+  font-size: 13px;
+}
+
+.summary-value {
+  margin-top: 8px;
+  font-size: 26px;
+  font-weight: 600;
+  color: var(--jasmine-text-main);
+}
+
+.dialog-form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.full-width {
+  grid-column: 1 / -1;
+}
+
+/* High Density Table styling overrides */
+.el-table {
+  border-radius: 6px;
+  font-size: 13px;
+  --el-table-header-bg-color: transparent !important;
+}
+
+.el-table th.el-table__cell {
+  background-color: transparent !important;
+  color: var(--jasmine-text-muted);
+  font-weight: 600;
+  border-bottom: 1px solid var(--jasmine-border-solid) !important;
+}
+
+.el-table td.el-table__cell {
+  padding: 6px 0 !important;
+  border-bottom: 1px solid var(--jasmine-border-solid) !important;
+}
+
+.el-table__inner-wrapper::before {
+  display: none;
+}
+
+/* El-dialog dark mode fix */
+html.dark .el-dialog {
+  background: #232324;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+html.dark .el-pager li {
+  background: transparent;
+}
+html.dark .el-pagination button {
+  background: transparent;
+}
+
+/* Sidebar collapsed popups border radius */
+.el-menu--popup {
+  border-radius: 8px !important;
+}
+.el-popper.is-pure {
+  border-radius: 8px !important;
+}
+
+/* Standard left-aligned pagination container */
+.pagination-container {
+  margin-top: 16px;
+  display: flex;
+  justify-content: flex-start;
+  align-items: center;
+}
+
