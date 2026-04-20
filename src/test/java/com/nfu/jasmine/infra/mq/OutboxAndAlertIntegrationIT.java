@@ -54,13 +54,14 @@ public class OutboxAndAlertIntegrationIT extends AbstractIntegrationTest {
 
         // 2. 模拟本地事务写 Outbox
         InventoryChangedMessage message = new InventoryChangedMessage();
-        message.setInventoryId(9999L);
+        message.setInventoryId(9999);
         message.setFlowerId(flower.getId());
-        message.setChangeAmount(-5);
-        message.setChangeSource(InventoryChangeSource.MANUAL_INVENTORY.name());
+        message.setQuantity(-5);
+        message.setChangeSource(InventoryChangeSource.MANUAL_INVENTORY);
         message.setChangeAction("UPDATE");
         message.setBizNo(UUID.randomUUID().toString());
-        message.setTimestamp(System.currentTimeMillis());
+        message.setBizTime(new java.util.Date());
+        message.setOccurredAt(new java.util.Date());
 
         EventOutbox outbox = EventOutbox.builder()
                 .eventType("inventory.changed")
@@ -75,7 +76,7 @@ public class OutboxAndAlertIntegrationIT extends AbstractIntegrationTest {
         assertThat(outbox.getId()).isNotNull();
 
         // 3. 触发 OutboxRelay 扫表推送
-        outboxRelay.fetchPendingAndRelay();
+        outboxRelay.relayPendingMessages();
 
         // 4. 断言 MQ Confirm Callback 反写了 Outbox 状态并且消费者成功消费写入预警表
         // 采用简单的轮询等待（最长等待 10 秒），等待异步处理完成
