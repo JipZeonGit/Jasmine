@@ -2,6 +2,10 @@ package com.nfu.jasmine.infra.mq.config;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nfu.jasmine.infra.mq.JasmineMqConstants;
+import com.nfu.jasmine.infra.outbox.model.entity.EventOutbox;
+import com.nfu.jasmine.infra.outbox.model.enums.OutboxStatus;
+import com.nfu.jasmine.infra.outbox.persistence.mapper.EventOutboxMapper;
+import org.springframework.beans.factory.ObjectProvider;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.amqp.core.Binding;
@@ -64,15 +68,38 @@ public class RabbitMqTopologyConfig {
     }
 
     @Bean
-    public RabbitTemplate rabbitTemplate(ConnectionFactory connectionFactory, MessageConverter rabbitMessageConverter) {
+    public RabbitTemplate rabbitTemplate(ConnectionFactory connectionFactory, 
+                                         MessageConverter rabbitMessageConverter, 
+                                         ObjectProvider<EventOutboxMapper> eventOutboxMapperProvider) {
         RabbitTemplate rabbitTemplate = new RabbitTemplate(connectionFactory);
         rabbitTemplate.setMessageConverter(rabbitMessageConverter);
         rabbitTemplate.setMandatory(true);
         rabbitTemplate.setConfirmCallback((correlationData, ack, cause) -> {
-            if (!ack) {
-                log.error("MQ 发布未获 broker 确认 correlationId={} cause={}",
-                        correlationData == null ? null : correlationData.getId(),
-                        cause);
+            if (correlationData != null && correlationData.getId() != null) {
+                try {
+                    Long outboxId = Long.parseLong(correlationData.getId());
+                    EventOutboxMapper outboxMapper = eventOutboxMapperProvider.getIfAvailable();
+                    if (outboxMapper != null) {
+                        if (ack) {
+                            EventOutbox outbox = new EventOutbox();
+                            outbox.setId(outboxId);
+                            outbox.setStatus(OutboxStatus.SENT.name());
+                            outbox.setSentAt(new java.util.Date());
+                            outboxMapper.updateById(outbox);
+                            log.debug("MQ 按期获批发送成功，反写回执 OutboxID={}", outboxId);
+                        } else {
+                            log.error("MQ 发布未获 broker 确认 outboxId={} cause={}", outboxId, cause);
+                            // 未投到 Broker，不必干预，等此前 Relay 推迟的保护期结束会被重刷
+                        }
+                    }
+                } catch (NumberFormatException e) {
+                    // 非 Outbox 队列的常规使用不受影响
+                    if (!ack) {
+                        log.error("常规 MQ 发布失败 correlationId={} cause={}", correlationData.getId(), cause);
+                    }
+                }
+            } else if (!ack) {
+                log.error("未知 MQ 发布未获 broker 确认 cause={}", cause);
             }
         });
         rabbitTemplate.setReturnsCallback(returned -> log.error(

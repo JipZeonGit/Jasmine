@@ -29,7 +29,7 @@ router.beforeEach(async (to) => {
     const dynamicRoutes = buildDynamicRoutes(userInfo.menuList || [])
     dynamicRoutes.forEach((route) => router.addRoute(route))
     dynamicRoutesReady = true
-    return to.fullPath
+    return { path: to.fullPath, replace: true }
   }
 
   return true

@@ -9,6 +9,7 @@ import com.nfu.jasmine.common.vo.TableData;
 import com.nfu.jasmine.flower.application.support.FlowerStockService;
 import com.nfu.jasmine.infra.cache.CacheNames;
 import com.nfu.jasmine.infra.mq.message.InventoryChangedMessage;
+import com.nfu.jasmine.infra.mq.message.InventoryChangeSource;
 import com.nfu.jasmine.infra.mq.message.SalesCreatedMessage;
 import com.nfu.jasmine.infra.mq.publisher.MqMessagePublisher;
 import com.nfu.jasmine.sales.web.dto.SalesItemSaveDTO;
@@ -198,6 +199,27 @@ public class SalesServiceImpl extends ServiceImpl<SalesMapper, Sales> implements
         Set<Integer> affectedFlowerIds = new HashSet<>(collectFlowerIds(listSalesItemsBySalesId(existing.getId())));
         restoreSales(existing);
 
+        // 销售单修改后，需要为被回补的旧库存发送ROLLBACK事件
+        List<Inventory> oldInventories = inventoryMapper.selectList(new LambdaQueryWrapper<Inventory>()
+                .eq(Inventory::getBizNo, existing.getOrderNo())
+                .eq(Inventory::getBizType, InventoryBizType.SALE_OUT.name()));
+        for (Inventory inventory : oldInventories) {
+            mqMessagePublisher.publishInventoryChangedAfterCommit(new InventoryChangedMessage(
+                    inventory.getId(),
+                    inventory.getBizNo(),
+                    inventory.getFlowerId(),
+                    inventory.getBizType(),
+                    -inventory.getQuantity(),
+                    inventory.getAfterStock(),
+                    inventory.getBeforeStock(),
+                    inventory.getOperatorId(),
+                    inventory.getDate(),
+                    new Date(),
+                    InventoryChangeSource.SALES_ORDER,
+                    InventoryChangeSource.ACTION_ROLLBACK
+            ));
+        }
+
         existing.setVipId(salesDTO.getVipId());
         existing.setDate(salesDTO.getDate());
         existing.setRemark(salesDTO.getRemark());
@@ -215,6 +237,28 @@ public class SalesServiceImpl extends ServiceImpl<SalesMapper, Sales> implements
         Sales existing = requireSales(id);
         Set<Integer> affectedFlowerIds = new HashSet<>(collectFlowerIds(listSalesItemsBySalesId(existing.getId())));
         restoreSales(existing);
+        
+        // 销售单删除后，需要为被回补的库存发送ROLLBACK事件
+        List<Inventory> deletedInventories = inventoryMapper.selectList(new LambdaQueryWrapper<Inventory>()
+                .eq(Inventory::getBizNo, existing.getOrderNo())
+                .eq(Inventory::getBizType, InventoryBizType.SALE_OUT.name()));
+        for (Inventory inventory : deletedInventories) {
+            mqMessagePublisher.publishInventoryChangedAfterCommit(new InventoryChangedMessage(
+                    inventory.getId(),
+                    inventory.getBizNo(),
+                    inventory.getFlowerId(),
+                    inventory.getBizType(),
+                    -inventory.getQuantity(), // 回补用负数表示
+                    inventory.getAfterStock(),
+                    inventory.getBeforeStock(), // 回补后的库存是删除前的值
+                    inventory.getOperatorId(),
+                    inventory.getDate(),
+                    new Date(),
+                    InventoryChangeSource.SALES_ORDER,
+                    InventoryChangeSource.ACTION_ROLLBACK
+            ));
+        }
+        
         this.removeById(id);
         evictFlowerCaches(affectedFlowerIds);
     }
@@ -297,7 +341,9 @@ public class SalesServiceImpl extends ServiceImpl<SalesMapper, Sales> implements
                     inventory.getAfterStock(),
                     inventory.getOperatorId(),
                     inventory.getDate(),
-                    new Date()
+                    new Date(),
+                    InventoryChangeSource.SALES_ORDER,
+                    InventoryChangeSource.ACTION_CREATE
             ));
         }
         return totalAmount;

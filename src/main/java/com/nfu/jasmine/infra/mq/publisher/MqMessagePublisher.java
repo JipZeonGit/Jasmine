@@ -5,23 +5,22 @@ import com.nfu.jasmine.infra.mq.message.AccessLogMessage;
 import com.nfu.jasmine.infra.mq.message.AppointmentCreatedMessage;
 import com.nfu.jasmine.infra.mq.message.InventoryChangedMessage;
 import com.nfu.jasmine.infra.mq.message.SalesCreatedMessage;
+import com.nfu.jasmine.infra.outbox.OutboxService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.amqp.rabbit.connection.CorrelationData;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.support.TransactionSynchronization;
-import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.util.UUID;
 
 /**
  * 统一的 MQ 消息发布服务。
  * <p>
- * 业务事件通过 {@code publishXxxAfterCommit} 系列方法注册到事务同步回调，
- * 确保只有事务真正提交后才发布消息，避免下游消费到未持久化的"幽灵消息"。
- * 非事务场景（如访问日志）使用 {@code publishNow} 直接发送。
+ * 业务事件（预约/销售/库存）通过 Outbox 写入 event_outbox 表，
+ * 由 OutboxRelay 异步扫描并发送到 MQ，保证"主业务成功则事件不丢"。
+ * 非事务场景（如访问日志）仍然使用 {@code publishNow} 直接发送。
  * <p>
  * MQ 发送失败时仅记录日志不抛异常，保证主业务链路不受 MQ 瞬时不可用影响。
  */
@@ -30,45 +29,58 @@ public class MqMessagePublisher {
     private static final Logger log = LoggerFactory.getLogger(MqMessagePublisher.class);
 
     private final RabbitTemplate rabbitTemplate;
+    private final OutboxService outboxService;
 
     @Value("${app.mq.enabled:false}")
     private boolean enabled;
 
-    public MqMessagePublisher(RabbitTemplate rabbitTemplate) {
+    public MqMessagePublisher(RabbitTemplate rabbitTemplate, OutboxService outboxService) {
         this.rabbitTemplate = rabbitTemplate;
+        this.outboxService = outboxService;
     }
 
+    // 访问日志不走 Outbox，仍走直接发送，因为已有同步日志兜底。
     public boolean publishAccessLog(AccessLogMessage message) {
         return publishNow(JasmineMqConstants.AUDIT_EVENT_EXCHANGE, JasmineMqConstants.ACCESS_LOG_ROUTING_KEY, message);
     }
 
+    // 预约创建事件写 Outbox，由 Relay 异步发送
     public void publishAppointmentCreatedAfterCommit(AppointmentCreatedMessage message) {
-        publishAfterCommit(JasmineMqConstants.APPOINTMENT_EVENT_EXCHANGE, JasmineMqConstants.APPOINTMENT_CREATED_ROUTING_KEY, message);
-    }
-
-    public void publishSalesCreatedAfterCommit(SalesCreatedMessage message) {
-        publishAfterCommit(JasmineMqConstants.TRADE_EVENT_EXCHANGE, JasmineMqConstants.SALES_CREATED_ROUTING_KEY, message);
-    }
-
-    public void publishInventoryChangedAfterCommit(InventoryChangedMessage message) {
-        publishAfterCommit(JasmineMqConstants.TRADE_EVENT_EXCHANGE, JasmineMqConstants.INVENTORY_CHANGED_ROUTING_KEY, message);
-    }
-
-    private void publishAfterCommit(String exchange, String routingKey, Object payload) {
         if (!enabled) {
             return;
         }
-        // 业务事件统一在事务提交后发布，避免下游拿到一条最终没有真正写入数据库的“幽灵消息”。
-        if (TransactionSynchronizationManager.isActualTransactionActive() && TransactionSynchronizationManager.isSynchronizationActive()) {
-            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-                @Override
-                public void afterCommit() {
-                    publishNow(exchange, routingKey, payload);
-                }
-            });
+        outboxService.save(
+                JasmineMqConstants.APPOINTMENT_CREATED_ROUTING_KEY,
+                JasmineMqConstants.APPOINTMENT_EVENT_EXCHANGE,
+                JasmineMqConstants.APPOINTMENT_CREATED_ROUTING_KEY,
+                message
+        );
+    }
+
+    // 销售创建事件写 Outbox，由 Relay 异步发送
+    public void publishSalesCreatedAfterCommit(SalesCreatedMessage message) {
+        if (!enabled) {
             return;
         }
-        publishNow(exchange, routingKey, payload);
+        outboxService.save(
+                JasmineMqConstants.SALES_CREATED_ROUTING_KEY,
+                JasmineMqConstants.TRADE_EVENT_EXCHANGE,
+                JasmineMqConstants.SALES_CREATED_ROUTING_KEY,
+                message
+        );
+    }
+
+    // 库存变更事件写 Outbox，由 Relay 异步发送
+    public void publishInventoryChangedAfterCommit(InventoryChangedMessage message) {
+        if (!enabled) {
+            return;
+        }
+        outboxService.save(
+                JasmineMqConstants.INVENTORY_CHANGED_ROUTING_KEY,
+                JasmineMqConstants.TRADE_EVENT_EXCHANGE,
+                JasmineMqConstants.INVENTORY_CHANGED_ROUTING_KEY,
+                message
+        );
     }
 
     private boolean publishNow(String exchange, String routingKey, Object payload) {
@@ -79,7 +91,6 @@ public class MqMessagePublisher {
             rabbitTemplate.convertAndSend(exchange, routingKey, payload, new CorrelationData(UUID.randomUUID().toString()));
             return true;
         } catch (Exception ex) {
-            // 第一版先确保主业务链不因为 MQ 暂时不可用而整体失败，失败信息留在日志里继续追。
             log.warn("MQ 发布失败 exchange={} routingKey={} message={}", exchange, routingKey, ex.getMessage());
             return false;
         }

@@ -57,7 +57,7 @@ export const staticRoutes: RouteRecordRaw[] = [
     path: '/:pathMatch(.*)*',
     name: 'NotFound',
     component: NotFoundView,
-    meta: { public: true, hidden: true },
+    meta: { hidden: true },
   },
 ]
 

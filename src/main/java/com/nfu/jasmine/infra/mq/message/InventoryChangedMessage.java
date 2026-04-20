@@ -24,4 +24,8 @@ public class InventoryChangedMessage implements Serializable {
     private Integer operatorId;
     private Date bizTime;
     private Date occurredAt;
+    // 来源：MANUAL_INVENTORY / SALES_ORDER，标识是谁触发的库存变更
+    private String changeSource;
+    // 动作：CREATE / UPDATE / DELETE / ROLLBACK，标识当前变更的操作类型
+    private String changeAction;
 }

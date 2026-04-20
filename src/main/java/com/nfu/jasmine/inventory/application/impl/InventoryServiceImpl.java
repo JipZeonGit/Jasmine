@@ -9,6 +9,7 @@ import com.nfu.jasmine.common.vo.TableData;
 import com.nfu.jasmine.flower.application.support.FlowerStockService;
 import com.nfu.jasmine.infra.cache.CacheNames;
 import com.nfu.jasmine.infra.mq.message.InventoryChangedMessage;
+import com.nfu.jasmine.infra.mq.message.InventoryChangeSource;
 import com.nfu.jasmine.infra.mq.publisher.MqMessagePublisher;
 import com.nfu.jasmine.inventory.web.dto.InventoryQueryDTO;
 import com.nfu.jasmine.inventory.web.dto.InventorySaveDTO;
@@ -51,6 +52,9 @@ public class InventoryServiceImpl extends ServiceImpl<InventoryMapper, Inventory
 
     @Autowired
     private CacheManager cacheManager;
+
+    @Autowired
+    private com.nfu.jasmine.inventory.alert.service.InventoryAlertService inventoryAlertService;
 
     @Override
     public List<InventoryVO> listInventory() {
@@ -149,7 +153,9 @@ public class InventoryServiceImpl extends ServiceImpl<InventoryMapper, Inventory
                 inventory.getAfterStock(),
                 inventory.getOperatorId(),
                 inventory.getDate(),
-                new Date()
+                new Date(),
+                InventoryChangeSource.MANUAL_INVENTORY,
+                InventoryChangeSource.ACTION_CREATE
         ));
         evictFlowerCaches(Set.of(flower.getId()));
     }
@@ -211,6 +217,23 @@ public class InventoryServiceImpl extends ServiceImpl<InventoryMapper, Inventory
         existing.setOperatorId(operatorId);
         existing.setDate(inventoryDTO.getDate());
         this.updateById(existing);
+
+        // 库存修改后也需要发事件，让下游能感知到库存变动。
+        mqMessagePublisher.publishInventoryChangedAfterCommit(new InventoryChangedMessage(
+                existing.getId(),
+                existing.getBizNo(),
+                existing.getFlowerId(),
+                existing.getBizType(),
+                existing.getQuantity(),
+                existing.getBeforeStock(),
+                existing.getAfterStock(),
+                existing.getOperatorId(),
+                existing.getDate(),
+                new Date(),
+                InventoryChangeSource.MANUAL_INVENTORY,
+                InventoryChangeSource.ACTION_UPDATE
+        ));
+
         evictFlowerCaches(affectedFlowerIds);
     }
 
@@ -221,6 +244,22 @@ public class InventoryServiceImpl extends ServiceImpl<InventoryMapper, Inventory
         int delta = InventoryBizType.fromCode(existing.getBizType()).apply(existing.getQuantity());
         flowerStockService.adjustStock(existing.getFlowerId(), -delta, null, false, null);
         this.removeById(id);
+
+        // 库存删除后也需要发事件，确保事件完整性。
+        mqMessagePublisher.publishInventoryChangedAfterCommit(new InventoryChangedMessage(
+                existing.getId(),
+                existing.getBizNo(),
+                existing.getFlowerId(),
+                existing.getBizType(),
+                -existing.getQuantity(), // 删除用负数表示
+                existing.getAfterStock(),
+                existing.getBeforeStock(), // 删除后的库存是删除前的值
+                existing.getOperatorId(),
+                existing.getDate(),
+                new Date(),
+                InventoryChangeSource.MANUAL_INVENTORY,
+                InventoryChangeSource.ACTION_DELETE
+        ));
         evictFlowerCaches(Set.of(existing.getFlowerId()));
     }
 
@@ -308,6 +347,11 @@ public class InventoryServiceImpl extends ServiceImpl<InventoryMapper, Inventory
                 flowerDetailCache.evict(flowerId);
             }
         }
+    }
+
+    @Override
+    public Long getLowStockCount() {
+        return inventoryAlertService.getLowStockCount();
     }
 }
 
