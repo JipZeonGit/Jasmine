@@ -70,6 +70,8 @@ public class OutboxAndAlertIntegrationIT extends AbstractIntegrationTest {
                 .payload(objectMapper.writeValueAsString(message))
                 .status(OutboxStatus.PENDING.name())
                 .retryCount(0)
+                .nextRetryTime(new java.util.Date())
+                .createdAt(new java.util.Date())
                 .build();
         eventOutboxMapper.insert(outbox);
 
