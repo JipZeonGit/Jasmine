@@ -1,6 +1,9 @@
 import request from '@/utils/request'
 
 export const inventoryApi = {
+  getLowStockCount() {
+    return request.get('/inventory/low-stock-count')
+  },
   list(params: Record<string, unknown>) {
     return request.get('/inventory/list', { params })
   },
@@ -16,4 +19,10 @@ export const inventoryApi = {
   remove(id: number) {
     return request.delete(`/inventory/${id}`)
   },
+}
+
+export const inventoryAlertApi = {
+  list(params: Record<string, unknown>) {
+    return request.get('/inventory-alert/list', { params })
+  }
 }

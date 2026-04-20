@@ -90,6 +90,12 @@ public class InventoryController {
         return Result.success(inventoryService.pageInventory(queryDTO));
     }
 
+    @Operation(summary = "获取低库存预警数量")
+    @GetMapping("/low-stock-count")
+    public Result<Long> getLowStockCount() {
+        return Result.success(inventoryService.getLowStockCount());
+    }
+
     private Integer getCurrentUserId(HttpServletRequest request) {
         Object loginUser = request.getAttribute("loginUser");
         if (loginUser instanceof User user) {

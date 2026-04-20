@@ -21,4 +21,6 @@ public interface IInventoryService extends IService<Inventory> {
     void updateInventory(InventorySaveDTO inventoryDTO, Integer operatorId);
 
     void deleteInventory(Integer id);
+
+    Long getLowStockCount();
 }

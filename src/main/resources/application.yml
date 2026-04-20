@@ -49,6 +49,12 @@ app:
   idempotency:
     # 创建类写接口默认防重 30 秒，优先拦截双击、浏览器重试和短时重复提交。
     create-ttl-seconds: ${APP_CREATE_IDEMPOTENCY_TTL_SECONDS:30}
+  outbox:
+    relay:
+      # Outbox Relay 扫描间隔，默认 5 秒
+      interval-ms: ${APP_OUTBOX_RELAY_INTERVAL_MS:5000}
+      # 每次扫描最多处理条数
+      batch-size: ${APP_OUTBOX_RELAY_BATCH_SIZE:50}
 
 logging:
   level:

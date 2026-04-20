@@ -84,7 +84,13 @@ loadFlowerList()
       <el-table-column prop="salePrice" label="售价(元)" width="120" />
       <el-table-column prop="costPrice" label="成本价(元)" width="120" />
       <el-table-column prop="safeStock" label="安全库存" width="110" />
-      <el-table-column prop="currentStock" label="当前库存" width="110" />
+      <el-table-column label="当前库存" width="110">
+        <template #default="{ row }">
+          <span :style="{ color: row.currentStock < row.safeStock ? '#f56c6c' : 'inherit', fontWeight: row.currentStock < row.safeStock ? 'bold' : 'normal' }">
+            {{ row.currentStock }}
+          </span>
+        </template>
+      </el-table-column>
       <el-table-column label="状态" width="100">
         <template #default="{ row }">
           <el-tag :type="row.status === 1 ? 'success' : 'info'">{{ row.status === 1 ? '在售' : '停售' }}</el-tag>
