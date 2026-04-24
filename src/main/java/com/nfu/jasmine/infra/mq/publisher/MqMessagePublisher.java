@@ -65,14 +65,25 @@ public class MqMessagePublisher {
         if (!enabled) {
             return;
         }
-        // 延时消息投向 delay 队列的路由键，Outbox Relay 会将 delayMs 设为 AMQP expiration
-        outboxService.save(
-                "appointment.reminder.delayed",
-                JasmineMqConstants.APPOINTMENT_EVENT_EXCHANGE,
-                JasmineMqConstants.APPOINTMENT_DELAY_ROUTING_KEY,
-                message,
-                delayMs > 0 ? delayMs : null
-        );
+        if (delayMs > 0) {
+            // 延时消息投向 delay 队列的路由键，Outbox Relay 会将 delayMs 设为 AMQP expiration
+            outboxService.save(
+                    "appointment.reminder.delayed",
+                    JasmineMqConstants.APPOINTMENT_EVENT_EXCHANGE,
+                    JasmineMqConstants.APPOINTMENT_DELAY_ROUTING_KEY,
+                    message,
+                    delayMs
+            );
+        } else {
+            // 已不足 1 小时（delayMs <= 0），退化为即时投递，直接发给最终唤醒队列让消费者立刻处理
+            outboxService.save(
+                    "appointment.reminder.immediate",
+                    JasmineMqConstants.APPOINTMENT_EVENT_EXCHANGE,
+                    JasmineMqConstants.APPOINTMENT_REMINDER_ROUTING_KEY,
+                    message,
+                    null
+            );
+        }
     }
 
     // 销售创建事件写 Outbox，由 Relay 异步发送
