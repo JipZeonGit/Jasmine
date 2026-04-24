@@ -44,18 +44,29 @@ public class AppointmentReminderListener {
         MqMessageSupport.rejectIfNull(message, "message");
         MqMessageSupport.rejectIfNull(message.getAppointmentId(), "appointmentId");
 
-        // 幂等校验：避免重复生成同一条预约的提醒站内信
-        String key = MqKeyNames.appointmentReminder(message.getAppointmentId());
+        // 幂等校验：加上时间戳，允许改签后生成新的提醒，同时避免同一时间的重复提醒
+        long timeMills = message.getAppointmentTime() != null ? message.getAppointmentTime().getTime() : 0;
+        String key = MqKeyNames.appointmentReminder(message.getAppointmentId(), timeMills);
         if (!mqIdempotencyService.markIfFirstConsume(key)) {
             log.info("跳过重复预约提醒 appointmentId={}", message.getAppointmentId());
             return;
         }
 
-        // 消费端回查预约主库，过滤掉已删除或已修改时间的过期提醒
+        // 消费端回查预约主库，过滤掉已删除
         Appointment appointment = appointmentMapper.selectById(message.getAppointmentId());
         if (appointment == null || appointment.getDeleted() == 1) {
             log.info("预约已删除，跳过提醒 appointmentId={}", message.getAppointmentId());
             return;
+        }
+        
+        // 过滤改签留下的"幽灵消息"：判断数据库最新时间与消息体时间是否一致（容差1分钟）
+        if (appointment.getDate() != null && message.getAppointmentTime() != null) {
+            long diff = Math.abs(appointment.getDate().getTime() - message.getAppointmentTime().getTime());
+            if (diff > 60_000) {
+                log.info("预约已改签，跳过旧时间提醒 appointmentId={} dbTime={} msgTime={}", 
+                        message.getAppointmentId(), appointment.getDate(), message.getAppointmentTime());
+                return;
+            }
         }
 
         // 构造站内信标题和正文

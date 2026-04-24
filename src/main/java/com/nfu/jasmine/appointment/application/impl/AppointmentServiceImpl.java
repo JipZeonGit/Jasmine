@@ -130,6 +130,22 @@ public class AppointmentServiceImpl extends ServiceImpl<AppointmentMapper, Appoi
         appointment.setDate(appointmentDTO.getDate());
         appointment.setContent(appointmentDTO.getContent());
         this.updateById(appointment);
+
+        // 如果修改了时间或内容，重新发布一份延时提醒（旧时间的延时消息会在消费端被拦截丢弃）
+        Vip vip = vipMapper.selectById(appointment.getVipId());
+        if (vip != null) {
+            AppointmentCreatedMessage message = new AppointmentCreatedMessage(
+                    appointment.getId(),
+                    vip.getId(),
+                    vip.getName(),
+                    vip.getPhone(),
+                    appointment.getDate(),
+                    appointment.getContent(),
+                    new Date()
+            );
+            long delayMs = appointment.getDate().getTime() - System.currentTimeMillis() - 3600_000L;
+            mqMessagePublisher.publishAppointmentReminderDelayed(message, delayMs);
+        }
     }
 
     private Vip resolveVip(Integer vipId, String vid, String phone) {
