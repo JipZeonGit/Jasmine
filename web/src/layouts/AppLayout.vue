@@ -50,11 +50,20 @@ async function fetchAllMessages() {
   loadingMessages.value = true
   try {
     const [stockRes, msgRes] = await Promise.all([
-      lowStockCount.value > 0 ? inventoryAlertApi.list({ alertStatus: 'LOW_STOCK', pageNo: 1, pageSize: 10 }) : Promise.resolve({ data: { rows: [] } }),
-      unreadSiteMessageCount.value > 0 ? siteMessageApi.list({ pageNo: 1, pageSize: 10 }) : Promise.resolve({ data: { rows: [] } })
+      inventoryAlertApi.list({ alertStatus: 'LOW_STOCK', pageNo: 1, pageSize: 10 }),
+      siteMessageApi.list({ pageNo: 1, pageSize: 10 })
     ])
+    
     alertList.value = stockRes.data?.rows || []
     siteMessageList.value = msgRes.data?.rows || []
+    
+    // 同步更新本地角标数量，修复跨页面状态变更后出现的角标与内容不一致（幽灵数字）问题
+    if (stockRes.data?.total !== undefined) {
+      lowStockCount.value = Number(stockRes.data.total)
+    }
+    if (msgRes.data?.total !== undefined) {
+      unreadSiteMessageCount.value = Number(msgRes.data.total)
+    }
     
     // 如果当前选中的 tab 没有消息，且另一个 tab 有消息，则自动切换
     if (activeTab.value === 'siteMessage' && unreadSiteMessageCount.value === 0 && lowStockCount.value > 0) {
