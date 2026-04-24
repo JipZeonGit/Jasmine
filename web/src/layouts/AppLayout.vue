@@ -5,6 +5,7 @@ import { useRoute, useRouter } from 'vue-router'
 
 import { useAuthStore } from '@/stores/auth'
 import { inventoryApi, inventoryAlertApi } from '@/api/inventory'
+import { siteMessageApi, type SiteMessage } from '@/api/siteMessage'
 import AppSidebar from '@/layouts/components/AppSidebar.vue'
 import TagsView from '@/layouts/components/TagsView.vue'
 import { resetDynamicRoutes } from '@/router'
@@ -16,39 +17,81 @@ const collapsed = ref(false)
 const isDark = ref(false)
 
 const lowStockCount = ref(0)
+const unreadSiteMessageCount = ref(0)
+const totalMessageCount = computed(() => lowStockCount.value + unreadSiteMessageCount.value)
+
 let pollTimer: ReturnType<typeof setInterval>
 
-const alertList = ref<any[]>([])
-const loadingAlerts = ref(false)
+const activeTab = ref('siteMessage')
 
-async function fetchAlertList() {
-  if (lowStockCount.value === 0) {
-    alertList.value = []
-    return
-  }
-  loadingAlerts.value = true
+const alertList = ref<any[]>([])
+const siteMessageList = ref<SiteMessage[]>([])
+const loadingMessages = ref(false)
+
+async function fetchMessageCounts() {
   try {
-    const res = await inventoryAlertApi.list({ alertStatus: 'LOW_STOCK', pageNo: 1, pageSize: 10 })
-    alertList.value = res.data?.rows || []
+    const [stockRes, msgRes] = await Promise.all([
+      inventoryApi.getLowStockCount(),
+      siteMessageApi.getUnreadCount()
+    ])
+    lowStockCount.value = Number(stockRes.data) || 0
+    unreadSiteMessageCount.value = Number(msgRes.data) || 0
   } catch (error) {
-    console.error('获取预警列表失败', error)
-  } finally {
-    loadingAlerts.value = false
+    console.error('获取消息数量失败', error)
   }
 }
 
-async function fetchLowStockCount() {
+async function fetchAllMessages() {
+  if (totalMessageCount.value === 0) {
+    alertList.value = []
+    siteMessageList.value = []
+    return
+  }
+  loadingMessages.value = true
   try {
-    const res = await inventoryApi.getLowStockCount()
-    lowStockCount.value = Number(res.data) || 0
+    const [stockRes, msgRes] = await Promise.all([
+      lowStockCount.value > 0 ? inventoryAlertApi.list({ alertStatus: 'LOW_STOCK', pageNo: 1, pageSize: 10 }) : Promise.resolve({ data: { rows: [] } }),
+      unreadSiteMessageCount.value > 0 ? siteMessageApi.list({ pageNo: 1, pageSize: 10 }) : Promise.resolve({ data: { rows: [] } })
+    ])
+    alertList.value = stockRes.data?.rows || []
+    siteMessageList.value = msgRes.data?.rows || []
+    
+    // 如果当前选中的 tab 没有消息，且另一个 tab 有消息，则自动切换
+    if (activeTab.value === 'siteMessage' && unreadSiteMessageCount.value === 0 && lowStockCount.value > 0) {
+      activeTab.value = 'inventory'
+    } else if (activeTab.value === 'inventory' && lowStockCount.value === 0 && unreadSiteMessageCount.value > 0) {
+      activeTab.value = 'siteMessage'
+    }
   } catch (error) {
-    console.error('获取低库存预警数失败', error)
+    console.error('获取消息列表失败', error)
+  } finally {
+    loadingMessages.value = false
+  }
+}
+
+async function handleMarkAsRead(id: number) {
+  try {
+    await siteMessageApi.markAsRead(id)
+    await fetchMessageCounts()
+    await fetchAllMessages()
+  } catch (error) {
+    console.error('标记已读失败', error)
+  }
+}
+
+async function handleMarkAllAsRead() {
+  try {
+    await siteMessageApi.markAllAsRead()
+    await fetchMessageCounts()
+    await fetchAllMessages()
+  } catch (error) {
+    console.error('全部标记已读失败', error)
   }
 }
 
 onMounted(() => {
-  fetchLowStockCount()
-  pollTimer = setInterval(fetchLowStockCount, 60000)
+  fetchMessageCounts()
+  pollTimer = setInterval(fetchMessageCounts, 60000)
 
   const theme = localStorage.getItem('jasmine-theme')
   if (theme === 'dark') {
@@ -99,36 +142,64 @@ async function handleLogout() {
         <div class="layout-actions">
           <el-popover
             placement="bottom"
-            :width="300"
+            :width="320"
             trigger="hover"
-            @show="fetchAlertList"
-            :disabled="lowStockCount === 0"
-            popper-style="border-radius: 12px;"
+            @show="fetchAllMessages"
+            :disabled="totalMessageCount === 0"
+            popper-style="border-radius: 12px; padding: 0;"
           >
             <template #reference>
-              <el-badge :value="lowStockCount" :hidden="lowStockCount === 0" class="alert-badge">
-                <el-button text @click="router.push('/custom/inventoryManage')">
+              <el-badge :value="totalMessageCount" :hidden="totalMessageCount === 0" class="alert-badge">
+                <el-button text>
                   <el-icon><Bell /></el-icon>
                 </el-button>
               </el-badge>
             </template>
-            <div v-loading="loadingAlerts" class="alert-popover-content">
-              <div v-if="alertList.length === 0" class="empty-alert">暂无低库存预警</div>
-              <el-scrollbar v-else max-height="300px">
-                <div v-for="item in alertList" :key="item.id" class="alert-item">
-                  <div class="alert-header">
-                    <span class="flower-name">{{ item.flowerNameSnapshot }}</span>
-                    <span class="stock-status">库存告急</span>
+            <div v-loading="loadingMessages" class="notification-center">
+              <el-tabs v-model="activeTab" class="notification-tabs">
+                <el-tab-pane :name="'siteMessage'" v-if="unreadSiteMessageCount > 0 || activeTab === 'siteMessage'">
+                  <template #label>
+                    <span>待办提醒 <el-badge :value="unreadSiteMessageCount" :hidden="unreadSiteMessageCount === 0" class="tab-badge" /></span>
+                  </template>
+                  <div v-if="siteMessageList.length === 0" class="empty-alert">暂无待办提醒</div>
+                  <el-scrollbar v-else max-height="300px">
+                    <div v-for="item in siteMessageList" :key="item.id" class="alert-item">
+                      <div class="alert-header">
+                        <span class="message-title">{{ item.title }}</span>
+                        <el-button size="small" type="primary" link @click="handleMarkAsRead(item.id)">已知悉</el-button>
+                      </div>
+                      <div class="alert-body message-content" :title="item.content">
+                        {{ item.content }}
+                      </div>
+                    </div>
+                  </el-scrollbar>
+                  <div class="alert-footer" v-if="siteMessageList.length > 0">
+                    <el-button type="primary" link @click="handleMarkAllAsRead">全部已知悉</el-button>
                   </div>
-                  <div class="alert-body">
-                    安全库存: {{ item.safeStock }} &nbsp;|&nbsp; 
-                    <span style="color: #f56c6c;">当前: {{ item.currentStock }}</span>
+                </el-tab-pane>
+
+                <el-tab-pane :name="'inventory'" v-if="lowStockCount > 0 || activeTab === 'inventory'">
+                  <template #label>
+                    <span>库存预警 <el-badge :value="lowStockCount" :hidden="lowStockCount === 0" class="tab-badge" type="danger" /></span>
+                  </template>
+                  <div v-if="alertList.length === 0" class="empty-alert">暂无低库存预警</div>
+                  <el-scrollbar v-else max-height="300px">
+                    <div v-for="item in alertList" :key="item.id" class="alert-item">
+                      <div class="alert-header">
+                        <span class="flower-name">{{ item.flowerNameSnapshot }}</span>
+                        <span class="stock-status">库存告急</span>
+                      </div>
+                      <div class="alert-body">
+                        安全库存: {{ item.safeStock }} &nbsp;|&nbsp; 
+                        <span style="color: #f56c6c;">当前: {{ item.currentStock }}</span>
+                      </div>
+                    </div>
+                  </el-scrollbar>
+                  <div class="alert-footer">
+                    <el-button type="primary" link @click="router.push('/custom/inventoryManage')">前往库存管理</el-button>
                   </div>
-                </div>
-              </el-scrollbar>
-              <div class="alert-footer">
-                <el-button type="primary" link @click="router.push('/custom/inventoryManage')">前往库存管理</el-button>
-              </div>
+                </el-tab-pane>
+              </el-tabs>
             </div>
           </el-popover>
           <el-button text @click="toggleDark">
@@ -244,42 +315,96 @@ async function handleLogout() {
   padding: 16px 24px;
 }
 
-.alert-popover-content {
-  padding: 4px;
+.notification-center {
+  padding: 0;
 }
+
+.notification-tabs {
+  --el-tabs-header-height: 48px;
+}
+
+.notification-tabs :deep(.el-tabs__nav-wrap) {
+  padding: 0 16px;
+  margin-bottom: 0;
+}
+
+.notification-tabs :deep(.el-tabs__item) {
+  font-weight: 600;
+}
+
+.tab-badge {
+  margin-left: 4px;
+}
+.tab-badge :deep(.el-badge__content) {
+  transform: translateY(-50%) scale(0.9);
+}
+
 .empty-alert {
   text-align: center;
   color: var(--jasmine-text-muted);
-  padding: 16px 0;
+  padding: 32px 0;
+  font-size: 13px;
 }
+
 .alert-item {
-  padding: 12px;
+  padding: 12px 16px;
   border-bottom: 1px solid var(--jasmine-border-light, #ebeef5);
+  transition: background-color 0.2s ease;
+}
+.alert-item:hover {
+  background-color: var(--jasmine-bg-subtle, #f5f7fa);
 }
 .alert-item:last-child {
   border-bottom: none;
 }
+
 .alert-header {
   display: flex;
   justify-content: space-between;
-  margin-bottom: 4px;
+  align-items: center;
+  margin-bottom: 6px;
 }
-.flower-name {
+
+.flower-name, .message-title {
   font-weight: 600;
   color: var(--jasmine-text-main);
+  font-size: 14px;
 }
+
 .stock-status {
   font-size: 12px;
   color: #f56c6c;
+  background: rgba(245, 108, 108, 0.1);
+  padding: 2px 6px;
+  border-radius: 4px;
 }
+
 .alert-body {
   font-size: 13px;
   color: var(--jasmine-text-regular);
 }
+
+.message-content {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.5;
+  color: var(--jasmine-text-muted);
+}
+
 .alert-footer {
   text-align: center;
-  margin-top: 12px;
   border-top: 1px solid var(--jasmine-border-light, #ebeef5);
-  padding-top: 8px;
+  padding: 8px 0;
+  background-color: var(--jasmine-card-bg);
+  position: sticky;
+  bottom: 0;
+  z-index: 1;
+}
+
+:global(html.dark) .alert-item:hover {
+  background-color: #2b2b2c;
 }
 </style>
