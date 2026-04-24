@@ -90,17 +90,22 @@ public class OutboxRelay {
         }
 
         try {
-            org.springframework.amqp.core.Message message = org.springframework.amqp.core.MessageBuilder
+            org.springframework.amqp.core.MessageBuilder messageBuilder = org.springframework.amqp.core.MessageBuilder
                     .withBody(outbox.getPayload().getBytes(java.nio.charset.StandardCharsets.UTF_8))
-                    .setContentType(org.springframework.amqp.core.MessageProperties.CONTENT_TYPE_JSON)
-                    .build();
+                    .setContentType(org.springframework.amqp.core.MessageProperties.CONTENT_TYPE_JSON);
+            // 延迟消息：通过 per-message TTL 控制在死信驻留队列中停留的时长
+            if (outbox.getDelayMs() != null && outbox.getDelayMs() > 0) {
+                messageBuilder.setExpiration(String.valueOf(outbox.getDelayMs()));
+            }
+            org.springframework.amqp.core.Message message = messageBuilder.build();
             rabbitTemplate.send(
                     outbox.getExchange(),
                     outbox.getRoutingKey(),
                     message,
                     new CorrelationData(outbox.getId().toString())
             );
-            log.debug("Outbox 消息投至网关待复，已脱离本进程死锁 id={} eventType={}", outbox.getId(), outbox.getEventType());
+            log.debug("Outbox 消息投至网关待复，已脱离本进程死锁 id={} eventType={} delayMs={}",
+                    outbox.getId(), outbox.getEventType(), outbox.getDelayMs());
         } catch (Exception ex) {
             handleSendFailure(outbox, ex);
         }

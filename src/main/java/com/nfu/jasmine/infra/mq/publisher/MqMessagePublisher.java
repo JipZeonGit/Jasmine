@@ -57,6 +57,24 @@ public class MqMessagePublisher {
         );
     }
 
+    /**
+     * 发布预约提醒延时消息。消息先投入死信驻留队列，等 TTL 过期后自动弹射至提醒消费队列。
+     * delayMs <= 0 时退化为即时投递（用于"距离预约已不足提醒时间"的紧急场景）。
+     */
+    public void publishAppointmentReminderDelayed(AppointmentCreatedMessage message, long delayMs) {
+        if (!enabled) {
+            return;
+        }
+        // 延时消息投向 delay 队列的路由键，Outbox Relay 会将 delayMs 设为 AMQP expiration
+        outboxService.save(
+                "appointment.reminder.delayed",
+                JasmineMqConstants.APPOINTMENT_EVENT_EXCHANGE,
+                JasmineMqConstants.APPOINTMENT_DELAY_ROUTING_KEY,
+                message,
+                delayMs > 0 ? delayMs : null
+        );
+    }
+
     // 销售创建事件写 Outbox，由 Relay 异步发送
     public void publishSalesCreatedAfterCommit(SalesCreatedMessage message) {
         if (!enabled) {

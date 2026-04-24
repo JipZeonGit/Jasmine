@@ -94,7 +94,7 @@ public class AppointmentServiceImpl extends ServiceImpl<AppointmentMapper, Appoi
     @Override
     @Transactional
     public void createAppointment(AppointmentCreateDTO appointmentDTO) {
-        // 新模型下预约必须绑定真实会员，禁止再落成一条“松散文本预约”。
+        // 新模型下预约必须绑定真实会员，禁止再落成一条松散文本预约。
         Vip vip = resolveVip(appointmentDTO.getVipId(), appointmentDTO.getVid(), appointmentDTO.getPhone());
         Appointment appointment = new Appointment();
         appointment.setVipId(vip.getId());
@@ -103,8 +103,8 @@ public class AppointmentServiceImpl extends ServiceImpl<AppointmentMapper, Appoi
         appointment.setDeleted(0);
         this.save(appointment);
 
-        // 第一版先把“预约创建成功”事件发出去，消费端目前只做模拟通知，后面再逐步接真实渠道。
-        mqMessagePublisher.publishAppointmentCreatedAfterCommit(new AppointmentCreatedMessage(
+        // 预约创建成功事件
+        AppointmentCreatedMessage createdMessage = new AppointmentCreatedMessage(
                 appointment.getId(),
                 vip.getId(),
                 vip.getName(),
@@ -112,7 +112,12 @@ public class AppointmentServiceImpl extends ServiceImpl<AppointmentMapper, Appoi
                 appointment.getDate(),
                 appointment.getContent(),
                 new Date()
-        ));
+        );
+        mqMessagePublisher.publishAppointmentCreatedAfterCommit(createdMessage);
+
+        // 延时提醒：预约时间 - 当前时间 - 提前 1 小时通知；不足 1 小时则退化为即时提醒
+        long delayMs = appointment.getDate().getTime() - System.currentTimeMillis() - 3600_000L;
+        mqMessagePublisher.publishAppointmentReminderDelayed(createdMessage, delayMs);
     }
 
     @Override
@@ -137,7 +142,7 @@ public class AppointmentServiceImpl extends ServiceImpl<AppointmentMapper, Appoi
             vip = vipMapper.selectOne(new LambdaQueryWrapper<Vip>().eq(Vip::getPhone, phone));
         }
 
-        // 预约消息依赖明确的会员接收对象，因此这里不允许退回到“纯文本预约”的旧模式。
+        // 预约消息依赖明确的会员接收对象，因此这里不允许退回到纯文本预约的旧模式。
         if (vip == null) {
             throw new BusinessException(ResultCode.NOT_FOUND, "会员不存在，请先创建会员！");
         }

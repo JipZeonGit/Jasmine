@@ -41,6 +41,10 @@ public class EventOutbox implements Serializable {
     @TableField("payload")
     private String payload;
 
+    /** 延迟投递毫秒数，NULL 或 0 表示即时投递 */
+    @TableField("delay_ms")
+    private Long delayMs;
+
     @TableField("status")
     private String status;
 

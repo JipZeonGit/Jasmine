@@ -68,8 +68,8 @@ public class RabbitMqTopologyConfig {
     }
 
     @Bean
-    public RabbitTemplate rabbitTemplate(ConnectionFactory connectionFactory, 
-                                         MessageConverter rabbitMessageConverter, 
+    public RabbitTemplate rabbitTemplate(ConnectionFactory connectionFactory,
+                                         MessageConverter rabbitMessageConverter,
                                          ObjectProvider<EventOutboxMapper> eventOutboxMapperProvider) {
         RabbitTemplate rabbitTemplate = new RabbitTemplate(connectionFactory);
         rabbitTemplate.setMessageConverter(rabbitMessageConverter);
@@ -128,11 +128,11 @@ public class RabbitMqTopologyConfig {
     @Bean
     public RetryOperationsInterceptor rabbitRetryInterceptor() {
         Map<Class<? extends Throwable>, Boolean> retryableExceptions = new HashMap<>();
-        // 这两类基本都属于“坏消息”，继续重试没有意义，直接拒绝更合适。
+        // 这两类基本都属于"坏消息"，继续重试没有意义，直接拒绝更合适。
         retryableExceptions.put(AmqpRejectAndDontRequeueException.class, false);
         retryableExceptions.put(MessageConversionException.class, false);
 
-        // 其余异常默认按“可恢复”处理，先给几次机会，避免一抖动就直接打进死信。
+        // 其余异常默认按"可恢复"处理，先给几次机会，避免一抖动就直接打进死信。
         SimpleRetryPolicy retryPolicy = new SimpleRetryPolicy(
                 retryMaxAttempts,
                 retryableExceptions,
@@ -150,7 +150,6 @@ public class RabbitMqTopologyConfig {
 
     @Bean
     public Declarables jasmineRabbitMqDeclarables() {
-        // 第二阶段先把销售和库存事件的“消息骨架”补上，后面再逐步接统计、预警和更复杂的下游。
         TopicExchange appointmentExchange = new TopicExchange(JasmineMqConstants.APPOINTMENT_EVENT_EXCHANGE, true, false);
         TopicExchange auditExchange = new TopicExchange(JasmineMqConstants.AUDIT_EVENT_EXCHANGE, true, false);
         TopicExchange tradeExchange = new TopicExchange(JasmineMqConstants.TRADE_EVENT_EXCHANGE, true, false);
@@ -170,9 +169,27 @@ public class RabbitMqTopologyConfig {
                 "dead-letter.inventory.event-log");
         Queue deadLetterQueue = QueueBuilder.durable(JasmineMqConstants.DEAD_LETTER_QUEUE).build();
 
+        // 延时驻留队列：无消费者监听，消息靠 per-message TTL 过期后，由死信路由弹射至提醒队列
+        Queue appointmentDelayQueue = QueueBuilder.durable(JasmineMqConstants.APPOINTMENT_DELAY_QUEUE)
+                .deadLetterExchange(JasmineMqConstants.APPOINTMENT_EVENT_EXCHANGE)
+                .deadLetterRoutingKey(JasmineMqConstants.APPOINTMENT_REMINDER_ROUTING_KEY)
+                .build();
+        // 最终唤醒队列：消费者在此监听，收到消息后生成站内信
+        Queue appointmentReminderQueue = buildBusinessQueue(JasmineMqConstants.APPOINTMENT_REMINDER_QUEUE,
+                JasmineMqConstants.DEAD_LETTER_EXCHANGE,
+                "dead-letter.appointment.reminder");
+
         Binding appointmentBinding = BindingBuilder.bind(appointmentQueue)
                 .to(appointmentExchange)
                 .with(JasmineMqConstants.APPOINTMENT_CREATED_ROUTING_KEY);
+        // 延时队列绑定：Outbox Relay 把延时消息投到这条路由上
+        Binding appointmentDelayBinding = BindingBuilder.bind(appointmentDelayQueue)
+                .to(appointmentExchange)
+                .with(JasmineMqConstants.APPOINTMENT_DELAY_ROUTING_KEY);
+        // 唤醒队列绑定：死信弹射过来的消息落到这里
+        Binding appointmentReminderBinding = BindingBuilder.bind(appointmentReminderQueue)
+                .to(appointmentExchange)
+                .with(JasmineMqConstants.APPOINTMENT_REMINDER_ROUTING_KEY);
         Binding accessLogBinding = BindingBuilder.bind(accessLogQueue)
                 .to(auditExchange)
                 .with(JasmineMqConstants.ACCESS_LOG_ROUTING_KEY);
@@ -187,20 +204,11 @@ public class RabbitMqTopologyConfig {
                 .with(JasmineMqConstants.DEAD_LETTER_ROUTING_KEY);
 
         return new Declarables(
-                appointmentExchange,
-                auditExchange,
-                tradeExchange,
-                deadLetterExchange,
-                appointmentQueue,
-                accessLogQueue,
-                salesEventQueue,
-                inventoryEventQueue,
-                deadLetterQueue,
-                appointmentBinding,
-                accessLogBinding,
-                salesEventBinding,
-                inventoryEventBinding,
-                deadLetterBinding
+                appointmentExchange, auditExchange, tradeExchange, deadLetterExchange,
+                appointmentQueue, appointmentDelayQueue, appointmentReminderQueue,
+                accessLogQueue, salesEventQueue, inventoryEventQueue, deadLetterQueue,
+                appointmentBinding, appointmentDelayBinding, appointmentReminderBinding,
+                accessLogBinding, salesEventBinding, inventoryEventBinding, deadLetterBinding
         );
     }
 
