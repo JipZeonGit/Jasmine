@@ -49,7 +49,7 @@ public class SiteMessageService {
     public Page<SiteMessage> pageMessages(int pageNo, int pageSize) {
         Page<SiteMessage> page = new Page<>(pageNo, pageSize);
         LambdaQueryWrapper<SiteMessage> wrapper = new LambdaQueryWrapper<>();
-        wrapper.orderByAsc(SiteMessage::getIsRead)
+        wrapper.eq(SiteMessage::getIsRead, 0)
                .orderByDesc(SiteMessage::getCreatedAt);
         return siteMessageMapper.selectPage(page, wrapper);
     }
