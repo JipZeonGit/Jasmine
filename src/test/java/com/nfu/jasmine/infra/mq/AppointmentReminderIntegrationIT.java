@@ -43,7 +43,6 @@ public class AppointmentReminderIntegrationIT extends AbstractIntegrationTest {
         vip.setVid("V9999");
         vip.setName("延时张总");
         vip.setPhone("13800009999");
-        vip.setStatus(1);
         vipMapper.insert(vip);
 
         // 2. 模拟创建一个 1小时 + 3秒 后到店的预约单

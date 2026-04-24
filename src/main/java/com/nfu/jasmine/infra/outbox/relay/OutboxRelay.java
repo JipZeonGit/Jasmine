@@ -90,7 +90,7 @@ public class OutboxRelay {
         }
 
         try {
-            org.springframework.amqp.core.MessageBuilder messageBuilder = org.springframework.amqp.core.MessageBuilder
+            var messageBuilder = org.springframework.amqp.core.MessageBuilder
                     .withBody(outbox.getPayload().getBytes(java.nio.charset.StandardCharsets.UTF_8))
                     .setContentType(org.springframework.amqp.core.MessageProperties.CONTENT_TYPE_JSON);
             // 延迟消息：通过 per-message TTL 控制在死信驻留队列中停留的时长
