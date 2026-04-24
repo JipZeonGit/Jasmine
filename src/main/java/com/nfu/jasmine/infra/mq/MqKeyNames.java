@@ -16,6 +16,10 @@ public final class MqKeyNames {
         return MQ_IDEMPOTENT_PREFIX + "appointment-notification:" + appointmentId;
     }
 
+    public static String appointmentReminder(Integer appointmentId, long time) {
+        return MQ_IDEMPOTENT_PREFIX + "appointment-reminder:" + appointmentId + ":" + time;
+    }
+
     public static String accessLog(String requestId) {
         return MQ_IDEMPOTENT_PREFIX + "access-log:" + requestId;
     }

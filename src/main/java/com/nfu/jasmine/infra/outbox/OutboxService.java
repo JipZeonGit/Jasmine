@@ -32,6 +32,13 @@ public class OutboxService {
      * 写入一条待发送的 Outbox 记录。应在主事务内调用，保证业务数据与 Outbox 原子写入。
      */
     public void save(String eventType, String exchange, String routingKey, Object payload) {
+        save(eventType, exchange, routingKey, payload, null);
+    }
+
+    /**
+     * 写入一条带延迟投递属性的 Outbox 记录。delayMs 为 null 或 0 时等同于即时投递。
+     */
+    public void save(String eventType, String exchange, String routingKey, Object payload, Long delayMs) {
         try {
             String json = objectMapper.writeValueAsString(payload);
             EventOutbox outbox = EventOutbox.builder()
@@ -39,6 +46,7 @@ public class OutboxService {
                     .exchange(exchange)
                     .routingKey(routingKey)
                     .payload(json)
+                    .delayMs(delayMs)
                     .status(OutboxStatus.PENDING.name())
                     .retryCount(0)
                     .nextRetryTime(new Date())

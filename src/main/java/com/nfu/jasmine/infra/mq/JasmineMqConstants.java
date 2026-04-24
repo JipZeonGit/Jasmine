@@ -14,6 +14,12 @@ public final class JasmineMqConstants {
     public static final String APPOINTMENT_EVENT_EXCHANGE = "jasmine.appointment.event";
     public static final String APPOINTMENT_NOTIFICATION_QUEUE = "jasmine.appointment.notification";
     public static final String APPOINTMENT_CREATED_ROUTING_KEY = "appointment.created";
+    // 延时提醒：死信驻留队列（无消费者，靠 per-message TTL 过期后弹射至 reminder 队列）
+    public static final String APPOINTMENT_DELAY_QUEUE = "jasmine.appointment.delay";
+    public static final String APPOINTMENT_DELAY_ROUTING_KEY = "appointment.delay";
+    // 延时提醒：最终唤醒队列（消费者监听此队列生成站内信）
+    public static final String APPOINTMENT_REMINDER_QUEUE = "jasmine.appointment.reminder";
+    public static final String APPOINTMENT_REMINDER_ROUTING_KEY = "appointment.reminder";
 
     // ---- 审计域 ----
     public static final String AUDIT_EVENT_EXCHANGE = "jasmine.audit.event";
