@@ -274,3 +274,14 @@ xxx
 - 本轮以 xxx 为主，不扩展 xxx
 - 后续如继续推进，优先处理 xxx
 ```
+
+## 九、Upgrade 文档目录结构约定
+
+随着项目不断演进，`docs/upgrade/` 目录下的文档逐渐增多。为了保持整洁，规定所有 upgrade 历史文档必须按以下分类放入子目录：
+
+- `plan/`：用于存放各类可行性计划书（如 `pr18-concurrency-consistency-plan.md`）。
+- `memo/`：用于存放技术备忘录、架构研讨和数据库设计方案（如 `logical-deletion-optimization.md`）。
+- `troubleshooting/`：用于存放线上排查手册和紧急运维处理文档。
+- `roadmap/`：存放所有的未来路线图规划。
+- `review/`：存放 Code Review 代码审查报告。
+- `logs/`：存放各阶段的开发日志、配置记录以及 PR 实施的具体记录。
