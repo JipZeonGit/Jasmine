@@ -1,5 +1,9 @@
 # Jasmine
 
+> **分支说明**：
+> 当前 `next` 分支为项目的主干分支，它已经完成了从老旧 `legacy` 分支到新一代现代化单体应用架构的全面迁移与重构。
+> 未来项目将继续演进，计划单独开辟 `microservices` 分支，探索并实现从单体应用架构向最新微服务架构的跨越。
+
 一个面向花店门店场景的管理系统，当前包含：
 
 - 后端：Spring Boot 单体应用
@@ -12,6 +16,7 @@
 - RabbitMQ 三阶段接入与稳定性收口
 - Redis 与 MQ 的第一轮一致性 / 缓存稳态增强
 - 高并发本地消息表（Outbox）及全链路强一致性预警机制构建
+- 基于延时死信架构的业务级消息定时提醒及前端闭环
 
 ## 当前技术栈
 
@@ -36,13 +41,13 @@
 
 | 技术 | 说明 | 当前版本 |
 |:---|:---|:---|
-| Vue | 前端框架 | 3.5.x |
-| Vue Router | 路由 | 4.6.x |
-| Pinia | 状态管理 | 3.0.x |
-| Element Plus | 组件库 | 2.13.x |
-| Axios | HTTP 请求 | 1.15.x |
-| Vite | 构建工具链 | 8.0.x |
-| Bun | 本地开发与依赖管理 | 1.3.x |
+| Vue | 前端框架 | 3.5.32 |
+| Vue Router | 路由 | 4.6.4 |
+| Pinia | 状态管理 | 3.0.4 |
+| Element Plus | 组件库 | 2.13.7 |
+| Axios | HTTP 请求 | 1.15.0 |
+| Vite | 构建工具链 | 8.0.8 |
+| Bun | 本地开发与依赖管理 | 1.3.12 |
 
 ### 中间件与部署
 
@@ -55,6 +60,26 @@
 | Docker Compose | 多服务编排 | 当前基线已接入 |
 | GitHub Actions | CI / 镜像构建 | 当前基线已接入 |
 
+## 架构演进与组件对比 (Legacy vs Next)
+
+从老旧的 `legacy` 分支迁移到现在的 `next` 分支过程中，系统全栈技术经历了彻底的现代化洗牌。以下是核心组件的变动说明：
+
+| 领域 | 组件名称 | 老架构 (Legacy) | 新架构 (Next) | 演进状态 |
+|:---|:---|:---|:---|:---|
+| **运行环境** | Java | 1.8.0_472 | 21 | 🚀 **跨代升级**，支持虚拟线程等现代特性 |
+| **核心框架** | Spring Boot | 2.7.8 | 3.5.13 | 🚀 **大版本升级**，全面迁移至 Jakarta EE 规范 |
+| **持久层** | MyBatis-Plus | 3.5.2 | 3.5.14 | ⬆️ **常规升级** |
+| **安全鉴权** | Spring Security | 2.7.8 | 跟随 Spring Boot 3 | 🚀 **架构重构**，采用全新 `SecurityFilterChain` |
+| **Token机制** | JWT | 0.9.1 | 0.12.7 | ⬆️ **大版本升级**，重构签名与验证 API |
+| **接口文档** | Swagger | 3.0.0 | springdoc-openapi 2.8.16 | 🔄 **平替升级**，完美适配 Boot 3 及 OpenAPI 3 规范 |
+| **模板引擎** | FreeMarker | 2.3.32 | *(无)* | ❌ **彻底废弃**，实现纯粹的前后端分离 |
+| **JSON解析** | Fast Json | 2.0.7 | Jackson | 🔄 **全面替换**，回归 Spring 原生标准，移除潜在隐患 |
+| **前端基座** | 前端集成环境 | vue-admin-template 4.4.0 | Vue 3 + Element Plus | 🚀 **彻底重构**，抛弃 Vue2，全量重写现代响应式页面 |
+| **前端工具链**| 运行时与构建 | Node.js 22.22.1 | Bun 1.3.x + Vite | 🚀 **基建升级**，拥抱极速本地开发与毫秒级热更 |
+| **主数据库** | MySQL | 5.7.44 | 8.4 | 🚀 **大版本升级**，统一规范字符集与现代 SQL 语法 |
+| **缓存方案** | Redis | 7.2 | 7.2 | 🟢 **沿用**，且规范化了边界与幂等防重场景 |
+| **消息中间件**| RabbitMQ | *(无)* | 4.2-management | ✨ **全新引入**，承接异步削峰、死信延时与高并发解耦 |
+
 ## 项目阶段
 
 当前详细阶段状态已经单独整理到：
@@ -63,7 +88,7 @@
 
 如果想快速了解升级路线与后续计划，建议优先阅读：
 
-- `docs/upgrade/pr11-after-roadmap.md`
+- `docs/upgrade/roadmap/pr11-after-roadmap.md`
 
 ## 仓库结构
 
@@ -74,7 +99,7 @@
 - `src/test/java/`：单元测试与集成测试
 - `web/`：当前新前端管理端
 - `ops/`：Docker / Compose / 部署基线
-- `docs/upgrade/`：升级路线、阶段记录、实施文档
+- `docs/upgrade/`：升级路线、阶段记录、实施文档（已按 plan / logs / roadmap 等目录分类归档）
 
 ## 本地启动
 
@@ -86,13 +111,29 @@
 ./start-backend.ps1
 ```
 
-前端：
+前端（首选 Bun）：
 
 ```bash
 cd web
 bun install
 bun run dev
 ```
+
+> **提示**：如果你的环境没有安装 Bun，依然可以使用传统的 Node.js 配合 npm 或 pnpm 来启动，只需替换对应命令即可，效果完全一致：
+> 
+> 使用 **pnpm**：
+> ```bash
+> cd web
+> pnpm install
+> pnpm dev
+> ```
+> 
+> 使用 **npm**：
+> ```bash
+> cd web
+> npm install
+> npm run dev
+> ```
 
 如果需要在本地直接验证 Redis 缓存模式，可使用：
 
@@ -192,18 +233,17 @@ chmod +x ops/prod/up.sh ops/prod/down.sh
 
 当前支持：
 
-- `main` / `next` 在通过后端基础检查后自动构建并推送镜像
+- `next`（当前主干）在通过后端基础检查后自动构建并推送镜像
 - 手动 `workflow_dispatch`
 
 镜像仓库：
 
-- `ghcr.io/<owner>/jasmine-backend`
-- `ghcr.io/<owner>/jasmine-frontend`
+- `ghcr.io/jipzeongit/jasmine-backend`
+- `ghcr.io/jipzeongit/jasmine-frontend`
 
 标签策略：
 
-- `main`：`latest`、`sha-<short_sha>`
-- `next`：`next-latest`、`next-<short_sha>`
+- 默认以分支名为前缀：`<branch>-latest`、`<branch>-<short_sha>`（目前主干为 `next`，故产物为 `next-latest`）
 
 ## 测试说明
 
@@ -231,20 +271,24 @@ chmod +x ops/prod/up.sh ops/prod/down.sh
 
 如果要继续理解当前路线与阶段边界，建议优先看：
 
-- `docs/upgrade/pr11-after-roadmap.md`
-- `docs/upgrade/pr13-rabbitmq-bootstrap.md`
-- `docs/upgrade/pr13-mq-contract.md`
-- `docs/upgrade/pr13-5-redis-mq-hardening.md`
-- `docs/upgrade/pr14-docker-ops-deploy.md`
-- `docs/upgrade/pr15-full-frontend-migration.md`
+- `docs/upgrade/roadmap/pr11-after-roadmap.md`
+- `docs/upgrade/logs/pr13-rabbitmq-bootstrap.md`
+- `docs/upgrade/logs/pr13-mq-contract.md`
+- `docs/upgrade/logs/pr13-5-redis-mq-hardening.md`
+- `docs/upgrade/logs/pr14-docker-ops-deploy.md`
+- `docs/upgrade/logs/pr15-full-frontend-migration.md`
+- `docs/upgrade/logs/pr16-vite-chunk-optimization.md`
+- `docs/upgrade/logs/pr18-high-concurrency-consistency.md`
+- `docs/upgrade/logs/pr19-delayed-message-notification.md`
+- `docs/upgrade/logs/pr19-frontend-notification.md`
 - `docs/project-constraints.md`
 
 ## 说明
 
 - 当前 `web/` 已作为正式前端迁移主线
-- 当前 `PR18` 高并发与一致性能力增强第一版（含 Outbox 本地消息表、全栈倒逼预警）已经平稳落地。后续主线将继续推进：
-  - 延迟消息体系
-  - 后续阶段核心报表等下游消费者
-  - Redis 分布式锁
-  - 热点库存专项方案
+- 当前 `PR18` 高并发增强与 `PR19` 延时提醒架构已平稳落地。后续主线将继续推进：
+  - PR20 微服务前置评估（Nacos / Gateway 边界摸底）
+  - 预约超时自动取消与真实提醒渠道接入
+  - 销售数据仓库与异步读模型（CQRS）
+  - 复杂单据状态机
 
