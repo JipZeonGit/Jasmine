@@ -3,7 +3,7 @@ name: 构建并发布 Docker 镜像
 on:
   push:
     branches:
-      - next
+      - main
   workflow_dispatch:
 
 permissions:
