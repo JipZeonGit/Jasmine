@@ -3,7 +3,7 @@ name: 后端基础检查
 on:
   pull_request:
     branches:
-      - main
+      - next
     paths-ignore:
       - '**.md'
   workflow_call:
