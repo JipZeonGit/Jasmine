@@ -281,14 +281,17 @@ chmod +x ops/prod/up.sh ops/prod/down.sh
 - `docs/upgrade/logs/pr18-high-concurrency-consistency.md`
 - `docs/upgrade/logs/pr19-delayed-message-notification.md`
 - `docs/upgrade/logs/pr19-frontend-notification.md`
+- `docs/upgrade/logs/pr20-security-hardening-and-message-reliability.md`
 - `docs/project-constraints.md`
 
 ## 说明
 
 - 当前 `web/` 已作为正式前端迁移主线
-- 当前 `PR18` 高并发增强与 `PR19` 延时提醒架构已平稳落地。后续主线将继续推进：
-  - PR20 微服务前置评估（Nacos / Gateway 边界摸底）
-  - 预约超时自动取消与真实提醒渠道接入
+- 当前 `PR18` 高并发增强与 `PR19` 延时提醒架构已平稳落地。
+- 当前 `PR20` 进行一轮代码审查，发布代码审查说明 `docs\upgrade\review\pr20-code-review.md` ，代码审查、安全加固与消息隔离修复已完成。
+- 后续主线将继续推进：
+  - 分支 `microservices` 微服务前置评估（Nacos / Gateway 边界摸底）
+  - 预约超时自动取消
   - 销售数据仓库与异步读模型（CQRS）
   - 复杂单据状态机
 
