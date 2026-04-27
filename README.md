@@ -269,9 +269,16 @@ chmod +x ops/prod/up.sh ops/prod/down.sh
 
 ## 文档入口
 
+### 项目约束
+- `docs/project-constraints.md`
+
+### 项目状态
+- `docs/project-status.md`
+
 如果要继续理解当前路线与阶段边界，建议优先看：
 
 - `docs/upgrade/roadmap/pr11-after-roadmap.md`
+- `docs/upgrade/logs/pr12-5-redis-hardening.md`
 - `docs/upgrade/logs/pr13-rabbitmq-bootstrap.md`
 - `docs/upgrade/logs/pr13-mq-contract.md`
 - `docs/upgrade/logs/pr13-5-redis-mq-hardening.md`
@@ -282,7 +289,6 @@ chmod +x ops/prod/up.sh ops/prod/down.sh
 - `docs/upgrade/logs/pr19-delayed-message-notification.md`
 - `docs/upgrade/logs/pr19-frontend-notification.md`
 - `docs/upgrade/logs/pr20-security-hardening-and-message-reliability.md`
-- `docs/project-constraints.md`
 
 ## 说明
 
