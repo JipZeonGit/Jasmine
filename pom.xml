@@ -230,8 +230,6 @@
 							<imageName>jasmine-native</imageName>
 							<buildArgs>
 								<buildArg>-H:+ReportExceptionStackTraces</buildArg>
-								<buildArg>--initialize-at-build-time=org.slf4j</buildArg>
-								<buildArg>-J--add-exports=java.management/sun.management=ALL-UNNAMED</buildArg>
 							</buildArgs>
 						</configuration>
 					</plugin>
