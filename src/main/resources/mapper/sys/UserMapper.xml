@@ -6,5 +6,19 @@
         WHERE a.role_id = b.role_id
         AND a.user_id = #{userId}
     </select>
+
+    <select id="getActiveUserIdsByRoleNames" resultType="Integer">
+        SELECT DISTINCT u.id
+        FROM user u
+        INNER JOIN user_role ur ON ur.user_id = u.id
+        INNER JOIN role r ON r.role_id = ur.role_id
+        WHERE u.deleted = 0
+          AND u.status = 1
+          AND r.role_name IN
+        <foreach collection="roleNames" item="roleName" open="(" separator="," close=")">
+            #{roleName}
+        </foreach>
+        ORDER BY u.id
+    </select>
 </mapper>
 

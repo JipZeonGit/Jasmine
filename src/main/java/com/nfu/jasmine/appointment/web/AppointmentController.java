@@ -7,18 +7,15 @@ import com.nfu.jasmine.appointment.web.dto.AppointmentQueryDTO;
 import com.nfu.jasmine.appointment.web.dto.AppointmentUpdateDTO;
 import com.nfu.jasmine.appointment.application.IAppointmentService;
 import com.nfu.jasmine.appointment.web.vo.AppointmentVO;
-import com.nfu.jasmine.iam.model.entity.User;
 import com.nfu.jasmine.infra.idempotency.RequestIdempotencyService;
+import com.nfu.jasmine.infra.security.CurrentUserProvider;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
-
 import java.util.List;
 
 @Tag(name = "预约接口列表")
@@ -31,6 +28,8 @@ public class AppointmentController {
 
     @Autowired
     private RequestIdempotencyService requestIdempotencyService;
+    @Autowired
+    private CurrentUserProvider currentUserProvider;
 
 // 查出目前所有的预约单子
     @Operation(summary = "获取全部预约")
@@ -47,7 +46,7 @@ public class AppointmentController {
                                     HttpServletRequest request) {
         requestIdempotencyService.executeCreate(
                 "appointment:create",
-                getCurrentUserId(request),
+                currentUserProvider.requireCurrentUserId(request),
                 idempotencyKey,
                 appointmentDTO,
                 () -> appointmentService.createAppointment(appointmentDTO)
@@ -83,18 +82,5 @@ public class AppointmentController {
     @GetMapping("/list")
     public Result<TableData<AppointmentVO>> getAppointmentList(@Valid AppointmentQueryDTO queryDTO) {
         return Result.success(appointmentService.pageAppointments(queryDTO));
-    }
-
-    private Integer getCurrentUserId(HttpServletRequest request) {
-        Object loginUser = request.getAttribute("loginUser");
-        if (loginUser instanceof User user) {
-            return user.getId();
-        }
-
-        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-        if (authentication != null && authentication.getPrincipal() instanceof User user) {
-            return user.getId();
-        }
-        return null;
     }
 }

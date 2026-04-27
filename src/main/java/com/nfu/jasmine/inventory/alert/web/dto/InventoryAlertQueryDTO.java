@@ -13,7 +13,9 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 @AllArgsConstructor
 public class InventoryAlertQueryDTO {
+    @Builder.Default
     private Integer pageNo = 1;
+    @Builder.Default
     private Integer pageSize = 10;
     private String flowerName;
     private String alertStatus;

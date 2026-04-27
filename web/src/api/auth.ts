@@ -5,8 +5,8 @@ export function login(payload: LoginPayload) {
   return request.post('/user/login', payload)
 }
 
-export function refreshToken(payload: { refreshToken: string }) {
-  return request.post('/user/refresh', payload)
+export function refreshToken() {
+  return request.post('/user/refresh', {})
 }
 
 export function getUserInfo() {
@@ -17,6 +17,6 @@ export function logout() {
   return request.post('/user/logout')
 }
 
-export function changePassword(payload: { username: string; oldPassword: string; newPassword: string }) {
+export function changePassword(payload: { oldPassword: string; newPassword: string }) {
   return request.put('/user/changePassword', payload)
 }

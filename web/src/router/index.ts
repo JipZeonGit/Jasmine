@@ -21,7 +21,12 @@ router.beforeEach(async (to) => {
   }
 
   if (!authStore.isLoggedIn) {
-    return `/login?redirect=${encodeURIComponent(to.fullPath)}`
+    try {
+      await authStore.restoreSession()
+    } catch (_error) {
+      authStore.resetSession()
+      return `/login?redirect=${encodeURIComponent(to.fullPath)}`
+    }
   }
 
   if (!dynamicRoutesReady) {

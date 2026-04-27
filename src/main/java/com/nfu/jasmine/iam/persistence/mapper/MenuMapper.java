@@ -15,5 +15,7 @@ import java.util.List;
  * @since 2023-05-29
  */
 public interface MenuMapper extends BaseMapper<Menu> {
-    public List<Menu> getMenuListByUserId(@Param("userId") Integer userId,@Param("parentId") Integer parentId);
+    List<Menu> getMenuListByUserId(@Param("userId") Integer userId,@Param("parentId") Integer parentId);
+
+    List<Menu> getAllMenusByUserId(@Param("userId") Integer userId);
 }

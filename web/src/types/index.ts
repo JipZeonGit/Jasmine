@@ -16,7 +16,7 @@ export interface LoginPayload {
 
 export interface LoginVO {
   token: string
-  refreshToken: string
+  refreshToken?: string | null
 }
 
 export interface MenuItem {

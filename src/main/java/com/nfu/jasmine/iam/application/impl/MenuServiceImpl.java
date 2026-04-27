@@ -8,7 +8,11 @@ import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.nfu.jasmine.infra.cache.CacheNames;
 import org.springframework.stereotype.Service;
 
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 
 import org.springframework.cache.annotation.Cacheable;
 
@@ -25,48 +29,36 @@ public class MenuServiceImpl extends ServiceImpl<MenuMapper, Menu> implements IM
 
     @Override
     public List<Menu> getAllMenu() {
-        // 一级菜单
-        LambdaQueryWrapper<Menu> wrapper = new LambdaQueryWrapper();
-        wrapper.eq(Menu::getParentId,0);
-        List<Menu> menuList = this.list(wrapper);
-        // 子菜单
-        setMenuChildren(menuList);
-        return menuList;
-    }
-
-    private void setMenuChildren(List<Menu> menuList) {
-        if(menuList != null) {
-            for (Menu menu:menuList) {
-                LambdaQueryWrapper<Menu> subWrapper = new LambdaQueryWrapper();
-                subWrapper.eq(Menu::getParentId, menu.getMenuId());
-                List<Menu> subMenuList = this.list(subWrapper);
-                menu.setChildren(subMenuList);
-                // 递归
-                setMenuChildren(subMenuList);
-            }
-        }
+        List<Menu> allMenus = this.list(new LambdaQueryWrapper<Menu>().orderByAsc(Menu::getParentId).orderByAsc(Menu::getMenuId));
+        return buildMenuTree(allMenus);
     }
 
     @Override
     @Cacheable(value = CacheNames.MENU_LIST, key = "#userId", sync = true)
     public List<Menu> getMenuListByUserId(Integer userId) {
-        // 一级菜单
-        List<Menu> menuList = this.baseMapper.getMenuListByUserId(userId,0);
-        // 二级菜单
-        setMenuChildrenByUserId(userId, menuList);
-        return menuList;
+        List<Menu> grantedMenus = this.baseMapper.getAllMenusByUserId(userId);
+        return buildMenuTree(grantedMenus);
     }
 
-    private void setMenuChildrenByUserId(Integer userId, List<Menu> menuList) {
-        if(menuList != null){
-            for(Menu menu : menuList){
-                List<Menu> subMenuList = this.baseMapper.getMenuListByUserId(userId,menu.getMenuId());
-                menu.setChildren(subMenuList);
-                //递归
-                setMenuChildrenByUserId(userId,subMenuList);
-            }
+    private List<Menu> buildMenuTree(List<Menu> menus) {
+        Map<Integer, List<Menu>> childrenMap = new LinkedHashMap<>();
+        for (Menu menu : menus) {
+            menu.setChildren(new ArrayList<>());
+            int parentId = Optional.ofNullable(menu.getParentId()).orElse(0);
+            childrenMap.computeIfAbsent(parentId, ignored -> new ArrayList<>()).add(menu);
+        }
+
+        List<Menu> rootMenus = childrenMap.getOrDefault(0, new ArrayList<>());
+        attachChildren(rootMenus, childrenMap);
+        return rootMenus;
+    }
+
+    private void attachChildren(List<Menu> menus, Map<Integer, List<Menu>> childrenMap) {
+        for (Menu menu : menus) {
+            List<Menu> children = childrenMap.getOrDefault(menu.getMenuId(), new ArrayList<>());
+            menu.setChildren(children);
+            attachChildren(children, childrenMap);
         }
     }
-
 
 }

@@ -4,20 +4,24 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nfu.jasmine.config.AbstractIntegrationTest;
 import com.nfu.jasmine.iam.model.entity.User;
+import com.nfu.jasmine.iam.model.entity.UserRole;
 import com.nfu.jasmine.iam.persistence.mapper.UserMapper;
+import com.nfu.jasmine.iam.persistence.mapper.UserRoleMapper;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.http.MediaType;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.MvcResult;
 
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.nullValue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.options;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -38,6 +42,9 @@ class UserControllerSecurityIT extends AbstractIntegrationTest {
     private UserMapper userMapper;
 
     @Autowired
+    private UserRoleMapper userRoleMapper;
+
+    @Autowired
     private PasswordEncoder passwordEncoder;
 
     @Test
@@ -45,7 +52,7 @@ class UserControllerSecurityIT extends AbstractIntegrationTest {
         mockMvc.perform(get("/user/list")
                         .param("pageNo", "1")
                         .param("pageSize", "10"))
-                .andExpect(status().isOk())
+                .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.code").value(20003));
     }
 
@@ -87,49 +94,59 @@ class UserControllerSecurityIT extends AbstractIntegrationTest {
 
         mockMvc.perform(get("/user/info")
                         .header("X-Token", loginData.path("token").asText()))
-                .andExpect(status().isOk())
+                .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.code").value(20003));
+    }
+
+    @Test
+    void nonAdminUserShouldNotAccessUserList() throws Exception {
+        JsonNode loginData = loginAndReturnData();
+
+        mockMvc.perform(get("/user/list")
+                        .header("Authorization", "Bearer " + loginData.path("token").asText())
+                        .param("pageNo", "1")
+                        .param("pageSize", "10"))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value(20004));
     }
 
     @Test
     void refreshTokenShouldReturnNewTokenPair() throws Exception {
         JsonNode loginData = loginAndReturnData();
-        Map<String, Object> refreshRequest = new HashMap<>();
-        refreshRequest.put("refreshToken", loginData.path("refreshToken").asText());
+        String refreshCookie = loginData.path("refreshCookie").asText();
 
         String response = mockMvc.perform(post("/user/refresh")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(refreshRequest)))
+                        .content("{}")
+                        .header("Cookie", refreshCookie))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(20000))
                 .andExpect(jsonPath("$.data.token").isString())
-                .andExpect(jsonPath("$.data.refreshToken").isString())
+                .andExpect(jsonPath("$.data.refreshToken").value(nullValue()))
+                .andExpect(header().string("Set-Cookie", containsString("jasmine_refresh_token=")))
                 .andReturn()
                 .getResponse()
                 .getContentAsString();
 
         JsonNode refreshedData = objectMapper.readTree(response).path("data");
         assertThat(refreshedData.path("token").asText()).isNotEqualTo(loginData.path("token").asText());
-        assertThat(refreshedData.path("refreshToken").asText()).isNotEqualTo(loginData.path("refreshToken").asText());
     }
 
     @Test
     void logoutShouldInvalidateRefreshToken() throws Exception {
         JsonNode loginData = loginAndReturnData();
         String accessToken = loginData.path("token").asText();
-        String refreshToken = loginData.path("refreshToken").asText();
+        String refreshCookie = loginData.path("refreshCookie").asText();
 
         mockMvc.perform(post("/user/logout")
                         .header("Authorization", "Bearer " + accessToken))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(20000));
 
-        Map<String, Object> refreshRequest = new HashMap<>();
-        refreshRequest.put("refreshToken", refreshToken);
-
         mockMvc.perform(post("/user/refresh")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(refreshRequest)))
+                        .content("{}")
+                        .header("Cookie", refreshCookie))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(20003));
     }
@@ -156,24 +173,32 @@ class UserControllerSecurityIT extends AbstractIntegrationTest {
         seedUser.setAvatar("https://example.com/" + username + ".png");
         seedUser.setDeleted(0);
         userMapper.insert(seedUser);
+        userRoleMapper.insert(new UserRole(null, seedUser.getId(), 4));
 
         Map<String, Object> loginRequest = new HashMap<>();
         loginRequest.put("username", username);
         loginRequest.put("password", "password123");
 
-        String loginResponse = mockMvc.perform(post("/user/login")
+        MvcResult loginResult = mockMvc.perform(post("/user/login")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(loginRequest)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(20000))
                 .andExpect(jsonPath("$.data.token").isString())
-                .andExpect(jsonPath("$.data.refreshToken").isString())
-                .andReturn()
-                .getResponse()
-                .getContentAsString();
+                .andExpect(jsonPath("$.data.refreshToken").value(nullValue()))
+                .andExpect(header().string("Set-Cookie", containsString("jasmine_refresh_token=")))
+                .andReturn();
 
+        String loginResponse = loginResult.getResponse().getContentAsString();
         JsonNode data = objectMapper.readTree(loginResponse).path("data");
         ((com.fasterxml.jackson.databind.node.ObjectNode) data).put("username", username);
+        ((com.fasterxml.jackson.databind.node.ObjectNode) data).put("refreshCookie",
+                extractCookiePair(loginResult.getResponse().getHeader("Set-Cookie")));
         return data;
+    }
+
+    private String extractCookiePair(String setCookieHeader) {
+        assertThat(setCookieHeader).isNotBlank();
+        return setCookieHeader.split(";", 2)[0];
     }
 }

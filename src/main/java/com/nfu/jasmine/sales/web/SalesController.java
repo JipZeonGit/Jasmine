@@ -8,15 +8,13 @@ import com.nfu.jasmine.sales.web.dto.SalesSaveDTO;
 import com.nfu.jasmine.sales.application.ISalesService;
 import com.nfu.jasmine.sales.web.vo.SalesVO;
 import com.nfu.jasmine.sales.web.vo.TodayBusinessSummaryVO;
-import com.nfu.jasmine.iam.model.entity.User;
 import com.nfu.jasmine.infra.idempotency.RequestIdempotencyService;
+import com.nfu.jasmine.infra.security.CurrentUserProvider;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -40,6 +38,8 @@ public class SalesController {
 
     @Autowired
     private RequestIdempotencyService requestIdempotencyService;
+    @Autowired
+    private CurrentUserProvider currentUserProvider;
 
 // 一次性把所有的销售订单拉出来
     @Operation(summary = "获取全部销售单")
@@ -60,7 +60,7 @@ public class SalesController {
     public Result<?> addSales(@Valid @RequestBody SalesSaveDTO salesDTO,
                               @RequestHeader(value = RequestIdempotencyService.IDEMPOTENCY_HEADER, required = false) String idempotencyKey,
                               HttpServletRequest request) {
-        Integer currentUserId = getCurrentUserId(request);
+        Integer currentUserId = currentUserProvider.requireCurrentUserId(request);
         requestIdempotencyService.executeCreate(
                 "sales:create",
                 currentUserId,
@@ -78,7 +78,7 @@ public class SalesController {
         if (salesDTO.getId() == null) {
             return Result.fail(ResultCode.VALIDATE_FAILED, "销售单ID不能为空！");
         }
-        salesService.updateSales(salesDTO, getCurrentUserId(request));
+        salesService.updateSales(salesDTO, currentUserProvider.requireCurrentUserId(request));
         return Result.success("修改销售单成功！");
     }
 
@@ -102,18 +102,5 @@ public class SalesController {
     @GetMapping("/list")
     public Result<TableData<SalesVO>> getSalesList(@Valid SalesQueryDTO queryDTO) {
         return Result.success(salesService.pageSales(queryDTO));
-    }
-
-    private Integer getCurrentUserId(HttpServletRequest request) {
-        Object loginUser = request.getAttribute("loginUser");
-        if (loginUser instanceof User user) {
-            return user.getId();
-        }
-
-        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-        if (authentication != null && authentication.getPrincipal() instanceof User user) {
-            return user.getId();
-        }
-        return null;
     }
 }

@@ -30,6 +30,7 @@ import java.util.List;
 @ConditionalOnProperty(name = "app.mq.enabled", havingValue = "true")
 public class OutboxRelay {
     private static final Logger log = LoggerFactory.getLogger(OutboxRelay.class);
+    private static final String OUTBOX_ID_HEADER = "x-outbox-id";
 
     private static final int MAX_RETRY_COUNT = 5;
     // 指数退避基数：1s, 2s, 4s, 8s, 16s
@@ -98,6 +99,7 @@ public class OutboxRelay {
                 messageBuilder.setExpiration(String.valueOf(outbox.getDelayMs()));
             }
             org.springframework.amqp.core.Message message = messageBuilder.build();
+            message.getMessageProperties().setHeader(OUTBOX_ID_HEADER, outbox.getId());
             rabbitTemplate.send(
                     outbox.getExchange(),
                     outbox.getRoutingKey(),

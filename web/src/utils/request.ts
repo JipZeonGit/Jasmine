@@ -2,7 +2,7 @@ import axios from 'axios'
 import NProgress from 'nprogress'
 import { ElMessage } from 'element-plus'
 
-import { getRefreshToken, getToken, removeRefreshToken, removeToken, setRefreshToken, setToken } from './auth'
+import { getToken, removeToken, setToken } from './auth'
 import type { ResultEnvelope } from '@/types'
 
 NProgress.configure({ showSpinner: false })
@@ -10,6 +10,7 @@ NProgress.configure({ showSpinner: false })
 const service: any = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL || '/prod-api',
   timeout: 10000,
+  withCredentials: true,
 })
 
 const AUTH_FREE_ENDPOINTS = ['/user/login', '/user/refresh']
@@ -22,22 +23,15 @@ function isAuthFreeEndpoint(url: string) {
 
 function redirectToLogin() {
   removeToken()
-  removeRefreshToken()
   window.location.replace(`${window.location.origin}${window.location.pathname}#/login`)
 }
 
 async function refreshAccessToken() {
-  const refreshToken = getRefreshToken()
-  if (!refreshToken) {
-    throw new Error('刷新令牌不存在')
-  }
-
   if (!refreshPromise) {
     refreshPromise = service
-      .post('/user/refresh', { refreshToken })
-      .then((res: ResultEnvelope<{ token: string; refreshToken: string }>) => {
+      .post('/user/refresh', {})
+      .then((res: ResultEnvelope<{ token: string }>) => {
         setToken(res.data.token)
-        setRefreshToken(res.data.refreshToken)
         return res.data.token
       })
       .finally(() => {
@@ -69,8 +63,7 @@ service.interceptors.response.use(
       const shouldTryRefresh =
         AUTH_ERROR_CODES.includes(res.code) &&
         !isAuthFreeEndpoint(url) &&
-        !originalConfig.__retry &&
-        Boolean(getRefreshToken())
+        !originalConfig.__retry
 
       if (shouldTryRefresh) {
         try {

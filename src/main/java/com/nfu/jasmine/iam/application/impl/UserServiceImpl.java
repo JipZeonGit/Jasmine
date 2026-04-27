@@ -6,7 +6,6 @@ import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.nfu.jasmine.common.utils.JwtTokenClaims;
 import com.nfu.jasmine.common.utils.JwtUtil;
 import com.nfu.jasmine.iam.web.dto.LoginDTO;
-import com.nfu.jasmine.iam.web.dto.RefreshTokenDTO;
 import com.nfu.jasmine.iam.model.entity.AuthRefreshToken;
 import com.nfu.jasmine.iam.model.entity.Menu;
 import com.nfu.jasmine.iam.model.entity.User;
@@ -29,6 +28,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -63,7 +63,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements IU
         LambdaQueryWrapper<User> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(User::getUsername, loginDTO.getUsername());
         User loginUser = this.baseMapper.selectOne(wrapper);
-        if (loginUser == null || !passwordEncoder.matches(loginDTO.getPassword(), loginUser.getPassword())) {
+        if (!isUserActive(loginUser) || !passwordEncoder.matches(loginDTO.getPassword(), loginUser.getPassword())) {
             log.warn("用户登录失败 username={}", loginDTO.getUsername());
             return null;
         }
@@ -76,10 +76,10 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements IU
     // 刷新登录状态
     @Override
     @Transactional
-    public LoginVO refreshToken(RefreshTokenDTO refreshTokenDTO) {
+    public LoginVO refreshToken(String refreshTokenValue) {
         JwtTokenClaims claims;
         try {
-            claims = jwtUtil.parseRefreshToken(refreshTokenDTO.getRefreshToken());
+            claims = jwtUtil.parseRefreshToken(refreshTokenValue);
         } catch (Exception e) {
             log.warn("刷新令牌解析失败 message={}", e.getMessage());
             return null;
@@ -101,8 +101,8 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements IU
         authRefreshTokenMapper.updateById(refreshToken);
 
         User user = this.baseMapper.selectById(claims.getUserId());
-        if (user == null || Integer.valueOf(1).equals(user.getDeleted())) {
-            log.warn("刷新令牌对应用户不存在或已删除 userId={}", claims.getUserId());
+        if (!isUserActive(user)) {
+            log.warn("刷新令牌对应用户不存在、已删除或已禁用 userId={}", claims.getUserId());
             return null;
         }
 
@@ -118,7 +118,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements IU
         }
 
         User currentUser = this.baseMapper.selectById(loginUser.getId());
-        if (currentUser == null) {
+        if (!isUserActive(currentUser)) {
             return null;
         }
 
@@ -212,9 +212,13 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements IU
                 userRoleMapper.insert(new UserRole(null, user.getId(), roleId));
             }
         }
+        if (!Integer.valueOf(1).equals(user.getStatus())) {
+            revokeActiveRefreshTokens(user.getId());
+        }
     }
 
     @Override
+    @Transactional
     @Caching(evict = {
             @CacheEvict(value = CacheNames.USER, key = "#id"),
             @CacheEvict(value = CacheNames.MENU_LIST, key = "#id")
@@ -233,13 +237,10 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements IU
     @Override
     @CacheEvict(value = CacheNames.USER, allEntries = true)
     @Transactional
-    public boolean changePassword(String username, String oldPassword, String newPassword) {
-        // 根据用户名查询用户
-        LambdaQueryWrapper<User> wrapper = new LambdaQueryWrapper<>();
-        wrapper.eq(User::getUsername, username);
-        User user = this.baseMapper.selectOne(wrapper);
+    public boolean changePassword(Integer userId, String oldPassword, String newPassword) {
+        User user = this.baseMapper.selectById(userId);
 
-        if (user != null && passwordEncoder.matches(oldPassword, user.getPassword())) {
+        if (isUserActive(user) && passwordEncoder.matches(oldPassword, user.getPassword())) {
             // 旧密码匹配，可以修改密码
             user.setPassword(passwordEncoder.encode(newPassword));
             this.baseMapper.updateById(user);
@@ -247,8 +248,20 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements IU
             log.info("用户修改密码成功 userId={} username={}", user.getId(), user.getUsername());
             return true;
         }
-        log.warn("用户修改密码失败 username={}", username);
-        return false; // 修改失败，用户名或旧密码不匹配
+        log.warn("用户修改密码失败 userId={}", userId);
+        return false; // 修改失败，用户不存在、已禁用或旧密码不匹配
+    }
+
+    @Override
+    public User getActiveUserById(Integer id) {
+        User user = this.baseMapper.selectById(id);
+        return isUserActive(user) ? user : null;
+    }
+
+    @Override
+    public List<String> getRoleNamesByUserId(Integer userId) {
+        List<String> roleNames = this.baseMapper.getRoleNameByUserId(userId);
+        return roleNames == null ? Collections.emptyList() : roleNames;
     }
 
     private LoginVO issueTokenPair(User user) {
@@ -273,5 +286,11 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements IU
                 .eq(AuthRefreshToken::getRevoked, 0)
                 .set(AuthRefreshToken::getRevoked, 1);
         authRefreshTokenMapper.update(null, wrapper);
+    }
+
+    private boolean isUserActive(User user) {
+        return user != null
+                && !Integer.valueOf(1).equals(user.getDeleted())
+                && Integer.valueOf(1).equals(user.getStatus());
     }
 }

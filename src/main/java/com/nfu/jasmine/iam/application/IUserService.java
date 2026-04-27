@@ -7,6 +7,8 @@ import com.nfu.jasmine.iam.model.entity.User;
 import com.nfu.jasmine.iam.web.vo.LoginVO;
 import com.nfu.jasmine.iam.web.vo.UserInfoVO;
 
+import java.util.List;
+
 /**
  * <p>
  * 服务类
@@ -19,7 +21,7 @@ public interface IUserService extends IService<User> {
 
     LoginVO login(LoginDTO loginDTO);
 
-    LoginVO refreshToken(RefreshTokenDTO refreshTokenDTO);
+    LoginVO refreshToken(String refreshToken);
 
     UserInfoVO getUserInfo(User loginUser);
 
@@ -33,5 +35,9 @@ public interface IUserService extends IService<User> {
 
     void deleteUserById(Integer id);
 
-    boolean changePassword(String username, String oldPassword, String newPassword);
+    boolean changePassword(Integer userId, String oldPassword, String newPassword);
+
+    User getActiveUserById(Integer id);
+
+    List<String> getRoleNamesByUserId(Integer userId);
 }

@@ -31,6 +31,7 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.retry.interceptor.RetryOperationsInterceptor;
 import org.springframework.retry.policy.SimpleRetryPolicy;
 
+import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -45,6 +46,7 @@ import java.util.Map;
 @ConditionalOnProperty(name = "app.mq.enabled", havingValue = "true")
 public class RabbitMqTopologyConfig {
     private static final Logger log = LoggerFactory.getLogger(RabbitMqTopologyConfig.class);
+    private static final String OUTBOX_ID_HEADER = "x-outbox-id";
 
     @Value("${app.mq.dead-letter-enabled:true}")
     private boolean deadLetterEnabled;
@@ -81,12 +83,18 @@ public class RabbitMqTopologyConfig {
                     EventOutboxMapper outboxMapper = eventOutboxMapperProvider.getIfAvailable();
                     if (outboxMapper != null) {
                         if (ack) {
-                            EventOutbox outbox = new EventOutbox();
-                            outbox.setId(outboxId);
-                            outbox.setStatus(OutboxStatus.SENT.name());
-                            outbox.setSentAt(new java.util.Date());
-                            outboxMapper.updateById(outbox);
-                            log.debug("MQ 按期获批发送成功，反写回执 OutboxID={}", outboxId);
+                            int updated = outboxMapper.update(
+                                    null,
+                                    new com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper<EventOutbox>()
+                                            .eq(EventOutbox::getId, outboxId)
+                                            .eq(EventOutbox::getStatus, OutboxStatus.PENDING.name())
+                                            .set(EventOutbox::getStatus, OutboxStatus.SENT.name())
+                                            .set(EventOutbox::getSentAt, new Date())
+                                            .set(EventOutbox::getLastError, null)
+                            );
+                            if (updated == 1) {
+                                log.debug("MQ 发布获 broker 确认，反写 Outbox 成功 outboxId={}", outboxId);
+                            }
                         } else {
                             log.error("MQ 发布未获 broker 确认 outboxId={} cause={}", outboxId, cause);
                             // 未投到 Broker，不必干预，等此前 Relay 推迟的保护期结束会被重刷
@@ -102,13 +110,40 @@ public class RabbitMqTopologyConfig {
                 log.error("未知 MQ 发布未获 broker 确认 cause={}", cause);
             }
         });
-        rabbitTemplate.setReturnsCallback(returned -> log.error(
-                "MQ 消息路由失败 exchange={} routingKey={} replyCode={} replyText={}",
-                returned.getExchange(),
-                returned.getRoutingKey(),
-                returned.getReplyCode(),
-                returned.getReplyText()
-        ));
+        rabbitTemplate.setReturnsCallback(returned -> {
+            Object outboxIdValue = returned.getMessage().getMessageProperties().getHeaders().get(OUTBOX_ID_HEADER);
+            EventOutboxMapper outboxMapper = eventOutboxMapperProvider.getIfAvailable();
+            if (outboxMapper != null && outboxIdValue != null) {
+                try {
+                    Long outboxId = Long.parseLong(outboxIdValue.toString());
+                    int updated = outboxMapper.update(
+                            null,
+                            new com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper<EventOutbox>()
+                                    .eq(EventOutbox::getId, outboxId)
+                                    .ne(EventOutbox::getStatus, OutboxStatus.FAILED.name())
+                                    .set(EventOutbox::getStatus, OutboxStatus.FAILED.name())
+                                    .set(EventOutbox::getSentAt, null)
+                                    .set(EventOutbox::getLastError, "UNROUTABLE: " + returned.getReplyText())
+                    );
+                    if (updated == 1) {
+                        log.error("MQ 消息不可路由，Outbox 已标记失败 outboxId={} exchange={} routingKey={} replyCode={} replyText={}",
+                                outboxId,
+                                returned.getExchange(),
+                                returned.getRoutingKey(),
+                                returned.getReplyCode(),
+                                returned.getReplyText());
+                        return;
+                    }
+                } catch (NumberFormatException ignored) {
+                    // 非 Outbox 消息继续按普通日志处理。
+                }
+            }
+            log.error("MQ 消息路由失败 exchange={} routingKey={} replyCode={} replyText={}",
+                    returned.getExchange(),
+                    returned.getRoutingKey(),
+                    returned.getReplyCode(),
+                    returned.getReplyText());
+        });
         return rabbitTemplate;
     }
 

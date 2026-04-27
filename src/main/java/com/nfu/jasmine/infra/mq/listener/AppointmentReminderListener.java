@@ -8,6 +8,7 @@ import com.nfu.jasmine.infra.mq.message.AppointmentCreatedMessage;
 import com.nfu.jasmine.infra.mq.support.MqIdempotencyService;
 import com.nfu.jasmine.infra.mq.support.MqMessageSupport;
 import com.nfu.jasmine.infra.notification.service.SiteMessageService;
+import com.nfu.jasmine.iam.persistence.mapper.UserMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
@@ -15,6 +16,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
 import java.text.SimpleDateFormat;
+import java.util.List;
 
 /**
  * 预约提醒消费者。
@@ -30,13 +32,16 @@ public class AppointmentReminderListener {
     private final SiteMessageService siteMessageService;
     private final AppointmentMapper appointmentMapper;
     private final MqIdempotencyService mqIdempotencyService;
+    private final UserMapper userMapper;
 
     public AppointmentReminderListener(SiteMessageService siteMessageService,
                                        AppointmentMapper appointmentMapper,
-                                       MqIdempotencyService mqIdempotencyService) {
+                                       MqIdempotencyService mqIdempotencyService,
+                                       UserMapper userMapper) {
         this.siteMessageService = siteMessageService;
         this.appointmentMapper = appointmentMapper;
         this.mqIdempotencyService = mqIdempotencyService;
+        this.userMapper = userMapper;
     }
 
     @RabbitListener(queues = JasmineMqConstants.APPOINTMENT_REMINDER_QUEUE)
@@ -83,9 +88,11 @@ public class AppointmentReminderListener {
             content = "无备注";
         }
 
-        siteMessageService.create(
+        List<Integer> receiverUserIds = userMapper.getActiveUserIdsByRoleNames(List.of("admin", "Boss", "clerk"));
+        siteMessageService.createForUsers(
                 "APPOINTMENT_REMINDER",
                 String.valueOf(message.getAppointmentId()),
+                receiverUserIds,
                 title,
                 content
         );

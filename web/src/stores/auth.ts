@@ -1,8 +1,8 @@
 import { defineStore } from 'pinia'
 
-import { changePassword, getUserInfo, login, logout } from '@/api/auth'
+import { changePassword, getUserInfo, login, logout, refreshToken } from '@/api/auth'
 import type { MenuItem, UserInfoVO } from '@/types'
-import { getToken, removeRefreshToken, removeToken, setRefreshToken, setToken } from '@/utils/auth'
+import { getToken, removeToken, setToken } from '@/utils/auth'
 
 export const useAuthStore = defineStore('auth', {
   state: () => ({
@@ -22,7 +22,15 @@ export const useAuthStore = defineStore('auth', {
       const response = await login(payload)
       this.token = response.data.token
       setToken(response.data.token)
-      setRefreshToken(response.data.refreshToken)
+    },
+    async restoreSession() {
+      if (this.token) {
+        return this.token
+      }
+      const response = await refreshToken()
+      this.token = response.data.token
+      setToken(response.data.token)
+      return response.data.token
     },
     async loadUserInfo() {
       const response = await getUserInfo()
@@ -40,7 +48,7 @@ export const useAuthStore = defineStore('auth', {
       }
       this.resetSession()
     },
-    async changePassword(payload: { username: string; oldPassword: string; newPassword: string }) {
+    async changePassword(payload: { oldPassword: string; newPassword: string }) {
       return changePassword(payload)
     },
     resetSession() {
@@ -48,7 +56,6 @@ export const useAuthStore = defineStore('auth', {
       this.userInfo = null
       this.menuRoutes = []
       removeToken()
-      removeRefreshToken()
     },
   },
 })

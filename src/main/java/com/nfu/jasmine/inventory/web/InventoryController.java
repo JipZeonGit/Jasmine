@@ -8,15 +8,13 @@ import com.nfu.jasmine.inventory.web.dto.InventoryQueryDTO;
 import com.nfu.jasmine.inventory.web.dto.InventorySaveDTO;
 import com.nfu.jasmine.inventory.application.IInventoryService;
 import com.nfu.jasmine.inventory.web.vo.InventoryVO;
-import com.nfu.jasmine.iam.model.entity.User;
 import com.nfu.jasmine.infra.idempotency.RequestIdempotencyService;
+import com.nfu.jasmine.infra.security.CurrentUserProvider;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
@@ -32,6 +30,8 @@ public class InventoryController {
 
     @Autowired
     private RequestIdempotencyService requestIdempotencyService;
+    @Autowired
+    private CurrentUserProvider currentUserProvider;
 
 // 获取仓库中所有的库存物资，不带翻页
     @Operation(summary = "获取全部库存流水")
@@ -46,7 +46,7 @@ public class InventoryController {
     public Result<?> addInventory(@Valid @RequestBody InventorySaveDTO inventoryDTO,
                                   @RequestHeader(value = RequestIdempotencyService.IDEMPOTENCY_HEADER, required = false) String idempotencyKey,
                                   HttpServletRequest request) {
-        Integer currentUserId = getCurrentUserId(request);
+        Integer currentUserId = currentUserProvider.requireCurrentUserId(request);
         requestIdempotencyService.executeCreate(
                 "inventory:create",
                 currentUserId,
@@ -64,7 +64,7 @@ public class InventoryController {
         if (inventoryDTO.getId() == null) {
             return Result.fail(ResultCode.VALIDATE_FAILED, "库存流水ID不能为空！");
         }
-        inventoryService.updateInventory(inventoryDTO, getCurrentUserId(request));
+        inventoryService.updateInventory(inventoryDTO, currentUserProvider.requireCurrentUserId(request));
         return Result.success("修改库存动作成功！");
     }
 
@@ -94,18 +94,5 @@ public class InventoryController {
     @GetMapping("/low-stock-count")
     public Result<Long> getLowStockCount() {
         return Result.success(inventoryService.getLowStockCount());
-    }
-
-    private Integer getCurrentUserId(HttpServletRequest request) {
-        Object loginUser = request.getAttribute("loginUser");
-        if (loginUser instanceof User user) {
-            return user.getId();
-        }
-
-        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-        if (authentication != null && authentication.getPrincipal() instanceof User user) {
-            return user.getId();
-        }
-        return null;
     }
 }

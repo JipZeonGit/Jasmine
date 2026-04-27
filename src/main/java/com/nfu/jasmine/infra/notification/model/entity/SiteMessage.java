@@ -36,6 +36,10 @@ public class SiteMessage implements Serializable {
     @TableField("biz_id")
     private String bizId;
 
+    /** 接收人用户 ID */
+    @TableField("receiver_user_id")
+    private Integer receiverUserId;
+
     /** 站内信标题 */
     private String title;
 

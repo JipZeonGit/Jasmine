@@ -1,6 +1,7 @@
 package com.nfu.jasmine.infra.notification.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.nfu.jasmine.infra.notification.model.entity.SiteMessage;
 import com.nfu.jasmine.infra.notification.persistence.mapper.SiteMessageMapper;
@@ -20,61 +21,75 @@ public class SiteMessageService {
     private final SiteMessageMapper siteMessageMapper;
 
     /**
-     * 写入一条站内信（默认未读）。
+     * 按接收人批量写入站内信（默认未读）。
      */
-    public void create(String bizType, String bizId, String title, String content) {
-        SiteMessage msg = SiteMessage.builder()
-                .bizType(bizType)
-                .bizId(bizId)
-                .title(title)
-                .content(content)
-                .isRead(0)
-                .createdAt(new Date())
-                .build();
-        siteMessageMapper.insert(msg);
+    public void createForUsers(String bizType, String bizId, List<Integer> receiverUserIds, String title, String content) {
+        if (receiverUserIds == null || receiverUserIds.isEmpty()) {
+            return;
+        }
+        Date now = new Date();
+        for (Integer receiverUserId : receiverUserIds) {
+            if (receiverUserId == null) {
+                continue;
+            }
+            SiteMessage msg = SiteMessage.builder()
+                    .bizType(bizType)
+                    .bizId(bizId)
+                    .receiverUserId(receiverUserId)
+                    .title(title)
+                    .content(content)
+                    .isRead(0)
+                    .createdAt(now)
+                    .build();
+            siteMessageMapper.insert(msg);
+        }
     }
 
     /**
      * 获取未读站内信数量。
      */
-    public long getUnreadCount() {
-        return siteMessageMapper.selectCount(
-                new LambdaQueryWrapper<SiteMessage>().eq(SiteMessage::getIsRead, 0)
-        );
+    public long getUnreadCount(Integer receiverUserId) {
+        return siteMessageMapper.selectCount(new LambdaQueryWrapper<SiteMessage>()
+                .eq(SiteMessage::getReceiverUserId, receiverUserId)
+                .eq(SiteMessage::getIsRead, 0));
     }
 
     /**
      * 分页查询站内信（未读优先，按时间倒序）。
      */
-    public Page<SiteMessage> pageMessages(int pageNo, int pageSize) {
+    public Page<SiteMessage> pageMessages(Integer receiverUserId, int pageNo, int pageSize) {
         Page<SiteMessage> page = new Page<>(pageNo, pageSize);
         LambdaQueryWrapper<SiteMessage> wrapper = new LambdaQueryWrapper<>();
-        wrapper.eq(SiteMessage::getIsRead, 0)
-               .orderByDesc(SiteMessage::getCreatedAt);
+        wrapper.eq(SiteMessage::getReceiverUserId, receiverUserId)
+                .eq(SiteMessage::getIsRead, 0)
+                .orderByDesc(SiteMessage::getCreatedAt);
         return siteMessageMapper.selectPage(page, wrapper);
     }
 
     /**
      * 将指定消息标记为已读。
      */
-    public void markAsRead(Long id) {
-        SiteMessage msg = siteMessageMapper.selectById(id);
-        if (msg != null && msg.getIsRead() == 0) {
-            msg.setIsRead(1);
-            siteMessageMapper.updateById(msg);
-        }
+    public void markAsRead(Long id, Integer receiverUserId) {
+        siteMessageMapper.update(
+                null,
+                new LambdaUpdateWrapper<SiteMessage>()
+                        .eq(SiteMessage::getId, id)
+                        .eq(SiteMessage::getReceiverUserId, receiverUserId)
+                        .eq(SiteMessage::getIsRead, 0)
+                        .set(SiteMessage::getIsRead, 1)
+        );
     }
 
     /**
      * 将全部未读消息标记为已读。
      */
-    public void markAllAsRead() {
-        List<SiteMessage> unreads = siteMessageMapper.selectList(
-                new LambdaQueryWrapper<SiteMessage>().eq(SiteMessage::getIsRead, 0)
+    public void markAllAsRead(Integer receiverUserId) {
+        siteMessageMapper.update(
+                null,
+                new LambdaUpdateWrapper<SiteMessage>()
+                        .eq(SiteMessage::getReceiverUserId, receiverUserId)
+                        .eq(SiteMessage::getIsRead, 0)
+                        .set(SiteMessage::getIsRead, 1)
         );
-        for (SiteMessage msg : unreads) {
-            msg.setIsRead(1);
-            siteMessageMapper.updateById(msg);
-        }
     }
 }

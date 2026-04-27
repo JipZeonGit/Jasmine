@@ -16,19 +16,24 @@ import com.nfu.jasmine.iam.application.IUserService;
 import com.nfu.jasmine.iam.web.vo.LoginVO;
 import com.nfu.jasmine.iam.web.vo.UserInfoVO;
 import com.nfu.jasmine.iam.web.vo.UserVO;
+import com.nfu.jasmine.infra.security.CurrentUserProvider;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.ResponseCookie;
 import org.springframework.util.StringUtils;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.Duration;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -50,6 +55,17 @@ public class UserController {
 
     @Autowired
     private PasswordEncoder passwordEncoder;
+    @Autowired
+    private CurrentUserProvider currentUserProvider;
+
+    @Value("${app.security.refresh-cookie.name:jasmine_refresh_token}")
+    private String refreshTokenCookieName;
+    @Value("${app.security.refresh-cookie.secure:false}")
+    private boolean refreshTokenCookieSecure;
+    @Value("${app.security.refresh-cookie.same-site:Lax}")
+    private String refreshTokenCookieSameSite;
+    @Value("${app.security.jwt-refresh-expire-millis:604800000}")
+    private long refreshTokenCookieTtlMillis;
 
     // 获取所有后台用户的列表数据
     @Operation(summary = "获取全部用户")
@@ -62,9 +78,11 @@ public class UserController {
     // 账号密码登录接口，返回一对 Token
     @Operation(summary = "用户登录")
     @PostMapping("/login")
-    public Result<LoginVO> login(@Valid @RequestBody LoginDTO loginDTO) {
+    public Result<LoginVO> login(@Valid @RequestBody LoginDTO loginDTO, HttpServletResponse response) {
         LoginVO data = userService.login(loginDTO);
         if (data != null) {
+            writeRefreshTokenCookie(response, data.getRefreshToken());
+            data.setRefreshToken(null);
             return Result.success(data);
         }
         return Result.fail(ResultCode.LOGIN_ERROR);
@@ -73,11 +91,21 @@ public class UserController {
     // 通过无感刷新用的 Token 来获取新的身份令牌
     @Operation(summary = "刷新登录状态")
     @PostMapping("/refresh")
-    public Result<LoginVO> refreshToken(@Valid @RequestBody RefreshTokenDTO refreshTokenDTO) {
-        LoginVO data = userService.refreshToken(refreshTokenDTO);
+    public Result<LoginVO> refreshToken(@RequestBody(required = false) RefreshTokenDTO refreshTokenDTO,
+                                        HttpServletRequest request,
+                                        HttpServletResponse response) {
+        String refreshToken = resolveRefreshToken(request, refreshTokenDTO);
+        if (!StringUtils.hasText(refreshToken)) {
+            clearRefreshTokenCookie(response);
+            return Result.fail(ResultCode.UNAUTHORIZED, "刷新令牌无效或已过期，请重新登录！");
+        }
+        LoginVO data = userService.refreshToken(refreshToken);
         if (data != null) {
+            writeRefreshTokenCookie(response, data.getRefreshToken());
+            data.setRefreshToken(null);
             return Result.success(data);
         }
+        clearRefreshTokenCookie(response);
         return Result.fail(ResultCode.UNAUTHORIZED, "刷新令牌无效或已过期，请重新登录！");
     }
 
@@ -85,7 +113,7 @@ public class UserController {
     @Operation(summary = "获取用户信息")
     @GetMapping("/info")
     public Result<UserInfoVO> getUserInfo(HttpServletRequest request) {
-        User loginUser = getLoginUser(request);
+        User loginUser = currentUserProvider.getCurrentUserOrNull(request);
         UserInfoVO data = userService.getUserInfo(loginUser);
         if (data != null) {
             return Result.success(data);
@@ -96,9 +124,10 @@ public class UserController {
     // 注销清理后端的登录状态及 Token 设置失效
     @Operation(summary = "注销用户")
     @PostMapping("/logout")
-    public Result<?> logout(HttpServletRequest request) {
+    public Result<?> logout(HttpServletRequest request, HttpServletResponse response) {
         String token = resolveToken(request);
         userService.logout(token);
+        clearRefreshTokenCookie(response);
         return Result.success();
     }
 
@@ -162,25 +191,13 @@ public class UserController {
     // 用户自己提供的旧密码和新密码进行修改
     @Operation(summary = "修改用户密码")
     @PutMapping("/changePassword")
-    public Result<String> changePassword(@Valid @RequestBody ChangePasswordDTO request) {
-        boolean success = userService.changePassword(request.getUsername(), request.getOldPassword(), request.getNewPassword());
+    public Result<String> changePassword(@Valid @RequestBody ChangePasswordDTO request, HttpServletRequest httpServletRequest) {
+        Integer currentUserId = currentUserProvider.requireCurrentUserId(httpServletRequest);
+        boolean success = userService.changePassword(currentUserId, request.getOldPassword(), request.getNewPassword());
         if (success) {
             return Result.success("密码修改成功！");
         }
         return Result.fail(ResultCode.BUSINESS_ERROR, "用户名或旧密码不匹配，密码修改失败！");
-    }
-
-    private User getLoginUser(HttpServletRequest request) {
-        Object loginUser = request.getAttribute("loginUser");
-        if (loginUser instanceof User) {
-            return (User) loginUser;
-        }
-
-        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-        if (authentication != null && authentication.getPrincipal() instanceof User) {
-            return (User) authentication.getPrincipal();
-        }
-        return null;
     }
 
     private String resolveToken(HttpServletRequest request) {
@@ -189,6 +206,43 @@ public class UserController {
             return authorization.substring(7);
         }
         return null;
+    }
+
+    private String resolveRefreshToken(HttpServletRequest request, RefreshTokenDTO refreshTokenDTO) {
+        if (refreshTokenDTO != null && StringUtils.hasText(refreshTokenDTO.getRefreshToken())) {
+            return refreshTokenDTO.getRefreshToken().trim();
+        }
+        if (request.getCookies() == null) {
+            return null;
+        }
+        for (Cookie cookie : request.getCookies()) {
+            if (refreshTokenCookieName.equals(cookie.getName()) && StringUtils.hasText(cookie.getValue())) {
+                return cookie.getValue().trim();
+            }
+        }
+        return null;
+    }
+
+    private void writeRefreshTokenCookie(HttpServletResponse response, String refreshToken) {
+        ResponseCookie cookie = ResponseCookie.from(refreshTokenCookieName, refreshToken)
+                .httpOnly(true)
+                .secure(refreshTokenCookieSecure)
+                .sameSite(refreshTokenCookieSameSite)
+                .path("/")
+                .maxAge(Duration.ofMillis(refreshTokenCookieTtlMillis))
+                .build();
+        response.addHeader(HttpHeaders.SET_COOKIE, cookie.toString());
+    }
+
+    private void clearRefreshTokenCookie(HttpServletResponse response) {
+        ResponseCookie cookie = ResponseCookie.from(refreshTokenCookieName, "")
+                .httpOnly(true)
+                .secure(refreshTokenCookieSecure)
+                .sameSite(refreshTokenCookieSameSite)
+                .path("/")
+                .maxAge(Duration.ZERO)
+                .build();
+        response.addHeader(HttpHeaders.SET_COOKIE, cookie.toString());
     }
 
     private UserVO toUserVO(User user) {

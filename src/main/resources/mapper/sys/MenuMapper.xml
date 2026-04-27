@@ -21,5 +21,25 @@
         WHERE m.parent_id = #{parentId}
         ORDER BY m.menu_id
     </select>
+
+    <select id="getAllMenusByUserId" resultType="com.nfu.jasmine.iam.model.entity.Menu">
+        WITH RECURSIVE granted_menu_ids AS (
+            SELECT DISTINCT m.menu_id, m.parent_id
+            FROM menu m
+                     INNER JOIN role_menu rm ON m.menu_id = rm.menu_id
+                     INNER JOIN user_role ur ON rm.role_id = ur.role_id
+            WHERE ur.user_id = #{userId}
+
+            UNION DISTINCT
+
+            SELECT parent.menu_id, parent.parent_id
+            FROM menu parent
+                     INNER JOIN granted_menu_ids child ON child.parent_id = parent.menu_id
+        )
+        SELECT DISTINCT m.*
+        FROM menu m
+                 INNER JOIN granted_menu_ids g ON m.menu_id = g.menu_id
+        ORDER BY m.parent_id, m.menu_id
+    </select>
 </mapper>
 

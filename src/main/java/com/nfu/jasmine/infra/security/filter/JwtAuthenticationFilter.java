@@ -2,6 +2,7 @@ package com.nfu.jasmine.infra.security.filter;
 
 import com.alibaba.fastjson2.JSON;
 import com.nfu.jasmine.common.enums.ResultCode;
+import com.nfu.jasmine.iam.application.IUserService;
 import com.nfu.jasmine.common.utils.JwtTokenClaims;
 import com.nfu.jasmine.common.utils.JwtUtil;
 import com.nfu.jasmine.common.vo.Result;
@@ -14,6 +15,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.web.authentication.WebAuthenticationDetailsSource;
 import org.springframework.stereotype.Component;
@@ -21,7 +23,7 @@ import org.springframework.util.StringUtils;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
-import java.util.Collections;
+import java.util.List;
 
 @Component
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
@@ -29,6 +31,8 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     @Autowired
     private JwtUtil jwtUtil;
+    @Autowired
+    private IUserService userService;
 
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
@@ -45,15 +49,19 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         try {
             // 解析 Token 获取用户信息
             JwtTokenClaims claims = jwtUtil.parseAccessToken(token);
-            User loginUser = new User();
-            loginUser.setId(claims.getUserId());
-            loginUser.setUsername(claims.getUsername());
+            User loginUser = userService.getActiveUserById(claims.getUserId());
+            if (loginUser == null) {
+                throw new IllegalStateException("账号不存在或已禁用");
+            }
+            List<SimpleGrantedAuthority> authorities = userService.getRoleNamesByUserId(loginUser.getId()).stream()
+                    .map(roleName -> new SimpleGrantedAuthority("ROLE_" + roleName))
+                    .toList();
 
             // 将用户信息封装进 Authentication 对象，标记为已认证
             UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
                     loginUser,
                     null,
-                    Collections.emptyList()
+                    authorities
             );
             // 记录当前请求的部分详细信息
             authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
@@ -70,9 +78,11 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             log.warn("JWT 校验失败 uri={} message={}", request.getRequestURI(), e.getMessage());
             
             // 直接往前台返回 401 和 JSON 格式的错误提示
+            response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
             response.setContentType("application/json;charset=utf-8");
             Result<Object> fail = Result.fail(ResultCode.UNAUTHORIZED, "JWT无效，请重新登录！");
             response.getWriter().write(JSON.toJSONString(fail));
+            response.getWriter().flush();
         }
     }
 

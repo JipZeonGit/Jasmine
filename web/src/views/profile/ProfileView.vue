@@ -27,7 +27,7 @@ async function submit() {
   if (!valid) return
   loading.value = true
   try {
-    await authStore.changePassword({ username: authStore.name, oldPassword: form.oldPassword, newPassword: form.newPassword })
+    await authStore.changePassword({ oldPassword: form.oldPassword, newPassword: form.newPassword })
     ElMessage.success('密码修改成功，请重新登录')
     await authStore.logout()
     window.location.hash = '#/login'

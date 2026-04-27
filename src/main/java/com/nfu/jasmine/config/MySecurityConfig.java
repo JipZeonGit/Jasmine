@@ -49,7 +49,29 @@ public class MySecurityConfig {
                                 "/v3/api-docs/**",
                                 "/swagger-resources/**"
                         ).permitAll()
-                        .anyRequest().authenticated()
+                        .requestMatchers(
+                                "/user/info",
+                                "/user/logout",
+                                "/user/changePassword",
+                                "/site-message/**"
+                        ).authenticated()
+                        .requestMatchers(
+                                "/user/**",
+                                "/role/**",
+                                "/menu/**",
+                                "/sys/**"
+                        ).hasRole("admin")
+                        .requestMatchers(
+                                "/vip/**",
+                                "/appointment/**"
+                        ).hasAnyRole("admin", "Boss")
+                        .requestMatchers(
+                                "/flower/**",
+                                "/sales/**",
+                                "/inventory/**",
+                                "/inventory-alert/**"
+                        ).hasAnyRole("admin", "Boss", "clerk")
+                        .anyRequest().denyAll()
                 )
                 .exceptionHandling(exception -> exception
                         .authenticationEntryPoint(jwtAuthenticationEntryPoint)

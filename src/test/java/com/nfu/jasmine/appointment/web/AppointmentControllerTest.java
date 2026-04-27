@@ -5,6 +5,7 @@ import com.nfu.jasmine.common.vo.Result;
 import com.nfu.jasmine.appointment.web.dto.AppointmentCreateDTO;
 import com.nfu.jasmine.appointment.application.IAppointmentService;
 import com.nfu.jasmine.infra.idempotency.RequestIdempotencyService;
+import com.nfu.jasmine.infra.security.CurrentUserProvider;
 import jakarta.servlet.http.HttpServletRequest;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -32,6 +33,9 @@ class AppointmentControllerTest {
     @Mock
     private HttpServletRequest request;
 
+    @Mock
+    private CurrentUserProvider currentUserProvider;
+
     @InjectMocks
     private AppointmentController appointmentController;
 
@@ -42,18 +46,19 @@ class AppointmentControllerTest {
         appointmentDTO.setDate(new Date());
         appointmentDTO.setContent("到店选花");
 
+        org.mockito.Mockito.when(currentUserProvider.requireCurrentUserId(request)).thenReturn(1);
         doAnswer(invocation -> {
             Runnable action = invocation.getArgument(4);
             action.run();
             return null;
-        }).when(requestIdempotencyService).executeCreate(eq("appointment:create"), eq(null), eq(null), eq(appointmentDTO), any(Runnable.class));
+        }).when(requestIdempotencyService).executeCreate(eq("appointment:create"), eq(1), eq(null), eq(appointmentDTO), any(Runnable.class));
 
         Result<?> result = appointmentController.addAppointment(appointmentDTO, null, request);
 
         assertEquals(ResultCode.SUCCESS.getCode(), result.getCode());
         assertEquals("新增预约成功！", result.getMessage());
         assertNull(result.getData());
-        verify(requestIdempotencyService).executeCreate(eq("appointment:create"), eq(null), eq(null), eq(appointmentDTO), any(Runnable.class));
+        verify(requestIdempotencyService).executeCreate(eq("appointment:create"), eq(1), eq(null), eq(appointmentDTO), any(Runnable.class));
         verify(appointmentService).createAppointment(appointmentDTO);
     }
 }

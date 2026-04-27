@@ -32,6 +32,10 @@ app:
     jwt-expire-millis: ${JWT_EXPIRE_MILLIS:1800000}
     # Refresh Token 默认七天，可按环境变量覆盖
     jwt-refresh-expire-millis: ${JWT_REFRESH_EXPIRE_MILLIS:604800000}
+    refresh-cookie:
+      name: ${JWT_REFRESH_COOKIE_NAME:jasmine_refresh_token}
+      secure: ${JWT_REFRESH_COOKIE_SECURE:false}
+      same-site: ${JWT_REFRESH_COOKIE_SAME_SITE:Lax}
   mq:
     # MQ 能力默认按环境决定是否启用，未启用时继续走同步本地逻辑
     enabled: ${APP_MQ_ENABLED:false}
