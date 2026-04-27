@@ -80,6 +80,10 @@
 | **缓存方案** | Redis | 7.2 | 7.2 | 🟢 **沿用**，且规范化了边界与幂等防重场景 |
 | **消息中间件**| RabbitMQ | *(无)* | 4.2-management | ✨ **全新引入**，承接异步削峰、死信延时与高并发解耦 |
 
+## 应用架构与详细接口说明书
+
+- `docs\architecture-and-api-spec.md`
+
 ## 项目阶段
 
 当前详细阶段状态已经单独整理到：
@@ -89,6 +93,9 @@
 如果想快速了解升级路线与后续计划，建议优先阅读：
 
 - `docs/upgrade/roadmap/pr11-after-roadmap.md`
+
+后续微服务架构的迁移计划:
+- `docs\upgrade\plan\microservice-migration-plan.md`
 
 ## 仓库结构
 
