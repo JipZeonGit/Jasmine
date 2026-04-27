@@ -74,16 +74,19 @@ public class AppointmentReminderIntegrationIT extends AbstractIntegrationTest {
 
         // 5. 轮询等待（最长等待 10 秒，因为前面设置了约 3 秒的 TTL 延时）
         // 在这段时间里：消息在 delay queue 存活 3 秒 -> 过期弹射到 reminder queue -> 消费者拉取写入 site_message
+        // 站内信按用户隔离，createForUsers 会为每个活跃的 admin/Boss/clerk 各创建一条，
+        // 因此用 selectList 轮询，只要至少有一条即可验证消费链路正常。
         boolean isAlerted = false;
         for (int i = 0; i < 20; i++) {
             Thread.sleep(500); // 每次等半秒
             
-            SiteMessage siteMessage = siteMessageMapper.selectOne(
+            List<SiteMessage> messages = siteMessageMapper.selectList(
                     new LambdaQueryWrapper<SiteMessage>().eq(SiteMessage::getBizType, "APPOINTMENT_REMINDER")
             );
             
-            if (siteMessage != null) {
+            if (!messages.isEmpty()) {
                 isAlerted = true;
+                SiteMessage siteMessage = messages.get(0);
                 assertThat(siteMessage.getTitle()).contains("延时张总");
                 assertThat(siteMessage.getContent()).contains("卡罗拉红玫瑰");
                 assertThat(siteMessage.getIsRead()).isEqualTo(0);

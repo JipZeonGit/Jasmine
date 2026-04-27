@@ -7,6 +7,7 @@ import com.nfu.jasmine.iam.model.entity.User;
 import com.nfu.jasmine.iam.model.entity.UserRole;
 import com.nfu.jasmine.iam.persistence.mapper.UserMapper;
 import com.nfu.jasmine.iam.persistence.mapper.UserRoleMapper;
+import jakarta.servlet.http.Cookie;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -113,12 +114,15 @@ class UserControllerSecurityIT extends AbstractIntegrationTest {
     @Test
     void refreshTokenShouldReturnNewTokenPair() throws Exception {
         JsonNode loginData = loginAndReturnData();
-        String refreshCookie = loginData.path("refreshCookie").asText();
+        Cookie refreshCookie = loginData.path("refreshCookieName").asText().isEmpty()
+                ? null : new Cookie(loginData.path("refreshCookieName").asText(),
+                loginData.path("refreshCookieValue").asText());
+        assertThat(refreshCookie).isNotNull();
 
         String response = mockMvc.perform(post("/user/refresh")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{}")
-                        .header("Cookie", refreshCookie))
+                        .cookie(refreshCookie))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(20000))
                 .andExpect(jsonPath("$.data.token").isString())
@@ -136,7 +140,8 @@ class UserControllerSecurityIT extends AbstractIntegrationTest {
     void logoutShouldInvalidateRefreshToken() throws Exception {
         JsonNode loginData = loginAndReturnData();
         String accessToken = loginData.path("token").asText();
-        String refreshCookie = loginData.path("refreshCookie").asText();
+        Cookie refreshCookie = new Cookie(loginData.path("refreshCookieName").asText(),
+                loginData.path("refreshCookieValue").asText());
 
         mockMvc.perform(post("/user/logout")
                         .header("Authorization", "Bearer " + accessToken))
@@ -146,7 +151,7 @@ class UserControllerSecurityIT extends AbstractIntegrationTest {
         mockMvc.perform(post("/user/refresh")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{}")
-                        .header("Cookie", refreshCookie))
+                        .cookie(refreshCookie))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(20003));
     }
@@ -192,13 +197,18 @@ class UserControllerSecurityIT extends AbstractIntegrationTest {
         String loginResponse = loginResult.getResponse().getContentAsString();
         JsonNode data = objectMapper.readTree(loginResponse).path("data");
         ((com.fasterxml.jackson.databind.node.ObjectNode) data).put("username", username);
-        ((com.fasterxml.jackson.databind.node.ObjectNode) data).put("refreshCookie",
-                extractCookiePair(loginResult.getResponse().getHeader("Set-Cookie")));
+        String[] cookieParts = extractCookieNameValue(loginResult.getResponse().getHeader("Set-Cookie"));
+        ((com.fasterxml.jackson.databind.node.ObjectNode) data).put("refreshCookieName", cookieParts[0]);
+        ((com.fasterxml.jackson.databind.node.ObjectNode) data).put("refreshCookieValue", cookieParts[1]);
         return data;
     }
 
-    private String extractCookiePair(String setCookieHeader) {
+    private String[] extractCookieNameValue(String setCookieHeader) {
         assertThat(setCookieHeader).isNotBlank();
-        return setCookieHeader.split(";", 2)[0];
+        // Set-Cookie 格式: name=value; Path=/; ...
+        String pair = setCookieHeader.split(";", 2)[0];
+        String[] parts = pair.split("=", 2);
+        assertThat(parts).hasSize(2);
+        return parts;
     }
 }

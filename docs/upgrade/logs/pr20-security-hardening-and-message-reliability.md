@@ -192,3 +192,34 @@ $env:PATH="$env:JAVA_HOME\bin;$env:PATH"
 - 本轮没有修改 `docs/upgrade/review/next-code-review-2026-04-27.md` 的原始审查结论，只新增实现日志用于记录修复落地情况
 - 站内信新增了 `receiver_user_id` 维度，历史旧消息因没有接收人信息，不会再出现在当前用户未读列表中
 - refresh token 已迁移到 `HttpOnly Cookie`，如后续接入独立域名前后端部署，需要继续结合真实域名评估 `SameSite` 与 `Secure` 配置
+
+## CI 集成测试修复
+
+### 问题描述
+
+GitHub Actions 集成测试（`./mvnw -B verify -DskipUTs=true`）出现 2 个失败：
+
+1. `UserControllerSecurityIT.refreshTokenShouldReturnNewTokenPair` — 断言 `$.code` 期望 `20000` 实际 `20003`
+2. `AppointmentReminderIntegrationIT.shouldRelayDelayedMessageAndCreateSiteMessage` — `TooManyResultsException: selectOne() 返回了 2 条`
+
+### 根因分析
+
+**问题 1：refresh token cookie 在 MockMvc 中无法被后端解析**
+
+测试通过 `header("Cookie", "jasmine_refresh_token=xxx")` 传递 cookie。但 Spring MockMvc 的 `header("Cookie", ...)` **不会** 填充到 `HttpServletRequest.getCookies()` 数组中。后端 `UserController.resolveRefreshToken` 依赖 `request.getCookies()` 遍历获取 refresh token，因此永远读到 null，最终返回 20003（令牌无效）。
+
+**问题 2：站内信按用户隔离后，预约提醒会为每个符合角色的用户各生成一条**
+
+PR20 将站内信改为按用户批量落库（`createForUsers`），预约提醒消费端会查询所有激活状态的 `admin` / `Boss` / `clerk` 用户。V1 baseline 中已有 2 个 admin 角色用户（id=1 和 id=2），导致 `createForUsers` 产生 2 条站内信。测试中使用 `selectOne` 查询 `bizType = APPOINTMENT_REMINDER`，命中 2 条数据，MyBatis 抛出 `TooManyResultsException`。
+
+### 修复方案
+
+**`UserControllerSecurityIT.java`**：
+
+- 将 `header("Cookie", ...)` 改为 `MockMvcRequestBuilders.cookie(new Cookie(...))` 方式传递 cookie，使 `HttpServletRequest.getCookies()` 能正确返回 cookie 数组
+- 相应调整 `extractCookiePair` 辅助方法为 `extractCookieNameValue`，返回 `name` 和 `value` 拆分结果
+
+**`AppointmentReminderIntegrationIT.java`**：
+
+- 将 `selectOne` 改为 `selectList`，断言至少有一条即可，取第一条做内容验证
+
