@@ -1,14 +1,28 @@
-FROM eclipse-temurin:21-jre-alpine
+# ---- Stage 1: GraalVM Native Image 编译 ----
+FROM ghcr.io/graalvm/native-image-community:21 AS builder
 
 WORKDIR /app
 
-# 健康检查和简单排障都需要基础 HTTP 工具，这里预装 curl。
-RUN apk add --no-cache curl
+# 先拷贝 Maven 包装器和 pom.xml，利用 Docker 层缓存加速依赖下载
+COPY mvnw mvnw.cmd ./
+COPY .mvn .mvn
+COPY pom.xml ./
 
-VOLUME /tmp
+RUN chmod +x ./mvnw && ./mvnw dependency:go-offline -B
 
-COPY target/Jasmine-0.0.1-SNAPSHOT.jar /app/app.jar
+# 再拷贝源码并编译
+COPY src src
+RUN ./mvnw -Pnative -DskipTests package -B
+
+# ---- Stage 2: 最小化运行镜像 ----
+FROM debian:bookworm-slim
+
+WORKDIR /app
+
+RUN apt-get update && apt-get install -y --no-install-recommends curl && rm -rf /var/lib/apt/lists/*
+
+COPY --from=builder /app/target/jasmine-native /app/jasmine-native
 
 EXPOSE 9999
 
-ENTRYPOINT ["java","-Djava.security.egd=file:/dev/./urandom","-Dfile.encoding=UTF-8","-jar","/app/app.jar"]
+ENTRYPOINT ["/app/jasmine-native"]

@@ -207,4 +207,37 @@
 			</plugin>
 		</plugins>
 	</build>
+
+	<!-- GraalVM Native Image-->
+	<profiles>
+		<profile>
+			<id>native</id>
+			<build>
+				<plugins>
+					<plugin>
+						<groupId>org.graalvm.buildtools</groupId>
+						<artifactId>native-maven-plugin</artifactId>
+						<executions>
+							<execution>
+								<id>build-native</id>
+								<goals>
+									<goal>compile-no-fork</goal>
+								</goals>
+								<phase>package</phase>
+							</execution>
+						</executions>
+						<configuration>
+							<imageName>jasmine-native</imageName>
+							<buildArgs>
+								<buildArg>-H:+ReportExceptionStackTraces</buildArg>
+								<buildArg>--initialize-at-build-time=org.slf4j</buildArg>
+								<buildArg>-J--add-exports=java.management/sun.management=ALL-UNNAMED</buildArg>
+							</buildArgs>
+						</configuration>
+					</plugin>
+				</plugins>
+			</build>
+		</profile>
+	</profiles>
+
 </project>

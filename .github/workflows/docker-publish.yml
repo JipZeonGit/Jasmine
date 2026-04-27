@@ -68,22 +68,11 @@ jobs:
       - name: 1. 拉取最新代码
         uses: actions/checkout@v4
 
-      - name: 2. 配置 Java 21 环境
-        uses: actions/setup-java@v4
-        with:
-          java-version: '21'
-          distribution: 'temurin'
-
-      - name: 3. 赋予 Maven Wrapper 执行权限并编译打包
-        run: |
-          chmod +x ./mvnw
-          ./mvnw clean package -DskipTests
-
-      - name: 4. 转换仓库拥有者为小写
+      - name: 2. 转换仓库拥有者为小写
         id: lower
         run: echo "owner=$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')" >> $GITHUB_OUTPUT
 
-      - name: 5. 计算镜像标签
+      - name: 3. 计算镜像标签
         id: tags
         shell: bash
         run: |
@@ -104,21 +93,21 @@ jobs:
           echo "backend_tags=${backend_tags}" >> $GITHUB_OUTPUT
           echo "frontend_tags=${frontend_tags}" >> $GITHUB_OUTPUT
 
-      - name: 6. 登录到 GitHub Packages (GHCR)
+      - name: 4. 登录到 GitHub Packages (GHCR)
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: 7. 构建并推送后端镜像
+      - name: 5. 构建并推送后端镜像
         uses: docker/build-push-action@v6
         with:
           context: .
           push: true
           tags: ${{ steps.tags.outputs.backend_tags }}
 
-      - name: 8. 构建并推送前端镜像
+      - name: 6. 构建并推送前端镜像
         uses: docker/build-push-action@v6
         with:
           context: ./web
