@@ -1,5 +1,5 @@
-# ---- Stage 1: GraalVM Native Image 编译 ----
-FROM ghcr.io/graalvm/native-image-community:21 AS builder
+# ---- Stage 1: Maven 构建 ----
+FROM eclipse-temurin:21-jdk AS builder
 
 WORKDIR /app
 
@@ -12,17 +12,17 @@ RUN chmod +x ./mvnw && ./mvnw dependency:go-offline -B
 
 # 再拷贝源码并编译
 COPY src src
-RUN ./mvnw -Pnative -DskipTests package -B
+RUN ./mvnw -DskipTests package -B
 
 # ---- Stage 2: 最小化运行镜像 ----
-FROM debian:bookworm-slim
+FROM eclipse-temurin:21-jre
 
 WORKDIR /app
 
 RUN apt-get update && apt-get install -y --no-install-recommends curl && rm -rf /var/lib/apt/lists/*
 
-COPY --from=builder /app/target/jasmine-native /app/jasmine-native
+COPY --from=builder /app/target/Jasmine-0.0.1-SNAPSHOT.jar /app/jasmine.jar
 
 EXPOSE 9999
 
-ENTRYPOINT ["/app/jasmine-native"]
+ENTRYPOINT ["java", "-jar", "/app/jasmine.jar"]

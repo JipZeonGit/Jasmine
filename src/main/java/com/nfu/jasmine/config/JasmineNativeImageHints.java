@@ -25,6 +25,7 @@ import com.nfu.jasmine.inventory.model.enumtype.InventoryBizType;
 import com.nfu.jasmine.sales.model.entity.Sales;
 import com.nfu.jasmine.sales.model.entity.SalesItem;
 import com.nfu.jasmine.vip.model.entity.Vip;
+import org.springframework.aot.hint.MemberCategory;
 import org.springframework.aot.hint.RuntimeHints;
 import org.springframework.aot.hint.RuntimeHintsRegistrar;
 import org.springframework.lang.NonNull;
@@ -37,6 +38,22 @@ import org.springframework.lang.NonNull;
  */
 public class JasmineNativeImageHints implements RuntimeHintsRegistrar {
 
+    private static final MemberCategory[] ENTITY_CATEGORIES = {
+            MemberCategory.INVOKE_PUBLIC_METHODS,
+            MemberCategory.INVOKE_DECLARED_METHODS,
+            MemberCategory.INVOKE_PUBLIC_CONSTRUCTORS,
+            MemberCategory.DECLARED_FIELDS,
+            MemberCategory.PUBLIC_FIELDS
+    };
+
+    private static final MemberCategory[] BEAN_CATEGORIES = {
+            MemberCategory.INVOKE_PUBLIC_METHODS,
+            MemberCategory.INVOKE_PUBLIC_CONSTRUCTORS,
+            MemberCategory.DECLARED_FIELDS
+    };
+
+    private static final MemberCategory[] FULL_ACCESS = MemberCategory.values();
+
     @Override
     public void registerHints(@NonNull RuntimeHints hints, ClassLoader classLoader) {
         registerEntities(hints);
@@ -44,6 +61,8 @@ public class JasmineNativeImageHints implements RuntimeHintsRegistrar {
         registerEnums(hints);
         registerSecurityClasses(hints);
         registerMyBatisProxies(hints);
+        registerMyBatisInternals(hints);
+        registerMyBatisResources(hints);
     }
 
     /**
@@ -69,23 +88,12 @@ public class JasmineNativeImageHints implements RuntimeHintsRegistrar {
                 SiteMessage.class
         };
         for (Class<?> entity : entities) {
-            hints.reflection().registerType(entity,
-                    org.springframework.aot.hint.MemberCategory.INVOKE_PUBLIC_METHODS,
-                    org.springframework.aot.hint.MemberCategory.INVOKE_DECLARED_METHODS,
-                    org.springframework.aot.hint.MemberCategory.INVOKE_PUBLIC_CONSTRUCTORS,
-                    org.springframework.aot.hint.MemberCategory.DECLARED_FIELDS,
-                    org.springframework.aot.hint.MemberCategory.PUBLIC_FIELDS);
+            hints.reflection().registerType(entity, ENTITY_CATEGORIES);
         }
         // Result<T> 泛型容器被 Jackson / fastjson2 反射访问
-        hints.reflection().registerType(Result.class,
-                org.springframework.aot.hint.MemberCategory.INVOKE_PUBLIC_METHODS,
-                org.springframework.aot.hint.MemberCategory.INVOKE_PUBLIC_CONSTRUCTORS,
-                org.springframework.aot.hint.MemberCategory.DECLARED_FIELDS);
+        hints.reflection().registerType(Result.class, BEAN_CATEGORIES);
         // JwtTokenClaims 被 JJWT 解析后反射构建
-        hints.reflection().registerType(JwtTokenClaims.class,
-                org.springframework.aot.hint.MemberCategory.INVOKE_PUBLIC_METHODS,
-                org.springframework.aot.hint.MemberCategory.INVOKE_PUBLIC_CONSTRUCTORS,
-                org.springframework.aot.hint.MemberCategory.DECLARED_FIELDS);
+        hints.reflection().registerType(JwtTokenClaims.class, BEAN_CATEGORIES);
     }
 
     /**
@@ -100,10 +108,7 @@ public class JasmineNativeImageHints implements RuntimeHintsRegistrar {
                 AccessLogMessage.class
         };
         for (Class<?> message : messages) {
-            hints.reflection().registerType(message,
-                    org.springframework.aot.hint.MemberCategory.INVOKE_PUBLIC_METHODS,
-                    org.springframework.aot.hint.MemberCategory.INVOKE_PUBLIC_CONSTRUCTORS,
-                    org.springframework.aot.hint.MemberCategory.DECLARED_FIELDS);
+            hints.reflection().registerType(message, BEAN_CATEGORIES);
         }
     }
 
@@ -120,8 +125,8 @@ public class JasmineNativeImageHints implements RuntimeHintsRegistrar {
         };
         for (Class<?> enumClass : enums) {
             hints.reflection().registerType(enumClass,
-                    org.springframework.aot.hint.MemberCategory.INVOKE_PUBLIC_METHODS,
-                    org.springframework.aot.hint.MemberCategory.INVOKE_PUBLIC_CONSTRUCTORS);
+                    MemberCategory.INVOKE_PUBLIC_METHODS,
+                    MemberCategory.INVOKE_PUBLIC_CONSTRUCTORS);
         }
     }
 
@@ -130,11 +135,10 @@ public class JasmineNativeImageHints implements RuntimeHintsRegistrar {
      * BCryptPasswordEncoder / JJWT 内部使用反射。
      */
     private void registerSecurityClasses(RuntimeHints hints) {
-        // BCryptPasswordEncoder
         hints.reflection().registerType(
                 org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder.class,
-                org.springframework.aot.hint.MemberCategory.INVOKE_PUBLIC_METHODS,
-                org.springframework.aot.hint.MemberCategory.INVOKE_PUBLIC_CONSTRUCTORS);
+                MemberCategory.INVOKE_PUBLIC_METHODS,
+                MemberCategory.INVOKE_PUBLIC_CONSTRUCTORS);
     }
 
     /**
@@ -161,6 +165,101 @@ public class JasmineNativeImageHints implements RuntimeHintsRegistrar {
         };
         for (Class<?> mapper : mapperInterfaces) {
             hints.proxies().registerJdkProxy(mapper);
+        }
+    }
+
+    /**
+     * 注册 MyBatis / MyBatis-Plus 内部核心类的反射提示。
+     * <p>
+     * 这些类大量使用反射，GraalVM Native Image 默认不允许反射访问，
+     * 必须显式注册才能在 native image 中正常运行。
+     * <ul>
+     *   <li>LogFactory / Slf4jImpl — 日志适配器反射加载</li>
+     *   <li>MapperProxy / MapperMethod — Mapper 动态代理核心</li>
+     *   <li>MybatisMapperProxy — MyBatis-Plus 增强代理</li>
+     *   <li>Reflector / MetaClass — 实体反射元数据</li>
+     *   <li>TypeHandler 体系 — 类型转换反射</li>
+     *   <li>TableInfoHelper — 表元数据缓存</li>
+     * </ul>
+     */
+    private void registerMyBatisInternals(RuntimeHints hints) {
+        // ---- MyBatis 日志适配器 ----
+        // LogFactory.setImplementation() 通过反射实例化日志实现类
+        registerTypeQuietly(hints, "org.apache.ibatis.logging.slf4j.Slf4jImpl", FULL_ACCESS);
+        registerTypeQuietly(hints, "org.apache.ibatis.logging.LogFactory", FULL_ACCESS);
+
+        // ---- MyBatis Mapper 代理核心 ----
+        registerTypeQuietly(hints, "org.apache.ibatis.binding.MapperProxy", FULL_ACCESS);
+        registerTypeQuietly(hints, "org.apache.ibatis.binding.MapperMethod", FULL_ACCESS);
+        registerTypeQuietly(hints, "org.apache.ibatis.binding.MapperMethod$SqlCommand", FULL_ACCESS);
+        registerTypeQuietly(hints, "org.apache.ibatis.binding.MapperMethod$MethodSignature", FULL_ACCESS);
+
+        // ---- MyBatis-Plus Mapper 代理 ----
+        registerTypeQuietly(hints, "com.baomidou.mybatisplus.core.MybatisMapperProxy", FULL_ACCESS);
+        registerTypeQuietly(hints, "com.baomidou.mybatisplus.core.MybatisMapperMethod", FULL_ACCESS);
+
+        // ---- MyBatis 反射工具 ----
+        registerTypeQuietly(hints, "org.apache.ibatis.reflection.Reflector", FULL_ACCESS);
+        registerTypeQuietly(hints, "org.apache.ibatis.reflection.MetaClass", FULL_ACCESS);
+        registerTypeQuietly(hints, "org.apache.ibatis.reflection.MetaObject", FULL_ACCESS);
+        registerTypeQuietly(hints, "org.apache.ibatis.reflection.SystemMetaObject", FULL_ACCESS);
+        registerTypeQuietly(hints, "org.apache.ibatis.reflection.DefaultReflectorFactory", FULL_ACCESS);
+        registerTypeQuietly(hints, "org.apache.ibatis.reflection.factory.DefaultObjectFactory", FULL_ACCESS);
+        registerTypeQuietly(hints, "org.apache.ibatis.reflection.wrapper.DefaultObjectWrapperFactory", FULL_ACCESS);
+
+        // ---- MyBatis 类型处理器 ----
+        registerTypeQuietly(hints, "org.apache.ibatis.type.TypeHandlerRegistry", FULL_ACCESS);
+        registerTypeQuietly(hints, "org.apache.ibatis.type.TypeAliasRegistry", FULL_ACCESS);
+
+        // ---- MyBatis-Plus 表元数据 ----
+        registerTypeQuietly(hints, "com.baomidou.mybatisplus.core.metadata.TableInfoHelper", FULL_ACCESS);
+        registerTypeQuietly(hints, "com.baomidou.mybatisplus.core.metadata.TableInfo", FULL_ACCESS);
+        registerTypeQuietly(hints, "com.baomidou.mybatisplus.core.MybatisConfiguration", FULL_ACCESS);
+        registerTypeQuietly(hints, "com.baomidou.mybatisplus.core.config.GlobalConfig", FULL_ACCESS);
+        registerTypeQuietly(hints, "com.baomidou.mybatisplus.core.config.GlobalConfig$DbConfig", FULL_ACCESS);
+        registerTypeQuietly(hints, "com.baomidou.mybatisplus.core.incrementer.DefaultIdentifierGenerator", FULL_ACCESS);
+
+        // ---- MyBatis SQL 执行引擎 ----
+        registerTypeQuietly(hints, "org.apache.ibatis.executor.SimpleExecutor", FULL_ACCESS);
+        registerTypeQuietly(hints, "org.apache.ibatis.executor.statement.SimpleStatementHandler", FULL_ACCESS);
+        registerTypeQuietly(hints, "org.apache.ibatis.executor.statement.PreparedStatementHandler", FULL_ACCESS);
+        registerTypeQuietly(hints, "org.apache.ibatis.executor.resultset.DefaultResultSetHandler", FULL_ACCESS);
+        registerTypeQuietly(hints, "org.apache.ibatis.executor.parameter.DefaultParameterHandler", FULL_ACCESS);
+        registerTypeQuietly(hints, "org.apache.ibatis.scripting.xmltags.DynamicSqlSource", FULL_ACCESS);
+        registerTypeQuietly(hints, "org.apache.ibatis.scripting.defaults.RawSqlSource", FULL_ACCESS);
+        registerTypeQuietly(hints, "org.apache.ibatis.scripting.defaults.DefaultParameterHandler", FULL_ACCESS);
+
+        // ---- MyBatis Spring 集成 ----
+        registerTypeQuietly(hints, "org.mybatis.spring.SqlSessionTemplate", FULL_ACCESS);
+        registerTypeQuietly(hints, "org.mybatis.spring.mapper.MapperFactoryBean", FULL_ACCESS);
+
+        // ---- MyBatis-Plus 扩展 ----
+        registerTypeQuietly(hints, "com.baomidou.mybatisplus.extension.plugins.MybatisPlusInterceptor", FULL_ACCESS);
+        registerTypeQuietly(hints, "com.baomidou.mybatisplus.extension.plugins.inner.PaginationInnerInterceptor", FULL_ACCESS);
+        registerTypeQuietly(hints, "com.baomidou.mybatisplus.extension.handlers.JacksonTypeHandler", FULL_ACCESS);
+    }
+
+    /**
+     * 注册 MyBatis Mapper XML 和 Flyway 迁移脚本等资源提示。
+     */
+    private void registerMyBatisResources(RuntimeHints hints) {
+        hints.resources().registerPattern("mapper/**/*.xml");
+        hints.resources().registerPattern("db/migration/**/*.sql");
+        hints.resources().registerPattern("application*.yml");
+        hints.resources().registerPattern("application*.yaml");
+        hints.resources().registerPattern("application*.properties");
+        hints.resources().registerPattern("logback-spring.xml");
+    }
+
+    /**
+     * 安静地注册类型反射提示，类不存在时跳过（兼容不同版本依赖）。
+     */
+    private void registerTypeQuietly(RuntimeHints hints, String className, MemberCategory... categories) {
+        try {
+            Class<?> clazz = Class.forName(className);
+            hints.reflection().registerType(clazz, categories);
+        } catch (ClassNotFoundException ignored) {
+            // 类不存在于当前依赖版本，跳过
         }
     }
 }

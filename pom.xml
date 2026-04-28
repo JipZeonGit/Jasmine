@@ -208,7 +208,7 @@
 		</plugins>
 	</build>
 
-	<!-- GraalVM Native Image-->
+	<!-- GraalVM Native Image -->
 	<profiles>
 		<profile>
 			<id>native</id>
@@ -230,6 +230,7 @@
 							<imageName>jasmine-native</imageName>
 							<buildArgs>
 								<buildArg>-H:+ReportExceptionStackTraces</buildArg>
+								<buildArg>-J-Xmx4g</buildArg>
 							</buildArgs>
 						</configuration>
 					</plugin>
@@ -237,5 +238,5 @@
 			</build>
 		</profile>
 	</profiles>
-
+	
 </project>
