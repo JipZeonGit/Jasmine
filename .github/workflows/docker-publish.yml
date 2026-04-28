@@ -96,14 +96,17 @@ jobs:
           echo "backend_graalvm_tags=${backend_graalvm_tags}" >> $GITHUB_OUTPUT
           echo "frontend_tags=${frontend_tags}" >> $GITHUB_OUTPUT
 
-      - name: 4. 登录到 GitHub Packages (GHCR)
+      - name: 4. 设置 Docker Buildx (必须要有这个才能支持 gha 缓存)
+        uses: docker/setup-buildx-action@v3
+
+      - name: 5. 登录到 GitHub Packages (GHCR)
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: 5. 构建并推送后端镜像 (JVM)
+      - name: 6. 构建并推送后端镜像 (JVM)
         uses: docker/build-push-action@v6
         with:
           context: .
@@ -112,7 +115,7 @@ jobs:
           cache-from: type=gha,scope=backend-jvm
           cache-to: type=gha,scope=backend-jvm,mode=max
 
-      - name: 6. 构建并推送后端镜像 (GraalVM Native Image)
+      - name: 7. 构建并推送后端镜像 (GraalVM Native Image)
         uses: docker/build-push-action@v6
         with:
           context: .
@@ -122,7 +125,7 @@ jobs:
           cache-from: type=gha,scope=backend-graalvm
           cache-to: type=gha,scope=backend-graalvm,mode=max
 
-      - name: 7. 构建并推送前端镜像
+      - name: 8. 构建并推送前端镜像
         uses: docker/build-push-action@v6
         with:
           context: ./web
