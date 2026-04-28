@@ -230,7 +230,8 @@
 							<imageName>jasmine-native</imageName>
 							<buildArgs>
 								<buildArg>-H:+ReportExceptionStackTraces</buildArg>
-								<buildArg>-J-Xmx8g</buildArg>
+									<buildArg>-J-Xmx6g</buildArg>
+								<buildArg>--parallelism=2</buildArg>
 							</buildArgs>
 						</configuration>
 					</plugin>
