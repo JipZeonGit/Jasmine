@@ -10,7 +10,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 
 @SpringBootApplication
 @EnableScheduling
-@MapperScan("com.nfu.jasmine")
+@MapperScan("com.nfu.jasmine.**.persistence.mapper")
 public class JasmineApplication {
 
 	public static void main(String[] args) {
