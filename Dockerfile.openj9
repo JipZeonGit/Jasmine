@@ -27,19 +27,18 @@ EXPOSE 9999
 
 # OpenJ9 内存与 GC 优化：
 #   -Xgcpolicy:gencon      : 分代并发收集器，OpenJ9 默认策略，兼顾吞吐和延迟
-#   -XX:MaxRAMPercentage   : 按容器内存上限百分比自动计算堆大小
+#   -Xms/-Xmx              : 固定堆大小，避免依赖 cgroup 检测（部分环境 mem_limit 未生效时
+#                             百分比参数会按宿主机内存计算，导致堆远超预期）
 #   -Xtune:virtualized     : 虚拟化/容器环境调优，减少线程栈和 JIT 代码缓存的默认大小
 #   -Xshareclasses         : 共享类缓存，加速启动、减少运行时内存
 #   -Xscmx                 : 限制共享类缓存上限，避免 SCC 无限膨胀占用过多内存
 #   -Xquickstart           : 牺牲少量峰值吞吐换取更快启动（适合微服务/短生命周期容器）
-#   -XX:+UseContainerSupport: 确保正确识别 cgroup 限制
 ENTRYPOINT ["java", \
   "-Xgcpolicy:gencon", \
-  "-XX:MaxRAMPercentage=70.0", \
-  "-XX:InitialRAMPercentage=40.0", \
+  "-Xms256m", \
+  "-Xmx384m", \
   "-Xtune:virtualized", \
   "-Xshareclasses:cacheDir=/app/.shareclasses", \
-  "-Xscmx64m", \
+  "-Xscmx48m", \
   "-Xquickstart", \
-  "-XX:+UseContainerSupport", \
   "-jar", "/app/jasmine.jar"]
