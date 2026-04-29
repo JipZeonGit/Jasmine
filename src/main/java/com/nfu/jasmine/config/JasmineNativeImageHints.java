@@ -219,6 +219,23 @@ public class JasmineNativeImageHints implements RuntimeHintsRegistrar {
         registerTypeQuietly(hints, "com.baomidou.mybatisplus.core.config.GlobalConfig$DbConfig", FULL_ACCESS);
         registerTypeQuietly(hints, "com.baomidou.mybatisplus.core.incrementer.DefaultIdentifierGenerator", FULL_ACCESS);
 
+        // ---- MyBatis 语言驱动（LanguageDriverRegistry 反射实例化）----
+        // Configuration 构造器通过 LanguageDriverRegistry.setDefaultDriverClass() 反射创建 XMLLanguageDriver
+        registerTypeQuietly(hints, "org.apache.ibatis.scripting.xmltags.XMLLanguageDriver", FULL_ACCESS);
+        registerTypeQuietly(hints, "org.apache.ibatis.scripting.defaults.RawLanguageDriver", FULL_ACCESS);
+        registerTypeQuietly(hints, "org.apache.ibatis.scripting.xmltags.XMLScriptBuilder", FULL_ACCESS);
+        registerTypeQuietly(hints, "org.apache.ibatis.scripting.xmltags.DynamicSqlSource", FULL_ACCESS);
+        registerTypeQuietly(hints, "org.apache.ibatis.scripting.xmltags.TextSqlNode", FULL_ACCESS);
+        registerTypeQuietly(hints, "org.apache.ibatis.scripting.xmltags.IfSqlNode", FULL_ACCESS);
+        registerTypeQuietly(hints, "org.apache.ibatis.scripting.xmltags.ForEachSqlNode", FULL_ACCESS);
+        registerTypeQuietly(hints, "org.apache.ibatis.scripting.xmltags.ChooseSqlNode", FULL_ACCESS);
+        registerTypeQuietly(hints, "org.apache.ibatis.scripting.xmltags.MixedSqlNode", FULL_ACCESS);
+        registerTypeQuietly(hints, "org.apache.ibatis.scripting.xmltags.WhereSqlNode", FULL_ACCESS);
+        registerTypeQuietly(hints, "org.apache.ibatis.scripting.xmltags.SetSqlNode", FULL_ACCESS);
+        registerTypeQuietly(hints, "org.apache.ibatis.scripting.xmltags.TrimSqlNode", FULL_ACCESS);
+        registerTypeQuietly(hints, "org.apache.ibatis.scripting.xmltags.OgnlCache", FULL_ACCESS);
+        registerTypeQuietly(hints, "org.apache.ibatis.scripting.LanguageDriverRegistry", FULL_ACCESS);
+
         // ---- MyBatis SQL 执行引擎 ----
         registerTypeQuietly(hints, "org.apache.ibatis.executor.SimpleExecutor", FULL_ACCESS);
         registerTypeQuietly(hints, "org.apache.ibatis.executor.statement.SimpleStatementHandler", FULL_ACCESS);
