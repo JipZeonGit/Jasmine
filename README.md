@@ -59,7 +59,6 @@
 | Docker | 镜像与容器运行 | 当前基线已接入 |
 | Docker Compose | 多服务编排 | 当前基线已接入 |
 | GitHub Actions | CI / 镜像构建 | 当前基线已接入 |
-| GraalVM | Native Image 原生编译 | 21（GraalVM CE） |
 | OpenJ9 (Semeru) | 极致省内存 JVM | 21（IBM Semeru Runtimes） |
 
 ## 架构演进与组件对比 (Legacy vs Next)
@@ -156,41 +155,14 @@ bun run dev
 - `start-backend-redis.ps1`：`dev` + `APP_CACHE_TYPE=redis`
 - 新前端默认目录：`web/`
 
-### GraalVM 支持
-
-项目已完成 GraalVM Native Image 适配，支持两种运行模式：
-
-**JVM 模式**（本地开发推荐，使用 GraalVM JDK 运行 JAR）：
-
-```powershell
-./start-backend-graalvm.ps1        # dev + MQ
-./start-backend-redis-graalvm.ps1  # dev + Redis + MQ
-```
-
-**Native Image 模式**（CI/Docker 自动构建，产出原生二进制无需 JVM）：
-
-Dockerfile 已配置多阶段 GraalVM 原生编译，由 GitHub Actions 自动构建并推送至 GHCR，部署端直接拉取镜像即可运行。本地 Windows 编译 Native Image 需额外安装 [Visual Studio Build Tools](https://visualstudio.microsoft.com/visual-cpp-build-tools/)（勾选 Desktop development with C++）。
-
-| 特性 | JVM 模式 | Native Image 模式 |
-|:---|:---|:---|
-| 启动速度 | 秒级 | 毫秒级 |
-| 内存占用 | 较高 | 极低 |
-| 构建要求 | 仅需 JDK | 需 GraalVM + C 工具链 |
-| 适用场景 | 本地开发调试 | 容器化 / 云部署 |
-| 反射兼容 | 完全兼容 | 依赖 RuntimeHints |
-
-> **注意**：两种模式的打包产物互不冲突——JVM 模式产出 `target/Jasmine-0.0.1-SNAPSHOT.jar`，Native Image 模式产出 `target/jasmine-native`（需 `-Pnative` 激活）
-如需本地调试使用GraalVM的相关功能，请先配置 `graalvm-jdk-21.0.11+9.1`
-
 ### Docker 镜像变体
 
-项目提供三种后端 Docker 镜像，按场景选择：
+项目提供两种后端 Docker 镜像，按场景选择：
 
 | 镜像 | Dockerfile | JVM / 运行时 | 预估内存占用 | 预估镜像大小 | 适用场景 |
 |:---|:---|:---|:---|:---|:---|
 | `jasmine-backend` | `Dockerfile` | HotSpot (Temurin 21 JRE) + ZGC | ~450 MB | ~280 MB | 通用部署，兼容性最佳 |
 | `jasmine-backend-openj9` | `Dockerfile.openj9` | OpenJ9 (Semeru 21 JRE) | ~300 MB | ~260 MB | 内存敏感环境，低成本 VPS |
-| `jasmine-backend-graalvm` | `Dockerfile.native` | 无 JVM（原生二进制） | ~80-120 MB | ~120 MB | 极致启动速度 + 最低内存 |
 
 #### HotSpot 镜像（默认）
 
@@ -228,14 +200,6 @@ BACKEND_IMAGE=ghcr.io/jipzeongit/jasmine-backend-openj9
 BACKEND_MEMORY_LIMIT=384m
 BACKEND_MEMORY_RESERVATION=192m
 ```
-
-#### GraalVM Native Image 镜像
-
-```bash
-docker build -f Dockerfile.native -t jasmine-backend:graalvm .
-```
-
-无需 JVM，直接运行原生二进制。启动毫秒级，内存极低，但构建耗时较长且需处理反射提示（`RuntimeHintsRegistrar`）。
 
 #### 容器资源限制
 
@@ -345,10 +309,9 @@ chmod +x ops/prod/up.sh ops/prod/down.sh
 
 - `ghcr.io/jipzeongit/jasmine-backend`（HotSpot JVM）
 - `ghcr.io/jipzeongit/jasmine-backend-openj9`（OpenJ9）
-- `ghcr.io/jipzeongit/jasmine-backend-graalvm`（Native Image）
 - `ghcr.io/jipzeongit/jasmine-frontend`
 
-构建顺序：HotSpot → OpenJ9 → GraalVM → Frontend（串行，最快验证 → 最慢编译）
+构建顺序：HotSpot → OpenJ9 → Frontend
 
 标签策略：
 

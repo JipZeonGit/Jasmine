@@ -85,18 +85,15 @@ jobs:
           if [ "$safe_ref" = "main" ]; then
             backend_tags="ghcr.io/${{ steps.lower.outputs.owner }}/jasmine-backend:latest,ghcr.io/${{ steps.lower.outputs.owner }}/jasmine-backend:sha-${short_sha}"
             backend_openj9_tags="ghcr.io/${{ steps.lower.outputs.owner }}/jasmine-backend-openj9:latest,ghcr.io/${{ steps.lower.outputs.owner }}/jasmine-backend-openj9:sha-${short_sha}"
-            backend_graalvm_tags="ghcr.io/${{ steps.lower.outputs.owner }}/jasmine-backend-graalvm:latest,ghcr.io/${{ steps.lower.outputs.owner }}/jasmine-backend-graalvm:sha-${short_sha}"
             frontend_tags="ghcr.io/${{ steps.lower.outputs.owner }}/jasmine-frontend:latest,ghcr.io/${{ steps.lower.outputs.owner }}/jasmine-frontend:sha-${short_sha}"
           else
             backend_tags="ghcr.io/${{ steps.lower.outputs.owner }}/jasmine-backend:${safe_ref}-latest,ghcr.io/${{ steps.lower.outputs.owner }}/jasmine-backend:${safe_ref}-${short_sha}"
             backend_openj9_tags="ghcr.io/${{ steps.lower.outputs.owner }}/jasmine-backend-openj9:${safe_ref}-latest,ghcr.io/${{ steps.lower.outputs.owner }}/jasmine-backend-openj9:${safe_ref}-${short_sha}"
-            backend_graalvm_tags="ghcr.io/${{ steps.lower.outputs.owner }}/jasmine-backend-graalvm:${safe_ref}-latest,ghcr.io/${{ steps.lower.outputs.owner }}/jasmine-backend-graalvm:${safe_ref}-${short_sha}"
             frontend_tags="ghcr.io/${{ steps.lower.outputs.owner }}/jasmine-frontend:${safe_ref}-latest,ghcr.io/${{ steps.lower.outputs.owner }}/jasmine-frontend:${safe_ref}-${short_sha}"
           fi
 
           echo "backend_tags=${backend_tags}" >> $GITHUB_OUTPUT
           echo "backend_openj9_tags=${backend_openj9_tags}" >> $GITHUB_OUTPUT
-          echo "backend_graalvm_tags=${backend_graalvm_tags}" >> $GITHUB_OUTPUT
           echo "frontend_tags=${frontend_tags}" >> $GITHUB_OUTPUT
 
       - name: 4. 设置 Docker Buildx (必须要有这个才能支持 gha 缓存)
@@ -128,17 +125,7 @@ jobs:
           cache-from: type=gha,scope=backend-openj9
           cache-to: type=gha,scope=backend-openj9,mode=max
 
-      - name: 8. 构建并推送后端镜像 (GraalVM Native Image)
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: ./Dockerfile.native
-          push: true
-          tags: ${{ steps.tags.outputs.backend_graalvm_tags }}
-          cache-from: type=gha,scope=backend-graalvm
-          cache-to: type=gha,scope=backend-graalvm,mode=max
-
-      - name: 9. 构建并推送前端镜像
+      - name: 8. 构建并推送前端镜像
         uses: docker/build-push-action@v6
         with:
           context: ./web

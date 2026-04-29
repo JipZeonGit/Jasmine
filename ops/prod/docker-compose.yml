@@ -99,7 +99,6 @@ services:
     # 容器资源限制（配合 JVM MaxRAMPercentage 使用）
     # HotSpot (Dockerfile):        75% × 512m ≈ 384m 堆，总内存约 450m
     # OpenJ9  (Dockerfile.openj9): 70% × 384m ≈ 269m 堆，总内存约 300m
-    # Native (Dockerfile.native):   无需 JVM，总内存约 80-120m
     deploy:
       resources:
         limits:
