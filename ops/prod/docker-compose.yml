@@ -96,6 +96,16 @@ services:
       - "${BACKEND_PORT:-9999}:9999"
     volumes:
       - ./logs/backend:/app/logs
+    # 容器资源限制（配合 JVM MaxRAMPercentage 使用）
+    # HotSpot (Dockerfile):        75% × 512m ≈ 384m 堆，总内存约 450m
+    # OpenJ9  (Dockerfile.openj9): 70% × 384m ≈ 269m 堆，总内存约 300m
+    # Native (Dockerfile.native):   无需 JVM，总内存约 80-120m
+    deploy:
+      resources:
+        limits:
+          memory: ${BACKEND_MEMORY_LIMIT:-512m}
+        reservations:
+          memory: ${BACKEND_MEMORY_RESERVATION:-256m}
     healthcheck:
       test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:9999/actuator/health | grep '\"status\":\"UP\"' || exit 1"]
       interval: 20s
