@@ -30,6 +30,7 @@ EXPOSE 9999
 #   -XX:MaxRAMPercentage   : 按容器内存上限百分比自动计算堆大小
 #   -Xtune:virtualized     : 虚拟化/容器环境调优，减少线程栈和 JIT 代码缓存的默认大小
 #   -Xshareclasses         : 共享类缓存，加速启动、减少运行时内存
+#   -Xscmx                 : 限制共享类缓存上限，避免 SCC 无限膨胀占用过多内存
 #   -Xquickstart           : 牺牲少量峰值吞吐换取更快启动（适合微服务/短生命周期容器）
 #   -XX:+UseContainerSupport: 确保正确识别 cgroup 限制
 ENTRYPOINT ["java", \
@@ -38,6 +39,7 @@ ENTRYPOINT ["java", \
   "-XX:InitialRAMPercentage=40.0", \
   "-Xtune:virtualized", \
   "-Xshareclasses:cacheDir=/app/.shareclasses", \
+  "-Xscmx64m", \
   "-Xquickstart", \
   "-XX:+UseContainerSupport", \
   "-jar", "/app/jasmine.jar"]

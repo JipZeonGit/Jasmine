@@ -98,7 +98,10 @@ services:
       - ./logs/backend:/app/logs
     # 容器资源限制（配合 JVM MaxRAMPercentage 使用）
     # HotSpot (Dockerfile):        75% × 512m ≈ 384m 堆，总内存约 450m
-    # OpenJ9  (Dockerfile.openj9): 70% × 384m ≈ 269m 堆，总内存约 300m
+    # OpenJ9  (Dockerfile.openj9): 70% × 512m ≈ 358m 堆，总内存约 300m
+    # 注意：deploy.resources 仅 Swarm 模式生效，mem_limit 是 Docker Compose 实际生效的限制
+    mem_limit: ${BACKEND_MEMORY_LIMIT:-512m}
+    mem_reservation: ${BACKEND_MEMORY_RESERVATION:-256m}
     deploy:
       resources:
         limits:
