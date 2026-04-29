@@ -233,6 +233,23 @@ public class JasmineNativeImageHints implements RuntimeHintsRegistrar {
         registerTypeQuietly(hints, "org.mybatis.spring.SqlSessionTemplate", FULL_ACCESS);
         registerTypeQuietly(hints, "org.mybatis.spring.mapper.MapperFactoryBean", FULL_ACCESS);
 
+        // ---- MyBatis Javassist 延迟加载代理（relocated 到 org.apache.ibatis.javassist）----
+        // MyBatis Configuration 构造器无条件初始化 JavassistProxyFactory，
+        // 即使未启用 lazyLoadingEnabled 也会触发类加载，必须注册反射提示
+        registerTypeQuietly(hints, "org.apache.ibatis.executor.loader.javassist.JavassistProxyFactory", FULL_ACCESS);
+        registerTypeQuietly(hints, "org.apache.ibatis.executor.loader.javassist.JavassistSerialStateHolder", FULL_ACCESS);
+        registerTypeQuietly(hints, "org.apache.ibatis.javassist.util.proxy.ProxyFactory", FULL_ACCESS);
+        registerTypeQuietly(hints, "org.apache.ibatis.javassist.util.proxy.ProxyObject", FULL_ACCESS);
+        registerTypeQuietly(hints, "org.apache.ibatis.javassist.util.proxy.RuntimeSupport", FULL_ACCESS);
+        registerTypeQuietly(hints, "org.apache.ibatis.javassist.util.proxy.SerializedProxy", FULL_ACCESS);
+        registerTypeQuietly(hints, "org.apache.ibatis.javassist.util.proxy.MethodHandler", FULL_ACCESS);
+        registerTypeQuietly(hints, "org.apache.ibatis.javassist.util.proxy.Proxy", FULL_ACCESS);
+        registerTypeQuietly(hints, "org.apache.ibatis.javassist.ClassPool", FULL_ACCESS);
+        registerTypeQuietly(hints, "org.apache.ibatis.javassist.CtClass", FULL_ACCESS);
+        registerTypeQuietly(hints, "org.apache.ibatis.javassist.CtField", FULL_ACCESS);
+        registerTypeQuietly(hints, "org.apache.ibatis.javassist.CtMethod", FULL_ACCESS);
+        registerTypeQuietly(hints, "org.apache.ibatis.javassist.CtConstructor", FULL_ACCESS);
+
         // ---- MyBatis-Plus 扩展 ----
         registerTypeQuietly(hints, "com.baomidou.mybatisplus.extension.plugins.MybatisPlusInterceptor", FULL_ACCESS);
         registerTypeQuietly(hints, "com.baomidou.mybatisplus.extension.plugins.inner.PaginationInnerInterceptor", FULL_ACCESS);
