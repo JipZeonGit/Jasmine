@@ -60,6 +60,7 @@
 | Docker Compose | 多服务编排 | 当前基线已接入 |
 | GitHub Actions | CI / 镜像构建 | 当前基线已接入 |
 | GraalVM | Native Image 原生编译 | 21（GraalVM CE） |
+| OpenJ9 (Semeru) | 极致省内存 JVM | 21（IBM Semeru Runtimes） |
 
 ## 架构演进与组件对比 (Legacy vs Next)
 
@@ -181,6 +182,76 @@ Dockerfile 已配置多阶段 GraalVM 原生编译，由 GitHub Actions 自动�
 > **注意**：两种模式的打包产物互不冲突——JVM 模式产出 `target/Jasmine-0.0.1-SNAPSHOT.jar`，Native Image 模式产出 `target/jasmine-native`（需 `-Pnative` 激活）
 如需本地调试使用GraalVM的相关功能，请先配置 `graalvm-jdk-21.0.11+9.1`
 
+### Docker 镜像变体
+
+项目提供三种后端 Docker 镜像，按场景选择：
+
+| 镜像 | Dockerfile | JVM / 运行时 | 预估内存占用 | 预估镜像大小 | 适用场景 |
+|:---|:---|:---|:---|:---|:---|
+| `jasmine-backend` | `Dockerfile` | HotSpot (Temurin 21 JRE) + ZGC | ~450 MB | ~280 MB | 通用部署，兼容性最佳 |
+| `jasmine-backend-openj9` | `Dockerfile.openj9` | OpenJ9 (Semeru 21 JRE) | ~300 MB | ~260 MB | 内存敏感环境，低成本 VPS |
+| `jasmine-backend-graalvm` | `Dockerfile.native` | 无 JVM（原生二进制） | ~80-120 MB | ~120 MB | 极致启动速度 + 最低内存 |
+
+#### HotSpot 镜像（默认）
+
+```bash
+docker build -f Dockerfile -t jasmine-backend:hotspot .
+```
+
+JVM 参数已针对容器化优化：ZGC 低延迟收集器、`MaxRAMPercentage=75.0` 按容器内存自动计算堆大小、字符串去重、压缩对象指针。
+
+#### OpenJ9 镜像（省内存）
+
+```bash
+docker build -f Dockerfile.openj9 -t jasmine-backend:openj9 .
+```
+
+基于 [IBM Semeru Runtimes](https://developer.ibm.com/languages/java/semeru-runtimes/)（OpenJ9 JVM + OpenJDK 类库），内存占用通常比 HotSpot 低 30-60%。关键调优参数：
+
+| 参数 | 说明 |
+|:---|:---|
+| `-Xgcpolicy:gencon` | 分代并发收集器，OpenJ9 默认策略 |
+| `-XX:MaxRAMPercentage=70.0` | OpenJ9 堆外内存占比更高，设 70% 更保守 |
+| `-Xtune:virtualized` | 虚拟化/容器环境调优，缩减线程栈和 JIT 缓存默认值 |
+| `-Xshareclasses` | 共享类缓存，加速启动并减少运行时内存 |
+| `-Xquickstart` | 牺牲少量峰值吞吐换取更快启动 |
+
+**注意事项**：
+
+- OpenJ9 的 Micrometer / Prometheus JVM 指标标签与 HotSpot 有差异（如 `jvm.memory.used` 的 area 标签），Grafana 面板可能需要适配
+- OpenJ9 的 JIT 行为与 HotSpot 不同，依赖运行时动态代理的框架（如 MyBatis）建议充分测试后再上生产
+- 生产环境使用 OpenJ9 镜像时，建议将 `BACKEND_MEMORY_LIMIT` 调低至 `384m`：
+
+```bash
+# .env 中
+BACKEND_IMAGE=ghcr.io/jipzeongit/jasmine-backend-openj9
+BACKEND_MEMORY_LIMIT=384m
+BACKEND_MEMORY_RESERVATION=192m
+```
+
+#### GraalVM Native Image 镜像
+
+```bash
+docker build -f Dockerfile.native -t jasmine-backend:graalvm .
+```
+
+无需 JVM，直接运行原生二进制。启动毫秒级，内存极低，但构建耗时较长且需处理反射提示（`RuntimeHintsRegistrar`）。
+
+#### 容器资源限制
+
+生产环境 `docker-compose.yml` 已配置 `deploy.resources` 限制，配合 `MaxRAMPercentage` 自动计算堆大小：
+
+```yaml
+deploy:
+  resources:
+    limits:
+      memory: ${BACKEND_MEMORY_LIMIT:-512m}
+    reservations:
+      memory: ${BACKEND_MEMORY_RESERVATION:-256m}
+```
+
+通过 `.env` 中的 `BACKEND_MEMORY_LIMIT` 和 `BACKEND_MEMORY_RESERVATION` 按镜像类型调整即可。
+
 ## API 与调试入口
 
 后端启动后，常用入口如下：
@@ -272,8 +343,12 @@ chmod +x ops/prod/up.sh ops/prod/down.sh
 
 镜像仓库：
 
-- `ghcr.io/jipzeongit/jasmine-backend`
+- `ghcr.io/jipzeongit/jasmine-backend`（HotSpot JVM）
+- `ghcr.io/jipzeongit/jasmine-backend-openj9`（OpenJ9）
+- `ghcr.io/jipzeongit/jasmine-backend-graalvm`（Native Image）
 - `ghcr.io/jipzeongit/jasmine-frontend`
+
+构建顺序：HotSpot → OpenJ9 → GraalVM → Frontend（串行，最快验证 → 最慢编译）
 
 标签策略：
 
