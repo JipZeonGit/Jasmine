@@ -1,0 +1,34 @@
+spring:
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    username: ${MYSQL_USER:root}
+    password: ${MYSQL_PASSWORD:123456}
+    url: jdbc:mysql://${MYSQL_HOST:192.168.31.26}:${MYSQL_PORT:13306}/jasmine?useUnicode=true&characterEncoding=UTF-8&connectionCollation=utf8mb4_0900_ai_ci&serverTimezone=Asia/Shanghai
+  data:
+    redis:
+      host: ${REDIS_HOST:192.168.31.26}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:123456}
+  rabbitmq:
+    host: ${RABBITMQ_HOST:192.168.31.26}
+    port: ${RABBITMQ_PORT:5673}
+    username: ${RABBITMQ_USERNAME:jasmine}
+    password: ${RABBITMQ_PASSWORD:123456}
+    virtual-host: ${RABBITMQ_VHOST:/jasmine}
+    listener:
+      simple:
+        auto-startup: ${APP_MQ_ENABLED:false}
+        default-requeue-rejected: false
+
+app:
+  cache:
+    type: memory
+  security:
+    jwt-secret: ${JWT_SECRET:jasmine-dev-jwt-secret-for-local-debug-only-change-me-2026}
+  mq:
+    enabled: ${APP_MQ_ENABLED:false}
+
+management:
+  health:
+    redis:
+      enabled: false

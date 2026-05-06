@@ -1,0 +1,12 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: jasmine-gateway
+  profiles:
+    default: dev
+
+logging:
+  level:
+    com.nfu.jasmine: INFO

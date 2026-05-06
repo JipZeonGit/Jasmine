@@ -1,0 +1,76 @@
+server:
+  port: 9103
+
+spring:
+  application:
+    name: trade-service
+  profiles:
+    default: dev
+  flyway:
+    enabled: false
+  rabbitmq:
+    publisher-confirm-type: correlated
+    publisher-returns: true
+    template:
+      mandatory: true
+
+app:
+  mq:
+    enabled: ${APP_MQ_ENABLED:false}
+    dead-letter-enabled: ${APP_MQ_DLX_ENABLED:true}
+    idempotency-ttl-hours: ${APP_MQ_IDEMPOTENCY_TTL_HOURS:24}
+    retry:
+      max-attempts: ${APP_MQ_RETRY_MAX_ATTEMPTS:3}
+      initial-interval-ms: ${APP_MQ_RETRY_INITIAL_INTERVAL_MS:1000}
+      multiplier: ${APP_MQ_RETRY_MULTIPLIER:2.0}
+      max-interval-ms: ${APP_MQ_RETRY_MAX_INTERVAL_MS:10000}
+  idempotency:
+    create-ttl-seconds: ${APP_CREATE_IDEMPOTENCY_TTL_SECONDS:30}
+  outbox:
+    relay:
+      interval-ms: ${APP_OUTBOX_RELAY_INTERVAL_MS:5000}
+      batch-size: ${APP_OUTBOX_RELAY_BATCH_SIZE:50}
+
+logging:
+  level:
+    com.nfu.jasmine: INFO
+    ACCESS_LOG: INFO
+
+mybatis-plus:
+  mapper-locations: classpath:mapper/cus/*.xml
+  global-config:
+    db-config:
+      logic-delete-field: deleted
+      logic-not-delete-value: 0
+      logic-delete-value: 1
+  type-aliases-package: com.nfu.jasmine.sales.model.entity,com.nfu.jasmine.inventory.model.entity
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  endpoint:
+    health:
+      show-details: always
+  prometheus:
+    metrics:
+      export:
+        enabled: true
+  metrics:
+    tags:
+      application: ${spring.application.name}
+    distribution:
+      percentiles-histogram:
+        http.server.requests: true
+    enable:
+      jvm: true
+      process: true
+      system: true
+      hikaricp: true
+      http: true
+
+info:
+  app:
+    name: ${spring.application.name}
+    description: Jasmine 交易服务

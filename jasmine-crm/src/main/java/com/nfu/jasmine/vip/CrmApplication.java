@@ -1,0 +1,23 @@
+package com.nfu.jasmine.vip;
+
+import org.mybatis.spring.annotation.MapperScan;
+import org.springframework.boot.SpringApplication;
+import org.springframework.boot.autoconfigure.SpringBootApplication;
+
+/**
+ * 客户关系服务启动类。
+ * <p>
+ * 负责会员管理、预约管理（含延时提醒）、站内通知消息中心。
+ */
+@SpringBootApplication
+@MapperScan({"com.nfu.jasmine.vip.persistence.mapper",
+		"com.nfu.jasmine.appointment.persistence.mapper",
+		"com.nfu.jasmine.infra.notification.persistence.mapper",
+		"com.nfu.jasmine.infra.outbox.persistence.mapper",
+		"com.nfu.jasmine.iam.persistence.mapper"})
+public class CrmApplication {
+
+	public static void main(String[] args) {
+		SpringApplication.run(CrmApplication.class, args);
+	}
+}

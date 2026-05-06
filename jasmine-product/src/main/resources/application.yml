@@ -1,0 +1,42 @@
+server:
+  port: 9102
+
+spring:
+  application:
+    name: product-service
+  profiles:
+    default: dev
+
+logging:
+  level:
+    com.nfu.jasmine: INFO
+
+mybatis-plus:
+  mapper-locations: classpath:mapper/cus/*.xml
+  global-config:
+    db-config:
+      logic-delete-field: deleted
+      logic-not-delete-value: 0
+      logic-delete-value: 1
+  type-aliases-package: com.nfu.jasmine.flower.model.entity
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  endpoint:
+    health:
+      show-details: always
+  prometheus:
+    metrics:
+      export:
+        enabled: true
+  metrics:
+    tags:
+      application: ${spring.application.name}
+
+info:
+  app:
+    name: ${spring.application.name}
+    description: Jasmine 商品服务

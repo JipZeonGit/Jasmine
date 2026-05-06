@@ -1,0 +1,20 @@
+spring:
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    username: ${MYSQL_USER:root}
+    password: ${MYSQL_PASSWORD:123456}
+    url: jdbc:mysql://${MYSQL_HOST:192.168.31.26}:${MYSQL_PORT:13306}/jasmine?useUnicode=true&characterEncoding=UTF-8&connectionCollation=utf8mb4_0900_ai_ci&serverTimezone=Asia/Shanghai
+  data:
+    redis:
+      host: ${REDIS_HOST:192.168.31.26}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:123456}
+
+app:
+  cache:
+    type: memory
+
+management:
+  health:
+    redis:
+      enabled: false
