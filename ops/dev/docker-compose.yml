@@ -61,6 +61,39 @@ services:
       retries: 10
       start_period: 30s
 
+  nacos:
+    image: nacos/nacos-server:v2.4.3
+    container_name: jasmine-dev-nacos
+    restart: unless-stopped
+    environment:
+      MODE: standalone
+      SPRING_DATASOURCE_PLATFORM: mysql
+      MYSQL_SERVICE_HOST: mysql
+      MYSQL_SERVICE_PORT: 3306
+      MYSQL_SERVICE_DB_NAME: ${MYSQL_DATABASE:-jasmine}
+      MYSQL_SERVICE_USER: ${MYSQL_USER}
+      MYSQL_SERVICE_PASSWORD: ${MYSQL_PASSWORD}
+      NACOS_AUTH_ENABLE: "true"
+      NACOS_AUTH_TOKEN: ${NACOS_AUTH_TOKEN:-SecretToken012345678901234567890123456789012345678901234567890123456789}
+      NACOS_AUTH_IDENTITY_KEY: serverIdentity
+      NACOS_AUTH_IDENTITY_VALUE: security
+      JVM_XMS: 256m
+      JVM_XMX: 256m
+    depends_on:
+      mysql:
+        condition: service_healthy
+    ports:
+      - "${NACOS_PORT:-8848}:8848"
+      - "${NACOS_GRPC_PORT:-9848}:9848"
+    volumes:
+      - ./data/nacos/logs:/home/nacos/logs
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:8848/nacos/v1/console/health/readiness || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 15
+      start_period: 30s
+
   backend:
     build:
       context: ../..
@@ -74,6 +107,8 @@ services:
       redis:
         condition: service_healthy
       rabbitmq:
+        condition: service_healthy
+      nacos:
         condition: service_healthy
     environment:
       SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-prod}
@@ -93,6 +128,10 @@ services:
       RABBITMQ_USERNAME: ${RABBITMQ_USERNAME}
       RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD}
       RABBITMQ_VHOST: ${RABBITMQ_VHOST}
+      NACOS_ADDR: nacos:8848
+      NACOS_NAMESPACE: ${NACOS_NAMESPACE:-dev}
+      NACOS_USERNAME: ${NACOS_USERNAME:-nacos}
+      NACOS_PASSWORD: ${NACOS_PASSWORD:-nacos}
       LOGGING_FILE_NAME: /app/logs/jasmine-backend.log
     ports:
       - "${BACKEND_PORT:-9999}:9999"

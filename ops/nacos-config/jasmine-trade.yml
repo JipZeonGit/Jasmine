@@ -1,0 +1,18 @@
+# Trade 服务专属配置
+# Nacos Data ID: jasmine-trade.yml
+# Nacos Group: JASMINE
+# Namespace: dev / prod
+#
+# 交易服务需要 RabbitMQ 连接
+
+spring:
+  rabbitmq:
+    host: ${RABBITMQ_HOST:192.168.31.26}
+    port: ${RABBITMQ_PORT:5673}
+    username: ${RABBITMQ_USERNAME:jasmine}
+    password: ${RABBITMQ_PASSWORD:123456}
+    virtual-host: ${RABBITMQ_VHOST:/jasmine}
+    listener:
+      simple:
+        auto-startup: ${APP_MQ_ENABLED:false}
+        default-requeue-rejected: false

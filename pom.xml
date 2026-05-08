@@ -67,17 +67,22 @@
 			</dependency>
 			<dependency>
 				<groupId>com.nfu</groupId>
-				<artifactId>jasmine-iam</artifactId>
-				<version>${project.version}</version>
-			</dependency>
-			<dependency>
-				<groupId>com.nfu</groupId>
 				<artifactId>jasmine-product</artifactId>
 				<version>${project.version}</version>
 			</dependency>
 			<dependency>
 				<groupId>com.nfu</groupId>
+				<artifactId>jasmine-trade</artifactId>
+				<version>${project.version}</version>
+			</dependency>
+			<dependency>
+				<groupId>com.nfu</groupId>
 				<artifactId>jasmine-crm</artifactId>
+				<version>${project.version}</version>
+			</dependency>
+			<dependency>
+				<groupId>com.nfu</groupId>
+				<artifactId>jasmine-gateway</artifactId>
 				<version>${project.version}</version>
 			</dependency>
 			<!-- MyBatis-Plus -->

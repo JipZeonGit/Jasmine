@@ -1,0 +1,6 @@
+# Gateway 服务专属配置
+# Nacos Data ID: jasmine-gateway.yml
+# Nacos Group: JASMINE
+# Namespace: dev / prod
+#
+# 阶段 2 将添加路由规则和 JWT 鉴权过滤器配置

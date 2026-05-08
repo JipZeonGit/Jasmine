@@ -149,17 +149,29 @@
 | 0.4 | 引入 Spring Cloud Alibaba BOM | 在父 POM 中声明 `spring-cloud-alibaba-dependencies` 2025.0.0.0 |
 | 0.5 | 各服务独立配置文件 | 每个服务独立的 `application.yml` + `bootstrap.yml`（Nacos 配置） |
 
-### 阶段 1：Nacos 接入
+### 阶段 1：Nacos 接入 ✅ 已完成
 
 **目标**：所有服务注册到 Nacos，配置中心化
 
-| 序号 | 工作项 | 说明 |
-|:---|:---|:---|
-| 1.1 | 部署 Nacos Server | 单机或集群模式，数据存储使用 MySQL |
-| 1.2 | 各服务引入 `spring-cloud-starter-alibaba-nacos-discovery` | 服务注册与发现 |
-| 1.3 | 各服务引入 `spring-cloud-starter-alibaba-nacos-config` | 配置中心化，将数据库/Redis/MQ 连接信息迁移到 Nacos |
-| 1.4 | 配置 `spring.application.name` | iam-service / product-service / trade-service / crm-service |
-| 1.5 | 验证 | 各服务启动后可在 Nacos 控制台看到注册信息 |
+| 序号 | 工作项 | 说明 | 状态 |
+|:---|:---|:---|:---|
+| 1.1 | 部署 Nacos Server | `nacos/nacos-server:v2.4.3`，单机模式，MySQL 持久化，已添加到 dev/prod docker-compose | ✅ |
+| 1.2 | 各服务引入 `spring-cloud-starter-alibaba-nacos-discovery` | iam/product/trade/crm 四个业务服务 + gateway 均已引入 | ✅ |
+| 1.3 | 各服务引入 `spring-cloud-starter-alibaba-nacos-config` | 通过 `spring.config.import=nacos:` 方式从 Nacos 拉取配置 | ✅ |
+| 1.4 | 配置 `spring.application.name` | iam-service / product-service / trade-service / crm-service / jasmine-gateway | ✅ |
+| 1.5 | 配置中心化 | 公共配置 `jasmine-common.yml`（MySQL/Redis）+ 各服务专属配置（RabbitMQ 等），预设文件在 `ops/nacos-config/`，通过 `import.sh` 导入 | ✅ |
+| 1.6 | 验证 | 各服务启动后可在 Nacos 控制台看到注册信息（NAS 环境验证） | 🔲 待验证 |
+
+**Phase 1 实施细节**：
+
+- **Nacos 连接配置**：各服务 `application.yml` 中通过 `spring.config.import` 从 Nacos 拉取共享配置，Nacos 地址通过环境变量 `NACOS_ADDR` 覆盖
+- **命名空间策略**：dev 环境使用 `dev` 命名空间，prod 使用 `prod` 命名空间，配置 Group 统一为 `JASMINE`
+- **配置分层**：
+  - `jasmine-common.yml`：MySQL/Redis 连接（所有服务共享）
+  - `jasmine-iam.yml` / `jasmine-trade.yml` / `jasmine-crm.yml`：RabbitMQ 连接（需要 MQ 的服务）
+  - `jasmine-product.yml` / `jasmine-gateway.yml`：目前为空占位
+- **本地开发兼容**：`application-dev.yml` 仅保留 Nacos 地址覆盖和开发特有配置，数据库/Redis/MQ 连接信息已从本地文件迁移到 Nacos
+- **根 POM 修复**：移除重复的 `jasmine-iam` 声明，补充缺失的 `jasmine-trade` 和 `jasmine-gateway` 声明
 
 ### 阶段 2：Gateway 接入
 

@@ -1,0 +1,6 @@
+# Product 服务专属配置
+# Nacos Data ID: jasmine-product.yml
+# Nacos Group: JASMINE
+# Namespace: dev / prod
+#
+# 商品服务无额外中间件，公共配置已覆盖数据库/Redis
