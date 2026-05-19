@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Maven 配置：使用国内镜像加速依赖下载，仅在容器内构建时启用
+  本机开发可保留 ~/.m2/settings.xml 不动；CI 与 Docker 构建均通过 -s .mvn/settings.xml 引用
+-->
+<settings xmlns="http://maven.apache.org/SETTINGS/1.0.0"
+          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+          xsi:schemaLocation="http://maven.apache.org/SETTINGS/1.0.0 https://maven.apache.org/xsd/settings-1.0.0.xsd">
+  <mirrors>
+    <mirror>
+      <id>aliyun-public</id>
+      <name>Aliyun Public</name>
+      <url>https://maven.aliyun.com/repository/public</url>
+      <mirrorOf>central</mirrorOf>
+    </mirror>
+    <mirror>
+      <id>aliyun-spring</id>
+      <name>Aliyun Spring</name>
+      <url>https://maven.aliyun.com/repository/spring</url>
+      <mirrorOf>spring-milestones,spring-snapshots</mirrorOf>
+    </mirror>
+  </mirrors>
+</settings>

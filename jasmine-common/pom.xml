@@ -12,6 +12,12 @@
 	<description>Jasmine 公共模块 - 统一返回、异常处理、MQ 基础设施、Outbox、缓存、幂等等</description>
 
 	<dependencies>
+		<!-- 公共核心：Result、异常、DTO、JWT claims 等不依赖 Servlet/数据库的类型 -->
+		<dependency>
+			<groupId>com.nfu</groupId>
+			<artifactId>jasmine-common-core</artifactId>
+		</dependency>
+
 		<!-- Lombok -->
 		<dependency>
 			<groupId>org.projectlombok</groupId>

@@ -3,10 +3,23 @@ name: 构建并发布 Docker 镜像
 on:
   push:
     branches:
-      - next
+      - main
+      - microservices
+    tags:
+      - 'v*'
     paths-ignore:
       - '**.md'
+      - '.gitignore'
+      - '.dockerignore'
+      - 'docs/**'
+      - 'LICENSE'
+      - 'Jasmine.sql'
   workflow_dispatch:
+    inputs:
+      modules:
+        description: '要构建的模块列表（逗号分隔，留空表示全部）'
+        required: false
+        default: ''
 
 permissions:
   contents: read
@@ -16,120 +29,127 @@ jobs:
   backend-base-check:
     uses: ./.github/workflows/backend-ci.yml
 
-  detect-build-scope:
+  prepare:
+    needs: backend-base-check
     runs-on: ubuntu-latest
     outputs:
-      should_build: ${{ steps.scope.outputs.should_build }}
-
-    steps:
-      - name: 1. 拉取最新代码
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 2
-
-      - name: 2. 判断本次改动是否需要构建镜像
-        id: scope
-        shell: bash
-        run: |
-          if [ "${GITHUB_EVENT_NAME}" = "workflow_dispatch" ]; then
-            echo "should_build=true" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-
-          if git rev-parse HEAD^ >/dev/null 2>&1; then
-            changed_files=$(git diff --name-only HEAD^ HEAD)
-          else
-            changed_files=$(git ls-files)
-          fi
-
-          should_build=false
-          while IFS= read -r file; do
-            [ -z "$file" ] && continue
-            case "$file" in
-              *.md|.gitignore|.dockerignore|web/.dockerignore|.env|.env.example|LICENSE|Jasmine.sql|.idea/*|.vscode/*|.agent/*)
-                ;;
-              *)
-                should_build=true
-                break
-                ;;
-            esac
-          done <<< "$changed_files"
-
-          echo "should_build=$should_build" >> "$GITHUB_OUTPUT"
-
-  build-and-push:
-    needs: [backend-base-check, detect-build-scope]
-    if: >
-      (github.event_name == 'workflow_dispatch' && needs.detect-build-scope.outputs.should_build == 'true') ||
-      (github.event_name == 'push' && needs.detect-build-scope.outputs.should_build == 'true')
-    runs-on: ubuntu-latest
-
+      owner: ${{ steps.meta.outputs.owner }}
+      ref_tag: ${{ steps.meta.outputs.ref_tag }}
+      short_sha: ${{ steps.meta.outputs.short_sha }}
+      modules: ${{ steps.meta.outputs.modules }}
     steps:
       - name: 1. 拉取最新代码
         uses: actions/checkout@v4
 
-      - name: 2. 转换仓库拥有者为小写
-        id: lower
-        run: echo "owner=$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')" >> $GITHUB_OUTPUT
-
-      - name: 3. 计算镜像标签
-        id: tags
+      - name: 2. 计算镜像元数据
+        id: meta
         shell: bash
         run: |
-          ref_name="${GITHUB_REF_NAME}"
-          commit_sha="${GITHUB_SHA}"
-
+          owner=$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')
+          short_sha=$(echo '${{ github.sha }}' | cut -c1-7)
+          ref_name='${{ github.ref_name }}'
           safe_ref=$(echo "$ref_name" | tr '[:upper:]' '[:lower:]' | sed 's#[^a-z0-9._-]#-#g')
-          short_sha=$(echo "$commit_sha" | cut -c1-7)
-
           if [ "$safe_ref" = "main" ]; then
-            backend_tags="ghcr.io/${{ steps.lower.outputs.owner }}/jasmine-backend:latest,ghcr.io/${{ steps.lower.outputs.owner }}/jasmine-backend:sha-${short_sha}"
-            backend_openj9_tags="ghcr.io/${{ steps.lower.outputs.owner }}/jasmine-backend-openj9:latest,ghcr.io/${{ steps.lower.outputs.owner }}/jasmine-backend-openj9:sha-${short_sha}"
-            frontend_tags="ghcr.io/${{ steps.lower.outputs.owner }}/jasmine-frontend:latest,ghcr.io/${{ steps.lower.outputs.owner }}/jasmine-frontend:sha-${short_sha}"
+            ref_tag="latest"
           else
-            backend_tags="ghcr.io/${{ steps.lower.outputs.owner }}/jasmine-backend:${safe_ref}-latest,ghcr.io/${{ steps.lower.outputs.owner }}/jasmine-backend:${safe_ref}-${short_sha}"
-            backend_openj9_tags="ghcr.io/${{ steps.lower.outputs.owner }}/jasmine-backend-openj9:${safe_ref}-latest,ghcr.io/${{ steps.lower.outputs.owner }}/jasmine-backend-openj9:${safe_ref}-${short_sha}"
-            frontend_tags="ghcr.io/${{ steps.lower.outputs.owner }}/jasmine-frontend:${safe_ref}-latest,ghcr.io/${{ steps.lower.outputs.owner }}/jasmine-frontend:${safe_ref}-${short_sha}"
+            ref_tag="${safe_ref}-latest"
           fi
 
-          echo "backend_tags=${backend_tags}" >> $GITHUB_OUTPUT
-          echo "backend_openj9_tags=${backend_openj9_tags}" >> $GITHUB_OUTPUT
-          echo "frontend_tags=${frontend_tags}" >> $GITHUB_OUTPUT
+          # 默认全量；workflow_dispatch 传入时可以缩小
+          all_modules='["jasmine-schema","jasmine-gateway","jasmine-iam","jasmine-product","jasmine-trade","jasmine-crm","frontend"]'
+          input='${{ inputs.modules }}'
+          if [ -n "$input" ]; then
+            modules=$(echo "$input" | tr ',' '\n' | sed 's/^ *//;s/ *$//' | grep -v '^$' | jq -R -s -c 'split("\n") | map(select(length>0))')
+          else
+            modules="$all_modules"
+          fi
 
-      - name: 4. 设置 Docker Buildx (必须要有这个才能支持 gha 缓存)
+          echo "owner=$owner" >> "$GITHUB_OUTPUT"
+          echo "ref_tag=$ref_tag" >> "$GITHUB_OUTPUT"
+          echo "short_sha=$short_sha" >> "$GITHUB_OUTPUT"
+          echo "modules=$modules" >> "$GITHUB_OUTPUT"
+
+  build-backend:
+    needs: prepare
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        module: [jasmine-schema, jasmine-gateway, jasmine-iam, jasmine-product, jasmine-trade, jasmine-crm]
+    if: contains(fromJSON(needs.prepare.outputs.modules), matrix.module)
+    steps:
+      - name: 1. 拉取最新代码
+        uses: actions/checkout@v4
+
+      - name: 2. 设置 QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: 3. 设置 Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: 5. 登录到 GitHub Packages (GHCR)
+      - name: 4. 登录 GHCR
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: 6. 构建并推送后端镜像 (JVM HotSpot)
+      - name: 5. 计算镜像标签
+        id: img
+        shell: bash
+        run: |
+          base="ghcr.io/${{ needs.prepare.outputs.owner }}/${{ matrix.module }}"
+          tags="${base}:${{ needs.prepare.outputs.ref_tag }},${base}:sha-${{ needs.prepare.outputs.short_sha }}"
+          if [[ "${{ github.ref }}" == refs/tags/v* ]]; then
+            tags="${tags},${base}:${{ github.ref_name }}"
+          fi
+          echo "tags=$tags" >> "$GITHUB_OUTPUT"
+
+      - name: 6. 构建并推送 ${{ matrix.module }}
         uses: docker/build-push-action@v6
         with:
           context: .
           push: true
-          tags: ${{ steps.tags.outputs.backend_tags }}
-          cache-from: type=gha,scope=backend-jvm
-          cache-to: type=gha,scope=backend-jvm,mode=max
+          build-args: |
+            MODULE=${{ matrix.module }}
+          tags: ${{ steps.img.outputs.tags }}
+          cache-from: type=gha,scope=${{ matrix.module }}
+          cache-to: type=gha,scope=${{ matrix.module }},mode=max
 
-      - name: 7. 构建并推送后端镜像 (OpenJ9)
-        uses: docker/build-push-action@v6
+  build-frontend:
+    needs: prepare
+    runs-on: ubuntu-latest
+    if: contains(fromJSON(needs.prepare.outputs.modules), 'frontend')
+    steps:
+      - name: 1. 拉取最新代码
+        uses: actions/checkout@v4
+
+      - name: 2. 设置 Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: 3. 登录 GHCR
+        uses: docker/login-action@v3
         with:
-          context: .
-          file: ./Dockerfile.openj9
-          push: true
-          tags: ${{ steps.tags.outputs.backend_openj9_tags }}
-          cache-from: type=gha,scope=backend-openj9
-          cache-to: type=gha,scope=backend-openj9,mode=max
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: 8. 构建并推送前端镜像
+      - name: 4. 计算镜像标签
+        id: img
+        shell: bash
+        run: |
+          base="ghcr.io/${{ needs.prepare.outputs.owner }}/jasmine-frontend"
+          tags="${base}:${{ needs.prepare.outputs.ref_tag }},${base}:sha-${{ needs.prepare.outputs.short_sha }}"
+          if [[ "${{ github.ref }}" == refs/tags/v* ]]; then
+            tags="${tags},${base}:${{ github.ref_name }}"
+          fi
+          echo "tags=$tags" >> "$GITHUB_OUTPUT"
+
+      - name: 5. 构建并推送前端镜像
         uses: docker/build-push-action@v6
         with:
           context: ./web
           push: true
-          tags: ${{ steps.tags.outputs.frontend_tags }}
+          tags: ${{ steps.img.outputs.tags }}
           cache-from: type=gha,scope=frontend
           cache-to: type=gha,scope=frontend,mode=max

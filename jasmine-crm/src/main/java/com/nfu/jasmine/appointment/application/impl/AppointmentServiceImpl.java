@@ -16,7 +16,7 @@ import com.nfu.jasmine.common.vo.TableData;
 import com.nfu.jasmine.infra.mq.message.AppointmentCreatedMessage;
 import com.nfu.jasmine.infra.mq.publisher.MqMessagePublisher;
 import com.nfu.jasmine.vip.model.entity.Vip;
-import com.nfu.jasmine.vip.persistence.mapper.VipMapper;
+import com.nfu.jasmine.vip.application.support.VipReadFacade;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -25,7 +25,6 @@ import org.springframework.util.StringUtils;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Date;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -34,7 +33,7 @@ import java.util.stream.Collectors;
 @Service
 public class AppointmentServiceImpl extends ServiceImpl<AppointmentMapper, Appointment> implements IAppointmentService {
     @Autowired
-    private VipMapper vipMapper;
+    private VipReadFacade vipReadFacade;
 
     @Autowired
     private MqMessagePublisher mqMessagePublisher;
@@ -60,10 +59,7 @@ public class AppointmentServiceImpl extends ServiceImpl<AppointmentMapper, Appoi
 
         // 预约表只保留 vipId，姓名和手机号查询要先映射到会员，再回查预约。
         if (StringUtils.hasLength(queryDTO.getName()) || StringUtils.hasLength(queryDTO.getPhone())) {
-            LambdaQueryWrapper<Vip> vipWrapper = new LambdaQueryWrapper<>();
-            vipWrapper.like(StringUtils.hasLength(queryDTO.getName()), Vip::getName, queryDTO.getName());
-            vipWrapper.like(StringUtils.hasLength(queryDTO.getPhone()), Vip::getPhone, queryDTO.getPhone());
-            List<Integer> vipIds = vipMapper.selectList(vipWrapper).stream().map(Vip::getId).toList();
+            List<Integer> vipIds = vipReadFacade.findIdsByNameOrPhone(queryDTO.getName(), queryDTO.getPhone());
             if (vipIds.isEmpty()) {
                 TableData<AppointmentVO> empty = new TableData<>();
                 empty.setTotal(0L);
@@ -132,7 +128,7 @@ public class AppointmentServiceImpl extends ServiceImpl<AppointmentMapper, Appoi
         this.updateById(appointment);
 
         // 如果修改了时间或内容，重新发布一份延时提醒（旧时间的延时消息会在消费端被拦截丢弃）
-        Vip vip = vipMapper.selectById(appointment.getVipId());
+        Vip vip = vipReadFacade.findById(appointment.getVipId());
         if (vip != null) {
             AppointmentCreatedMessage message = new AppointmentCreatedMessage(
                     appointment.getId(),
@@ -149,14 +145,7 @@ public class AppointmentServiceImpl extends ServiceImpl<AppointmentMapper, Appoi
     }
 
     private Vip resolveVip(Integer vipId, String vid, String phone) {
-        Vip vip = null;
-        if (vipId != null) {
-            vip = vipMapper.selectById(vipId);
-        } else if (StringUtils.hasLength(vid)) {
-            vip = vipMapper.selectOne(new LambdaQueryWrapper<Vip>().eq(Vip::getVid, vid));
-        } else if (StringUtils.hasLength(phone)) {
-            vip = vipMapper.selectOne(new LambdaQueryWrapper<Vip>().eq(Vip::getPhone, phone));
-        }
+        Vip vip = vipReadFacade.resolve(vipId, vid, phone);
 
         // 预约消息依赖明确的会员接收对象，因此这里不允许退回到纯文本预约的旧模式。
         if (vip == null) {
@@ -171,8 +160,7 @@ public class AppointmentServiceImpl extends ServiceImpl<AppointmentMapper, Appoi
         }
 
         Set<Integer> vipIds = appointments.stream().map(Appointment::getVipId).collect(Collectors.toSet());
-        Map<Integer, Vip> vipMap = vipMapper.selectBatchIds(vipIds).stream()
-                .collect(Collectors.toMap(Vip::getId, vip -> vip, (left, right) -> left, LinkedHashMap::new));
+        Map<Integer, Vip> vipMap = vipReadFacade.findByIds(vipIds);
 
         List<AppointmentVO> result = new ArrayList<>(appointments.size());
         for (Appointment appointment : appointments) {

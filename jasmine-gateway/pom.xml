@@ -12,16 +12,22 @@
 	<description>Jasmine 统一网关 - 路由转发 / JWT 鉴权 / CORS</description>
 
 	<dependencies>
-		<!-- 公共模块 -->
+		<!-- 公共核心模块：避免 Gateway 被动引入 MVC、数据库、Redis、MQ 等服务端基础设施 -->
 		<dependency>
 			<groupId>com.nfu</groupId>
-			<artifactId>jasmine-common</artifactId>
+			<artifactId>jasmine-common-core</artifactId>
 		</dependency>
 
-		<!-- Spring Cloud Gateway（基于 WebFlux，不引入 spring-boot-starter-web） -->
+		<!-- Spring Cloud Gateway Server WebFlux（不引入 spring-boot-starter-web） -->
 		<dependency>
 			<groupId>org.springframework.cloud</groupId>
-			<artifactId>spring-cloud-starter-gateway</artifactId>
+			<artifactId>spring-cloud-starter-gateway-server-webflux</artifactId>
+		</dependency>
+
+		<!-- WebFlux 版 OpenAPI UI，避免与 Spring MVC Servlet 栈混用 -->
+		<dependency>
+			<groupId>org.springdoc</groupId>
+			<artifactId>springdoc-openapi-starter-webflux-ui</artifactId>
 		</dependency>
 
 		<!-- Nacos 服务发现 -->

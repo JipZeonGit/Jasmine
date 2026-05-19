@@ -1,13 +1,30 @@
+# =============================================================================
+# 本地开发栈：仅启动中间件，便于在 IDE/CLI 中本地运行业务服务
+# - MySQL / Redis / RabbitMQ / Nacos
+# - 业务服务（gateway/iam/product/trade/crm）和前端不在本文件中启动，请直接运行
+#   或参考 prod 镜像
+#
+# 使用：
+#   1. 复制 ops/.env.example 为 ops/dev/.env 并填好密钥
+#   2. cd ops/dev && docker compose up -d
+#   3. 在本机以 dev profile 启动业务服务
+#      MYSQL_HOST=127.0.0.1 MYSQL_PORT=13306 \
+#      REDIS_HOST=127.0.0.1 REDIS_PORT=6379 \
+#      RABBITMQ_HOST=127.0.0.1 RABBITMQ_PORT=5673 \
+#      NACOS_ADDR=127.0.0.1:8848 NACOS_NAMESPACE=dev \
+#      ./mvnw -pl jasmine-iam spring-boot:run
+# =============================================================================
+
 services:
   mysql:
     image: mysql:8.4
     container_name: jasmine-dev-mysql
     restart: unless-stopped
     environment:
-      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
-      MYSQL_DATABASE: ${MYSQL_DATABASE}
-      MYSQL_USER: ${MYSQL_USER}
-      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?MYSQL_ROOT_PASSWORD is required}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-jasmine}
+      MYSQL_USER: ${MYSQL_USER:?MYSQL_USER is required}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:?MYSQL_PASSWORD is required}
     command:
       - --character-set-server=utf8mb4
       - --collation-server=utf8mb4_0900_ai_ci
@@ -15,7 +32,7 @@ services:
     ports:
       - "${MYSQL_PORT:-13306}:3306"
     volumes:
-      - ./data/mysql:/var/lib/mysql
+      - mysql-data:/var/lib/mysql
     healthcheck:
       test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p$$MYSQL_ROOT_PASSWORD || exit 1"]
       interval: 20s
@@ -27,13 +44,13 @@ services:
     image: redis:7.2-alpine
     container_name: jasmine-dev-redis
     restart: unless-stopped
-    command: ["redis-server", "--appendonly", "yes", "--requirepass", "${REDIS_PASSWORD}"]
+    command: ["redis-server", "--appendonly", "yes", "--requirepass", "${REDIS_PASSWORD:?REDIS_PASSWORD is required}"]
     ports:
       - "${REDIS_PORT:-6379}:6379"
     volumes:
-      - ./data/redis:/data
+      - redis-data:/data
     healthcheck:
-      test: ["CMD-SHELL", "redis-cli -a ${REDIS_PASSWORD} ping | grep PONG || exit 1"]
+      test: ["CMD-SHELL", "redis-cli -a ${REDIS_PASSWORD:?REDIS_PASSWORD is required} ping | grep PONG || exit 1"]
       interval: 20s
       timeout: 10s
       retries: 10
@@ -45,14 +62,14 @@ services:
     hostname: jasmine-dev-rabbitmq
     restart: unless-stopped
     environment:
-      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USERNAME}
-      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD}
-      RABBITMQ_DEFAULT_VHOST: ${RABBITMQ_VHOST}
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USERNAME:?RABBITMQ_USERNAME is required}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:?RABBITMQ_PASSWORD is required}
+      RABBITMQ_DEFAULT_VHOST: ${RABBITMQ_VHOST:-/jasmine}
     ports:
       - "${RABBITMQ_AMQP_PORT:-5673}:5672"
       - "${RABBITMQ_MANAGEMENT_PORT:-15673}:15672"
     volumes:
-      - ./data/rabbitmq:/var/lib/rabbitmq
+      - rabbitmq-data:/var/lib/rabbitmq
       - ./logs/rabbitmq:/var/log/rabbitmq
     healthcheck:
       test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
@@ -67,26 +84,16 @@ services:
     restart: unless-stopped
     environment:
       MODE: standalone
-      SPRING_DATASOURCE_PLATFORM: mysql
-      MYSQL_SERVICE_HOST: mysql
-      MYSQL_SERVICE_PORT: 3306
-      MYSQL_SERVICE_DB_NAME: ${MYSQL_DATABASE:-jasmine}
-      MYSQL_SERVICE_USER: ${MYSQL_USER}
-      MYSQL_SERVICE_PASSWORD: ${MYSQL_PASSWORD}
-      NACOS_AUTH_ENABLE: "true"
-      NACOS_AUTH_TOKEN: ${NACOS_AUTH_TOKEN:-SecretToken012345678901234567890123456789012345678901234567890123456789}
-      NACOS_AUTH_IDENTITY_KEY: serverIdentity
-      NACOS_AUTH_IDENTITY_VALUE: security
+      # 本地开发关闭鉴权，方便 import.sh 与服务直连
+      NACOS_AUTH_ENABLE: "false"
       JVM_XMS: 256m
       JVM_XMX: 256m
-    depends_on:
-      mysql:
-        condition: service_healthy
     ports:
       - "${NACOS_PORT:-8848}:8848"
       - "${NACOS_GRPC_PORT:-9848}:9848"
     volumes:
-      - ./data/nacos/logs:/home/nacos/logs
+      - nacos-data:/home/nacos/data
+      - ./logs/nacos:/home/nacos/logs
     healthcheck:
       test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:8848/nacos/v1/console/health/readiness || exit 1"]
       interval: 15s
@@ -94,71 +101,8 @@ services:
       retries: 15
       start_period: 30s
 
-  backend:
-    build:
-      context: ../..
-      dockerfile: Dockerfile
-    image: jasmine-backend:dev
-    container_name: jasmine-dev-backend
-    restart: unless-stopped
-    depends_on:
-      mysql:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-      rabbitmq:
-        condition: service_healthy
-      nacos:
-        condition: service_healthy
-    environment:
-      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-prod}
-      APP_MQ_ENABLED: ${APP_MQ_ENABLED:-true}
-      APP_CACHE_TYPE: ${APP_CACHE_TYPE:-redis}
-      JWT_SECRET: ${JWT_SECRET}
-      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS}
-      MYSQL_HOST: mysql
-      MYSQL_PORT: 3306
-      MYSQL_USER: ${MYSQL_USER}
-      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
-      REDIS_HOST: redis
-      REDIS_PORT: 6379
-      REDIS_PASSWORD: ${REDIS_PASSWORD}
-      RABBITMQ_HOST: rabbitmq
-      RABBITMQ_PORT: 5672
-      RABBITMQ_USERNAME: ${RABBITMQ_USERNAME}
-      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD}
-      RABBITMQ_VHOST: ${RABBITMQ_VHOST}
-      NACOS_ADDR: nacos:8848
-      NACOS_NAMESPACE: ${NACOS_NAMESPACE:-dev}
-      NACOS_USERNAME: ${NACOS_USERNAME:-nacos}
-      NACOS_PASSWORD: ${NACOS_PASSWORD:-nacos}
-      LOGGING_FILE_NAME: /app/logs/jasmine-backend.log
-    ports:
-      - "${BACKEND_PORT:-9999}:9999"
-    volumes:
-      - ./logs/backend:/app/logs
-    healthcheck:
-      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:9999/actuator/health | grep '\"status\":\"UP\"' || exit 1"]
-      interval: 20s
-      timeout: 10s
-      retries: 10
-      start_period: 60s
-
-  frontend:
-    build:
-      context: ../../web
-      dockerfile: Dockerfile
-    image: jasmine-frontend:dev
-    container_name: jasmine-dev-frontend
-    restart: unless-stopped
-    depends_on:
-      backend:
-        condition: service_healthy
-    ports:
-      - "${FRONTEND_PORT:-8888}:80"
-    healthcheck:
-      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1/ || exit 1"]
-      interval: 20s
-      timeout: 10s
-      retries: 10
-      start_period: 20s
+volumes:
+  mysql-data:
+  redis-data:
+  rabbitmq-data:
+  nacos-data:

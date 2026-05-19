@@ -8,13 +8,17 @@ spring:
     default: dev
   config:
     import:
-      - nacos:jasmine-common.yml?refresh=true
-      - nacos:jasmine-product.yml?refresh=true
+      - optional:nacos:jasmine-common.yml?refresh=true
+      - optional:nacos:jasmine-observability.yml?refresh=true
+      - optional:nacos:jasmine-db-common.yml?refresh=true
+      - optional:nacos:jasmine-redis-common.yml?refresh=true
+      - optional:nacos:jasmine-mq-common.yml?refresh=true
+      - optional:nacos:jasmine-product.yml?refresh=true
   cloud:
     nacos:
       server-addr: ${NACOS_ADDR:127.0.0.1:8848}
-      username: ${NACOS_USERNAME:nacos}
-      password: ${NACOS_PASSWORD:nacos}
+      username: ${NACOS_USERNAME:}
+      password: ${NACOS_PASSWORD:}
       discovery:
         namespace: ${NACOS_NAMESPACE:dev}
         group: JASMINE

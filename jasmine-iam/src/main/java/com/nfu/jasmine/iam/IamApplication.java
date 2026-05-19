@@ -12,8 +12,9 @@ import org.springframework.security.crypto.password.PasswordEncoder;
  * <p>
  * 负责认证鉴权、用户管理、角色管理、菜单管理、JWT 签发/刷新/吊销、RBAC 授权。
  */
-@SpringBootApplication
-@MapperScan("com.nfu.jasmine.iam.persistence.mapper")
+@SpringBootApplication(scanBasePackages = "com.nfu.jasmine")
+@MapperScan({"com.nfu.jasmine.iam.persistence.mapper",
+		"com.nfu.jasmine.infra.outbox.persistence.mapper"})
 public class IamApplication {
 
 	public static void main(String[] args) {

@@ -16,7 +16,9 @@
 	<description>Jasmine 微服务父工程</description>
 
 	<modules>
+		<module>jasmine-common-core</module>
 		<module>jasmine-common</module>
+		<module>jasmine-schema</module>
 		<module>jasmine-gateway</module>
 		<module>jasmine-iam</module>
 		<module>jasmine-product</module>
@@ -55,6 +57,11 @@
 				<scope>import</scope>
 			</dependency>
 			<!-- 项目内部模块 -->
+			<dependency>
+				<groupId>com.nfu</groupId>
+				<artifactId>jasmine-common-core</artifactId>
+				<version>${project.version}</version>
+			</dependency>
 			<dependency>
 				<groupId>com.nfu</groupId>
 				<artifactId>jasmine-common</artifactId>
@@ -116,6 +123,11 @@
 			<dependency>
 				<groupId>org.springdoc</groupId>
 				<artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
+				<version>${springdoc.version}</version>
+			</dependency>
+			<dependency>
+				<groupId>org.springdoc</groupId>
+				<artifactId>springdoc-openapi-starter-webflux-ui</artifactId>
 				<version>${springdoc.version}</version>
 			</dependency>
 			<!-- Fastjson2 -->

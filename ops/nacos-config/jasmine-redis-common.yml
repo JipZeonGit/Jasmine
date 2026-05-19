@@ -1,0 +1,11 @@
+# Jasmine Redis 公共配置
+# Nacos Data ID: jasmine-redis-common.yml
+# Nacos Group: JASMINE
+# Namespace: dev / prod
+
+spring:
+  data:
+    redis:
+      host: ${REDIS_HOST}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD}

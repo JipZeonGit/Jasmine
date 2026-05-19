@@ -6,7 +6,7 @@ import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.nfu.jasmine.common.exception.BusinessException;
 import com.nfu.jasmine.common.utils.BusinessNoUtil;
 import com.nfu.jasmine.common.vo.TableData;
-import com.nfu.jasmine.flower.application.support.FlowerStockService;
+import com.nfu.jasmine.flower.application.support.ProductStockFacade;
 import com.nfu.jasmine.infra.cache.CacheNames;
 import com.nfu.jasmine.infra.mq.message.InventoryChangedMessage;
 import com.nfu.jasmine.infra.mq.message.InventoryChangeSource;
@@ -25,7 +25,7 @@ import com.nfu.jasmine.flower.persistence.mapper.FlowerMapper;
 import com.nfu.jasmine.inventory.persistence.mapper.InventoryMapper;
 import com.nfu.jasmine.sales.persistence.mapper.SalesItemMapper;
 import com.nfu.jasmine.sales.persistence.mapper.SalesMapper;
-import com.nfu.jasmine.vip.persistence.mapper.VipMapper;
+import com.nfu.jasmine.vip.application.support.VipReadFacade;
 import com.nfu.jasmine.sales.application.ISalesService;
 import com.nfu.jasmine.sales.web.vo.SalesItemVO;
 import com.nfu.jasmine.sales.web.vo.SalesVO;
@@ -65,13 +65,13 @@ public class SalesServiceImpl extends ServiceImpl<SalesMapper, Sales> implements
     private InventoryMapper inventoryMapper;
 
     @Autowired
-    private VipMapper vipMapper;
+    private VipReadFacade vipReadFacade;
 
     @Autowired
     private MqMessagePublisher mqMessagePublisher;
 
     @Autowired
-    private FlowerStockService flowerStockService;
+    private ProductStockFacade productStockFacade;
 
     @Autowired
     private CacheManager cacheManager;
@@ -267,7 +267,7 @@ public class SalesServiceImpl extends ServiceImpl<SalesMapper, Sales> implements
     private void restoreSales(Sales sales) {
         List<SalesItem> items = listSalesItemsBySalesId(sales.getId());
         for (SalesItem item : items) {
-            flowerStockService.adjustStock(item.getFlowerId(), item.getQuantity(), null, false, null);
+            productStockFacade.adjustStock(item.getFlowerId(), item.getQuantity(), null, false, null);
         }
 
         salesItemMapper.delete(new LambdaQueryWrapper<SalesItem>().eq(SalesItem::getSalesId, sales.getId()));
@@ -284,7 +284,7 @@ public class SalesServiceImpl extends ServiceImpl<SalesMapper, Sales> implements
         BigDecimal totalAmount = BigDecimal.ZERO;
         for (SalesItemSaveDTO itemDTO : items) {
             int quantity = requirePositiveQuantity(itemDTO.getQuantity(), "销售数量必须大于 0！");
-            FlowerStockService.StockChangeResult stockChange = flowerStockService.adjustStock(
+            ProductStockFacade.StockChangeResult stockChange = productStockFacade.adjustStock(
                     itemDTO.getFlowerId(),
                     -quantity,
                     null,
@@ -367,8 +367,7 @@ public class SalesServiceImpl extends ServiceImpl<SalesMapper, Sales> implements
 
         Map<Integer, Vip> vipMap = vipIds.isEmpty()
                 ? Collections.emptyMap()
-                : vipMapper.selectBatchIds(vipIds).stream()
-                .collect(Collectors.toMap(Vip::getId, vip -> vip, (left, right) -> left, LinkedHashMap::new));
+                : vipReadFacade.findByIds(vipIds);
 
         List<SalesItem> salesItems = salesItemMapper.selectList(new LambdaQueryWrapper<SalesItem>()
                 .in(SalesItem::getSalesId, salesIds)
@@ -432,7 +431,7 @@ public class SalesServiceImpl extends ServiceImpl<SalesMapper, Sales> implements
     }
 
     private void validateVipIfPresent(Integer vipId) {
-        if (vipId != null && vipMapper.selectById(vipId) == null) {
+        if (vipId != null && !vipReadFacade.existsById(vipId)) {
             throw new BusinessException("所选会员不存在，请刷新后重试！");
         }
     }

@@ -137,17 +137,19 @@
 
 ## 三、迁移分阶段实施计划
 
-### 阶段 0：前置准备（`microservices` 分支）
+### 阶段 0：前置准备（`microservices` 分支）✅ 已完成
 
 **目标**：建立多模块 Maven 项目骨架，不改变业务逻辑
 
-| 序号 | 工作项 | 说明 |
-|:---|:---|:---|
-| 0.1 | 创建 `microservices` 分支 | 从 `next` 分支切出 |
-| 0.2 | Maven 多模块重组 | 父 POM + 5 个子模块：`jasmine-gateway`、`jasmine-iam`、`jasmine-product`、`jasmine-trade`、`jasmine-crm` |
-| 0.3 | 抽取公共模块 `jasmine-common` | 统一 Result/TableData/ResultCode/BusinessException/GlobalExceptionHandler 等公共类 |
-| 0.4 | 引入 Spring Cloud Alibaba BOM | 在父 POM 中声明 `spring-cloud-alibaba-dependencies` 2025.0.0.0 |
-| 0.5 | 各服务独立配置文件 | 每个服务独立的 `application.yml` + `bootstrap.yml`（Nacos 配置） |
+| 序号 | 工作项 | 说明 | 状态 |
+|:---|:---|:---|:---|
+| 0.1 | 创建 `microservices` 分支 | 从 `next` 分支切出 | ✅ |
+| 0.2 | Maven 多模块重组 | 父 POM + 7 个子模块：`jasmine-common-core`、`jasmine-common`、`jasmine-schema`、`jasmine-gateway`、`jasmine-iam`、`jasmine-product`、`jasmine-trade`、`jasmine-crm` | ✅ |
+| 0.3 | 抽取公共模块 | 拆分为 `jasmine-common-core`（Result/异常/DTO/JWT claims）和 `jasmine-common`（Servlet 服务侧基础设施），Gateway 仅依赖 core，避免 MVC 污染 | ✅ |
+| 0.4 | 引入 Spring Cloud Alibaba BOM | 父 POM 中声明 `spring-cloud-alibaba-dependencies` 2025.0.0.0 + `spring-cloud-dependencies` 2025.0.0 | ✅ |
+| 0.5 | 各服务独立配置文件 | 每个服务独立的 `application.yml` + `application-{dev,prod}.yml`，通过 `spring.config.import` 拉 Nacos 配置 | ✅ |
+| 0.6 | 参数化 Dockerfile | 单一 `Dockerfile` + `ARG MODULE` 构建任一模块，废弃 `Dockerfile.openj9`，配合 BuildKit cache 与阿里云 mirror 加速 | ✅ |
+| 0.7 | dev / prod compose 拓扑 | dev 收敛为中间件 only（业务服务由本机 Maven 起）；prod 拉 GHCR 上 7 个独立微服务镜像 | ✅ |
 
 ### 阶段 1：Nacos 接入 ✅ 已完成
 
@@ -160,7 +162,7 @@
 | 1.3 | 各服务引入 `spring-cloud-starter-alibaba-nacos-config` | 通过 `spring.config.import=nacos:` 方式从 Nacos 拉取配置 | ✅ |
 | 1.4 | 配置 `spring.application.name` | iam-service / product-service / trade-service / crm-service / jasmine-gateway | ✅ |
 | 1.5 | 配置中心化 | 公共配置 `jasmine-common.yml`（MySQL/Redis）+ 各服务专属配置（RabbitMQ 等），预设文件在 `ops/nacos-config/`，通过 `import.sh` 导入 | ✅ |
-| 1.6 | 验证 | 各服务启动后可在 Nacos 控制台看到注册信息（NAS 环境验证） | 🔲 待验证 |
+| 1.6 | 验证 | 各服务启动后可在 Nacos 控制台看到注册信息，且能从 Nacos 命名空间拉取配置 | ✅ |
 
 **Phase 1 实施细节**：
 
@@ -172,6 +174,12 @@
   - `jasmine-product.yml` / `jasmine-gateway.yml`：目前为空占位
 - **本地开发兼容**：`application-dev.yml` 仅保留 Nacos 地址覆盖和开发特有配置，数据库/Redis/MQ 连接信息已从本地文件迁移到 Nacos
 - **根 POM 修复**：移除重复的 `jasmine-iam` 声明，补充缺失的 `jasmine-trade` 和 `jasmine-gateway` 声明
+- **本机实跑验证**：在 GraalVM 21 + WSL Mint Docker 中间件栈下，`start-backend.ps1 -Module gateway` 完整跑通：
+  - `[Nacos Config] Load config[dataId=jasmine-gateway.yml, group=JASMINE] success`
+  - `[Nacos Config] Load config[dataId=jasmine-observability.yml, group=JASMINE] success`
+  - `nacos registry, JASMINE jasmine-gateway 169.254.213.167:8080 register finished`
+  - 配置监听 `cnt=1`，gRPC 长连接到 9848
+  - 启动耗时 2.6 秒，详见 `docs/upgrade/logs/microservices/phase0-phase1-code-quality-fixes.md`
 
 ### 阶段 2：Gateway 接入
 

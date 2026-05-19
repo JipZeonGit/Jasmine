@@ -1,14 +1,14 @@
 # Jasmine
 
 > **分支说明**：
-> 当前 `next` 分支为项目的主干分支，它已经完成了从老旧 `legacy` 分支到新一代现代化单体应用架构的全面迁移与重构。
-> 未来项目将继续演进，计划单独开辟 `microservices` 分支，探索并实现从单体应用架构向最新微服务架构的跨越。
+> 当前 `microservices` 分支处于微服务迁移 Phase0/Phase1：已完成 Maven 多模块拆分、Nacos 配置/注册接入、Gateway 独立模块、参数化 Dockerfile 与 Compose 微服务拓扑基线。
+> 业务远程调用、网关路由与外部入口治理将在后续 Phase2/Phase3 继续推进。
 
 一个面向花店门店场景的管理系统，当前包含：
 
-- 后端：Spring Boot 单体应用
+- 后端：Spring Boot + Spring Cloud 微服务骨架
 - 前端：基于 `web/` 的 Vue 3 + Element Plus 管理端
-- 中间件：MySQL、Redis、RabbitMQ
+- 中间件：MySQL、Redis、RabbitMQ、Nacos
 
 当前主线已经完成：
 
@@ -59,27 +59,19 @@
 | Docker | 镜像与容器运行 | 当前基线已接入 |
 | Docker Compose | 多服务编排 | 当前基线已接入 |
 | GitHub Actions | CI / 镜像构建 | 当前基线已接入 |
-| OpenJ9 (Semeru) | 极致省内存 JVM | 21（IBM Semeru Runtimes） |
 
-## 架构演进与组件对比 (Legacy vs Next)
+## 微服务模块
 
-从老旧的 `legacy` 分支迁移到现在的 `next` 分支过程中，系统全栈技术经历了彻底的现代化洗牌。以下是核心组件的变动说明：
-
-| 领域 | 组件名称 | 老架构 (Legacy) | 新架构 (Next) | 演进状态 |
-|:---|:---|:---|:---|:---|
-| **运行环境** | Java | 1.8.0_472 | 21 | 🚀 **跨代升级**，支持虚拟线程等现代特性 |
-| **核心框架** | Spring Boot | 2.7.8 | 3.5.13 | 🚀 **大版本升级**，全面迁移至 Jakarta EE 规范 |
-| **持久层** | MyBatis-Plus | 3.5.2 | 3.5.14 | ⬆️ **常规升级** |
-| **安全鉴权** | Spring Security | 2.7.8 | 跟随 Spring Boot 3 | 🚀 **架构重构**，采用全新 `SecurityFilterChain` |
-| **Token机制** | JWT | 0.9.1 | 0.12.7 | ⬆️ **大版本升级**，重构签名与验证 API |
-| **接口文档** | Swagger | 3.0.0 | springdoc-openapi 2.8.16 | 🔄 **平替升级**，完美适配 Boot 3 及 OpenAPI 3 规范 |
-| **模板引擎** | FreeMarker | 2.3.32 | *(无)* | ❌ **彻底废弃**，实现纯粹的前后端分离 |
-| **JSON解析** | Fast Json | 2.0.7 | Jackson | 🔄 **全面替换**，回归 Spring 原生标准，移除潜在隐患 |
-| **前端基座** | 前端集成环境 | vue-admin-template 4.4.0 | Vue 3 + Element Plus | 🚀 **彻底重构**，抛弃 Vue2，全量重写现代响应式页面 |
-| **前端工具链**| 运行时与构建 | Node.js 22.22.1 | Bun 1.3.x + Vite | 🚀 **基建升级**，拥抱极速本地开发与毫秒级热更 |
-| **主数据库** | MySQL | 5.7.44 | 8.4 | 🚀 **大版本升级**，统一规范字符集与现代 SQL 语法 |
-| **缓存方案** | Redis | 7.2 | 7.2 | 🟢 **沿用**，且规范化了边界与幂等防重场景 |
-| **消息中间件**| RabbitMQ | *(无)* | 4.2-management | ✨ **全新引入**，承接异步削峰、死信延时与高并发解耦 |
+| 模块 | 职责 |
+|:---|:---|
+| `jasmine-common-core` | Result、通用异常、DTO、JWT claims、通用工具 |
+| `jasmine-common` | Servlet 服务侧基础设施：MyBatis、Redis、MQ、Outbox、过滤器、Swagger MVC |
+| `jasmine-schema` | 独立 Flyway schema bootstrap，不再由 IAM 服务隐式承担迁移 |
+| `jasmine-gateway` | WebFlux Gateway 入口，后续 Phase2 接入路由与鉴权 |
+| `jasmine-iam` | 用户、角色、菜单、JWT 签发与 RBAC |
+| `jasmine-product` | 花卉主数据与库存原子变更门面 |
+| `jasmine-trade` | 销售、库存流水、库存预警与交易事件 |
+| `jasmine-crm` | 会员、预约、延时提醒与站内通知 |
 
 ## 应用架构与详细接口说明书
 
@@ -95,31 +87,72 @@
 
 - `docs/upgrade/roadmap/pr11-after-roadmap.md`
 
-后续微服务架构的迁移计划:
-- `docs\upgrade\plan\microservice-migration-plan.md`
+后续微服务架构的迁移计划：
+- `docs\upgrade\plan\microservices\microservice-migration-plan.md`
 
 ## 仓库结构
 
 当前值得优先关注的目录：
 
-- `src/main/java/`：后端业务与基础设施代码
-- `src/main/resources/`：配置、Mapper XML、Flyway 迁移
-- `src/test/java/`：单元测试与集成测试
+- `jasmine-*`：后端 Maven 多模块
 - `web/`：当前新前端管理端
 - `ops/`：Docker / Compose / 部署基线
 - `docs/upgrade/`：升级路线、阶段记录、实施文档（已按 plan / logs / roadmap 等目录分类归档）
 
 ## 本地启动
 
-### Windows 本地调试
+### 1. 先用 dev compose 起中间件
 
-后端：
+`ops/dev/docker-compose.yml` 仅启动 MySQL / Redis / RabbitMQ / Nacos 四个中间件，stateful 数据走 Docker named volume，不污染工程目录。
 
-```powershell
-./start-backend.ps1
+```bash
+cp ops/.env.example ops/dev/.env   # 第一次启动需复制并修改密码
+cd ops/dev
+docker compose up -d
 ```
 
-前端（首选 Bun）：
+容器全部 healthy 之后，端口经 WSL 反向映射到 Windows 主机：
+
+| 端口 | 服务 |
+|:---:|:---|
+| 13306 | MySQL |
+| 6379 | Redis |
+| 5673 / 15673 | RabbitMQ AMQP / 管理台 |
+| 8848 / 9848 | Nacos HTTP / gRPC |
+
+### 2. 导入 Nacos 配置
+
+```bash
+cd ops/nacos-config
+bash import.sh 127.0.0.1:8848 dev
+```
+
+脚本会自动判断 Nacos 是否开启鉴权（dev 默认关闭），dev 环境可直接匿名导入。
+
+### 3. 在本机以 dev profile 启动后端服务
+
+仓库根目录提供 `start-backend.ps1` 用于本机调试，参数化指定模块：
+
+```powershell
+./start-backend.ps1 -Module gateway     # 启动 jasmine-gateway，默认选项
+./start-backend.ps1 -Module iam         # 简写自动补 jasmine- 前缀
+./start-backend.ps1 -Module product
+./start-backend.ps1 -Module trade
+./start-backend.ps1 -Module crm
+```
+
+脚本内部会先 `mvnw -pl <module> -am install -DskipTests` 安装依赖，再 `mvnw -pl <module> spring-boot:run` 单模块启动。环境变量与 `ops/dev/.env` 一致。
+
+如果你不想用脚本，等价的手工命令：
+
+```powershell
+./mvnw.cmd -pl jasmine-iam -am install -DskipTests
+./mvnw.cmd -pl jasmine-iam spring-boot:run
+```
+
+> 注意：直接 `./mvnw -pl jasmine-iam -am spring-boot:run` 会让 `spring-boot:run` 作用到父 POM 上，触发 "Unable to find a suitable main class"，必须分两步执行。
+
+### 4. 启动前端
 
 ```bash
 cd web
@@ -127,79 +160,24 @@ bun install
 bun run dev
 ```
 
-> **提示**：如果你的环境没有安装 Bun，依然可以使用传统的 Node.js 配合 npm 或 pnpm 来启动，只需替换对应命令即可，效果完全一致：
-> 
-> 使用 **pnpm**：
-> ```bash
-> cd web
-> pnpm install
-> pnpm dev
-> ```
-> 
-> 使用 **npm**：
-> ```bash
-> cd web
-> npm install
-> npm run dev
-> ```
+也可以使用根目录的 `start-frontend-bun.ps1` 一键启动，效果一致。
 
-如果需要在本地直接验证 Redis 缓存模式，可使用：
+> 如果环境没有 Bun，可以使用 pnpm 或 npm 替代：`pnpm install && pnpm dev` 或 `npm install && npm run dev`。
 
-```powershell
-./start-backend-redis.ps1
-```
+### 微服务镜像构建
 
-说明：
-
-- `start-backend.ps1`：默认 `dev` + MQ 打开
-- `start-backend-redis.ps1`：`dev` + `APP_CACHE_TYPE=redis`
-- 新前端默认目录：`web/`
-
-### Docker 镜像变体
-
-项目提供两种后端 Docker 镜像，按场景选择：
-
-| 镜像 | Dockerfile | JVM / 运行时 | 预估内存占用 | 预估镜像大小 | 适用场景 |
-|:---|:---|:---|:---|:---|:---|
-| `jasmine-backend` | `Dockerfile` | HotSpot (Temurin 21 JRE) + ZGC | ~450 MB | ~280 MB | 通用部署，兼容性最佳 |
-| `jasmine-backend-openj9` | `Dockerfile.openj9` | OpenJ9 (Semeru 21 JRE) | ~300 MB | ~260 MB | 内存敏感环境，低成本 VPS |
-
-#### HotSpot 镜像（默认）
+平时不需要在本机自己构建镜像；推 `microservices` 分支或 `v*` tag 即可由 GitHub Actions 矩阵化构建并推到 GHCR。如确需本机构建：
 
 ```bash
-docker build -f Dockerfile -t jasmine-backend:hotspot .
+docker build -f Dockerfile --build-arg MODULE=jasmine-gateway -t jasmine-gateway:dev .
+docker build -f Dockerfile --build-arg MODULE=jasmine-iam -t jasmine-iam:dev .
+docker build -f Dockerfile --build-arg MODULE=jasmine-product -t jasmine-product:dev .
+docker build -f Dockerfile --build-arg MODULE=jasmine-trade -t jasmine-trade:dev .
+docker build -f Dockerfile --build-arg MODULE=jasmine-crm -t jasmine-crm:dev .
+docker build -f Dockerfile --build-arg MODULE=jasmine-schema -t jasmine-schema:dev .
 ```
 
-JVM 参数已针对容器化优化：ZGC 低延迟收集器、`MaxRAMPercentage=75.0` 按容器内存自动计算堆大小、字符串去重、压缩对象指针。
-
-#### OpenJ9 镜像（省内存）
-
-```bash
-docker build -f Dockerfile.openj9 -t jasmine-backend:openj9 .
-```
-
-基于 [IBM Semeru Runtimes](https://developer.ibm.com/languages/java/semeru-runtimes/)（OpenJ9 JVM + OpenJDK 类库），内存占用通常比 HotSpot 低 30-60%。关键调优参数：
-
-| 参数 | 说明 |
-|:---|:---|
-| `-Xgcpolicy:gencon` | 分代并发收集器，OpenJ9 默认策略 |
-| `-XX:MaxRAMPercentage=70.0` | OpenJ9 堆外内存占比更高，设 70% 更保守 |
-| `-Xtune:virtualized` | 虚拟化/容器环境调优，缩减线程栈和 JIT 缓存默认值 |
-| `-Xshareclasses` | 共享类缓存，加速启动并减少运行时内存 |
-| `-Xquickstart` | 牺牲少量峰值吞吐换取更快启动 |
-
-**注意事项**：
-
-- OpenJ9 的 Micrometer / Prometheus JVM 指标标签与 HotSpot 有差异（如 `jvm.memory.used` 的 area 标签），Grafana 面板可能需要适配
-- OpenJ9 的 JIT 行为与 HotSpot 不同，依赖运行时动态代理的框架（如 MyBatis）建议充分测试后再上生产
-- 生产环境使用 OpenJ9 镜像时，建议将 `BACKEND_MEMORY_LIMIT` 调低至 `384m`：
-
-```bash
-# .env 中
-BACKEND_IMAGE=ghcr.io/jipzeongit/jasmine-backend-openj9
-BACKEND_MEMORY_LIMIT=384m
-BACKEND_MEMORY_RESERVATION=192m
-```
+根目录只保留一个参数化 `Dockerfile`，通过 `ARG MODULE` 构建指定 Maven 模块，避免多 Dockerfile 漂移。Dockerfile 内已开启 BuildKit cache mount 与阿里云 Maven 镜像，重复构建依赖解析会复用 `~/.m2`。
 
 #### 容器资源限制
 
@@ -209,19 +187,19 @@ BACKEND_MEMORY_RESERVATION=192m
 deploy:
   resources:
     limits:
-      memory: ${BACKEND_MEMORY_LIMIT:-512m}
+      memory: ${SERVICE_MEMORY_LIMIT:-512m}
     reservations:
-      memory: ${BACKEND_MEMORY_RESERVATION:-256m}
+      memory: ${SERVICE_MEMORY_RESERVATION:-256m}
 ```
 
-通过 `.env` 中的 `BACKEND_MEMORY_LIMIT` 和 `BACKEND_MEMORY_RESERVATION` 按镜像类型调整即可。
+通过 `.env` 中的 `SERVICE_MEMORY_LIMIT` 和 `SERVICE_MEMORY_RESERVATION` 按服务统一调整即可。
 
 ## API 与调试入口
 
 后端启动后，常用入口如下：
 
-- Swagger：`http://localhost:9999/swagger-ui/index.html`
-- 健康检查：`http://localhost:9999/actuator/health`
+- Gateway 健康检查：`http://localhost:8080/actuator/health`
+- IAM Swagger：`http://localhost:9101/swagger-ui/index.html`
 
 如果开启了前端：
 
@@ -241,7 +219,7 @@ deploy:
 
 详细说明请优先阅读：
 
-- `docs/upgrade/pr14-docker-ops-deploy.md`
+- `docs/upgrade/logs/monolith/pr14-docker-ops-deploy.md`
 
 ### 环境变量准备
 
@@ -290,8 +268,8 @@ chmod +x ops/prod/up.sh ops/prod/down.sh
 ### 管理入口
 
 - 前端：`http://<host>:${FRONTEND_PORT}`
-- 后端健康检查：`http://<host>:${BACKEND_PORT}/actuator/health`
-- Swagger：`http://<host>:${BACKEND_PORT}/swagger-ui/index.html`
+- Gateway 健康检查：`http://<host>:${GATEWAY_PORT}/actuator/health`
+- 各业务服务健康检查：容器内 `9101` / `9102` / `9103` / `9104`
 - RabbitMQ 管理台：`http://<host>:${RABBITMQ_MANAGEMENT_PORT}`
 
 ## GitHub Actions 镜像构建
@@ -302,20 +280,24 @@ chmod +x ops/prod/up.sh ops/prod/down.sh
 
 当前支持：
 
-- `next`（当前主干）在通过后端基础检查后自动构建并推送镜像
+- `microservices` 在通过后端基础检查后自动构建并推送微服务镜像
 - 手动 `workflow_dispatch`
 
 镜像仓库：
 
-- `ghcr.io/jipzeongit/jasmine-backend`（HotSpot JVM）
-- `ghcr.io/jipzeongit/jasmine-backend-openj9`（OpenJ9）
+- `ghcr.io/jipzeongit/jasmine-gateway`
+- `ghcr.io/jipzeongit/jasmine-iam`
+- `ghcr.io/jipzeongit/jasmine-product`
+- `ghcr.io/jipzeongit/jasmine-trade`
+- `ghcr.io/jipzeongit/jasmine-crm`
+- `ghcr.io/jipzeongit/jasmine-schema`
 - `ghcr.io/jipzeongit/jasmine-frontend`
 
-构建顺序：HotSpot → OpenJ9 → Frontend
+构建顺序：Schema → Gateway → IAM/Product/Trade/CRM → Frontend
 
 标签策略：
 
-- 默认以分支名为前缀：`<branch>-latest`、`<branch>-<short_sha>`（目前主干为 `next`，故产物为 `next-latest`）
+- 默认以分支名为前缀：`<branch>-latest`、`<branch>-<short_sha>`
 
 ## 测试说明
 
@@ -350,17 +332,12 @@ chmod +x ops/prod/up.sh ops/prod/down.sh
 如果要继续理解当前路线与阶段边界，建议优先看：
 
 - `docs/upgrade/roadmap/pr11-after-roadmap.md`
-- `docs/upgrade/logs/pr12-5-redis-hardening.md`
-- `docs/upgrade/logs/pr13-rabbitmq-bootstrap.md`
-- `docs/upgrade/logs/pr13-mq-contract.md`
-- `docs/upgrade/logs/pr13-5-redis-mq-hardening.md`
-- `docs/upgrade/logs/pr14-docker-ops-deploy.md`
-- `docs/upgrade/logs/pr15-full-frontend-migration.md`
-- `docs/upgrade/logs/pr16-vite-chunk-optimization.md`
-- `docs/upgrade/logs/pr18-high-concurrency-consistency.md`
-- `docs/upgrade/logs/pr19-delayed-message-notification.md`
-- `docs/upgrade/logs/pr19-frontend-notification.md`
-- `docs/upgrade/logs/pr20-security-hardening-and-message-reliability.md`
+- `docs/upgrade/plan/microservices/microservice-migration-plan.md`
+- `docs/upgrade/logs/microservices/phase0-maven-restructure.md`
+- `docs/upgrade/logs/microservices/phase1-nacos-integration.md`
+- `docs/upgrade/logs/microservices/phase0-phase1-code-quality-fixes.md`
+- `docs/upgrade/review/microservices/phase0-phase1-code-review-2026-05-19.md`
+- `docs/upgrade/logs/monolith/pr20-security-hardening-and-message-reliability.md`
 
 ## 说明
 

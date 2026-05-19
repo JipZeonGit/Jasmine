@@ -9,8 +9,9 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
  * <p>
  * 负责花卉主数据 CRUD、花卉状态管理。
  */
-@SpringBootApplication
-@MapperScan("com.nfu.jasmine.flower.persistence.mapper")
+@SpringBootApplication(scanBasePackages = "com.nfu.jasmine")
+@MapperScan({"com.nfu.jasmine.flower.persistence.mapper",
+		"com.nfu.jasmine.infra.outbox.persistence.mapper"})
 public class ProductApplication {
 
 	public static void main(String[] args) {

@@ -1,8 +1,27 @@
 # 本地开发环境覆盖配置。
-# 数据库 / Redis / RabbitMQ 连接信息已迁移到 Nacos 配置中心（jasmine-common.yml + jasmine-trade.yml），
-# 此文件仅保留 Nacos 地址覆盖与开发环境特有配置。
+# Nacos 配置使用 optional 导入；本文件保留本地无 Nacos 时的最小可运行兜底。
 
 spring:
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    username: ${MYSQL_USER:root}
+    password: ${MYSQL_PASSWORD:123456}
+    url: jdbc:mysql://${MYSQL_HOST:127.0.0.1}:${MYSQL_PORT:13306}/jasmine?useUnicode=true&characterEncoding=UTF-8&connectionCollation=utf8mb4_0900_ai_ci&serverTimezone=Asia/Shanghai
+  data:
+    redis:
+      host: ${REDIS_HOST:127.0.0.1}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+  rabbitmq:
+    host: ${RABBITMQ_HOST:127.0.0.1}
+    port: ${RABBITMQ_PORT:5673}
+    username: ${RABBITMQ_USERNAME:jasmine}
+    password: ${RABBITMQ_PASSWORD:123456}
+    virtual-host: ${RABBITMQ_VHOST:/jasmine}
+    listener:
+      simple:
+        auto-startup: ${APP_MQ_ENABLED:false}
+        default-requeue-rejected: false
   cloud:
     nacos:
       server-addr: ${NACOS_ADDR:127.0.0.1:8848}
@@ -14,10 +33,12 @@ spring:
 app:
   cache:
     type: memory
+  security:
+    jwt-secret: ${JWT_SECRET:jasmine-dev-jwt-secret-for-local-debug-only-change-me-2026}
   mq:
     enabled: ${APP_MQ_ENABLED:false}
 
 management:
   health:
     redis:
-      enabled: false
+      enabled: ${APP_REDIS_HEALTH_ENABLED:false}

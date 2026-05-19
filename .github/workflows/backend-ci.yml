@@ -3,7 +3,8 @@ name: 后端基础检查
 on:
   pull_request:
     branches:
-      - next
+      - main
+      - microservices
     paths-ignore:
       - '**.md'
   workflow_call:

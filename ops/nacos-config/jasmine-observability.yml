@@ -1,0 +1,29 @@
+# Jasmine 观测公共配置
+# Nacos Data ID: jasmine-observability.yml
+# Nacos Group: JASMINE
+# Namespace: dev / prod
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  endpoint:
+    health:
+      show-details: always
+  prometheus:
+    metrics:
+      export:
+        enabled: true
+  metrics:
+    tags:
+      application: ${spring.application.name}
+    distribution:
+      percentiles-histogram:
+        http.server.requests: true
+    enable:
+      jvm: true
+      process: true
+      system: true
+      hikaricp: true
+      http: true

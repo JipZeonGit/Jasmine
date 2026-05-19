@@ -23,5 +23,7 @@ spring:
 app:
   cache:
     type: redis
+  security:
+    jwt-secret: ${JWT_SECRET}
   mq:
     enabled: ${APP_MQ_ENABLED:true}

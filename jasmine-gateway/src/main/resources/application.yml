@@ -8,13 +8,13 @@ spring:
     default: dev
   config:
     import:
-      - nacos:jasmine-common.yml?refresh=true
-      - nacos:jasmine-gateway.yml?refresh=true
+      - optional:nacos:jasmine-observability.yml?refresh=true
+      - optional:nacos:jasmine-gateway.yml?refresh=true
   cloud:
     nacos:
       server-addr: ${NACOS_ADDR:127.0.0.1:8848}
-      username: ${NACOS_USERNAME:nacos}
-      password: ${NACOS_PASSWORD:nacos}
+      username: ${NACOS_USERNAME:}
+      password: ${NACOS_PASSWORD:}
       discovery:
         namespace: ${NACOS_NAMESPACE:dev}
         group: JASMINE
@@ -25,3 +25,19 @@ spring:
 logging:
   level:
     com.nfu.jasmine: INFO
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  endpoint:
+    health:
+      show-details: always
+  prometheus:
+    metrics:
+      export:
+        enabled: true
+  metrics:
+    tags:
+      application: ${spring.application.name}

@@ -39,6 +39,13 @@
 
 		<!-- Test -->
 		<dependency>
+			<groupId>com.nfu</groupId>
+			<artifactId>jasmine-common</artifactId>
+			<version>${project.version}</version>
+			<classifier>tests</classifier>
+			<scope>test</scope>
+		</dependency>
+		<dependency>
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-test</artifactId>
 			<scope>test</scope>

@@ -6,7 +6,7 @@ import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.nfu.jasmine.common.exception.BusinessException;
 import com.nfu.jasmine.common.utils.BusinessNoUtil;
 import com.nfu.jasmine.common.vo.TableData;
-import com.nfu.jasmine.flower.application.support.FlowerStockService;
+import com.nfu.jasmine.flower.application.support.ProductStockFacade;
 import com.nfu.jasmine.infra.cache.CacheNames;
 import com.nfu.jasmine.infra.mq.message.InventoryChangedMessage;
 import com.nfu.jasmine.infra.mq.message.InventoryChangeSource;
@@ -48,7 +48,7 @@ public class InventoryServiceImpl extends ServiceImpl<InventoryMapper, Inventory
     private MqMessagePublisher mqMessagePublisher;
 
     @Autowired
-    private FlowerStockService flowerStockService;
+    private ProductStockFacade productStockFacade;
 
     @Autowired
     private CacheManager cacheManager;
@@ -118,7 +118,7 @@ public class InventoryServiceImpl extends ServiceImpl<InventoryMapper, Inventory
 
         BigDecimal unitCost = resolveUnitCost(bizType, inventoryDTO.getUnitCost());
         BigDecimal totalCost = buildTotalCost(unitCost, quantity);
-        FlowerStockService.StockChangeResult stockChange = flowerStockService.adjustStock(
+        ProductStockFacade.StockChangeResult stockChange = productStockFacade.adjustStock(
                 inventoryDTO.getFlowerId(),
                 bizType.apply(quantity),
                 unitCost,
@@ -176,7 +176,7 @@ public class InventoryServiceImpl extends ServiceImpl<InventoryMapper, Inventory
 
         if (Objects.equals(existing.getFlowerId(), inventoryDTO.getFlowerId())) {
             // 同一花卉：先回滚旧影响 -> 得到基准库存 -> 再叠加新影响。
-            FlowerStockService.StockChangeResult stockChange = flowerStockService.adjustStock(
+            ProductStockFacade.StockChangeResult stockChange = productStockFacade.adjustStock(
                     existing.getFlowerId(),
                     newBizType.apply(newQuantity) - oldDelta,
                     unitCost,
@@ -193,8 +193,8 @@ public class InventoryServiceImpl extends ServiceImpl<InventoryMapper, Inventory
             existing.setAfterStock(afterStock);
         } else {
             // 换花卉：旧花卉回滚库存，新花卉按新业务类型重新计算库存。
-            flowerStockService.adjustStock(existing.getFlowerId(), -oldDelta, null, false, null);
-            FlowerStockService.StockChangeResult stockChange = flowerStockService.adjustStock(
+            productStockFacade.adjustStock(existing.getFlowerId(), -oldDelta, null, false, null);
+            ProductStockFacade.StockChangeResult stockChange = productStockFacade.adjustStock(
                     inventoryDTO.getFlowerId(),
                     newBizType.apply(newQuantity),
                     unitCost,
@@ -242,7 +242,7 @@ public class InventoryServiceImpl extends ServiceImpl<InventoryMapper, Inventory
     public void deleteInventory(Integer id) {
         Inventory existing = requireInventory(id);
         int delta = InventoryBizType.fromCode(existing.getBizType()).apply(existing.getQuantity());
-        flowerStockService.adjustStock(existing.getFlowerId(), -delta, null, false, null);
+        productStockFacade.adjustStock(existing.getFlowerId(), -delta, null, false, null);
         this.removeById(id);
 
         // 库存删除后也需要发事件，确保事件完整性。

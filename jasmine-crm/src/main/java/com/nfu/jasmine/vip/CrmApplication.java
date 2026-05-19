@@ -9,7 +9,13 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
  * <p>
  * 负责会员管理、预约管理（含延时提醒）、站内通知消息中心。
  */
-@SpringBootApplication
+@SpringBootApplication(scanBasePackages = {
+		"com.nfu.jasmine.vip",
+		"com.nfu.jasmine.appointment",
+		"com.nfu.jasmine.infra",
+		"com.nfu.jasmine.common",
+		"com.nfu.jasmine.config"
+})
 @MapperScan({"com.nfu.jasmine.vip.persistence.mapper",
 		"com.nfu.jasmine.appointment.persistence.mapper",
 		"com.nfu.jasmine.infra.notification.persistence.mapper",

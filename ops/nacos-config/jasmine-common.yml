@@ -1,18 +1,8 @@
-# Jasmine 公共配置 — 所有服务共享
+# Jasmine 非敏感公共配置
 # Nacos Data ID: jasmine-common.yml
 # Nacos Group: JASMINE
 # Namespace: dev / prod
-#
-# 包含：MySQL / Redis / RabbitMQ 连接信息
 
-spring:
-  datasource:
-    driver-class-name: com.mysql.cj.jdbc.Driver
-    username: ${MYSQL_USER:root}
-    password: ${MYSQL_PASSWORD:123456}
-    url: jdbc:mysql://${MYSQL_HOST:192.168.31.26}:${MYSQL_PORT:13306}/jasmine?useUnicode=true&characterEncoding=UTF-8&connectionCollation=utf8mb4_0900_ai_ci&serverTimezone=Asia/Shanghai
-  data:
-    redis:
-      host: ${REDIS_HOST:192.168.31.26}
-      port: ${REDIS_PORT:6379}
-      password: ${REDIS_PASSWORD:123456}
+app:
+  cache:
+    type: ${APP_CACHE_TYPE:redis}

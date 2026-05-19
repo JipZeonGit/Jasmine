@@ -15,7 +15,7 @@ import java.math.BigDecimal;
  * 更新失败说明并发期间库存已被别的事务改动，此时重试读取并重新计算，避免丢失更新。
  */
 @Service
-public class FlowerStockService {
+public class FlowerStockService implements ProductStockFacade {
     private static final int MAX_RETRY_TIMES = 8;
 
     private final FlowerMapper flowerMapper;
@@ -24,7 +24,8 @@ public class FlowerStockService {
         this.flowerMapper = flowerMapper;
     }
 
-    public StockChangeResult adjustStock(Integer flowerId, int delta, BigDecimal costPrice, boolean updateCostPrice, String insufficientMessage) {
+    @Override
+    public ProductStockFacade.StockChangeResult adjustStock(Integer flowerId, int delta, BigDecimal costPrice, boolean updateCostPrice, String insufficientMessage) {
         for (int attempt = 0; attempt < MAX_RETRY_TIMES; attempt++) {
             Flower flower = requireFlower(flowerId);
             int beforeStock = safeStock(flower);
@@ -45,7 +46,7 @@ public class FlowerStockService {
                 if (updateCostPrice) {
                     flower.setCostPrice(costPrice);
                 }
-                return new StockChangeResult(flower, beforeStock, afterStock);
+                return new ProductStockFacade.StockChangeResult(flower, beforeStock, afterStock);
             }
         }
         throw new BusinessException(ResultCode.CONFLICT, "库存正在被其他请求更新，请稍后重试！");
@@ -61,8 +62,5 @@ public class FlowerStockService {
 
     private int safeStock(Flower flower) {
         return flower.getCurrentStock() == null ? 0 : flower.getCurrentStock();
-    }
-
-    public record StockChangeResult(Flower flower, int beforeStock, int afterStock) {
     }
 }

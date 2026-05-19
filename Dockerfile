@@ -1,37 +1,59 @@
-# ---- Stage 1: Maven 构建 ----
+# syntax=docker/dockerfile:1
+
+# ---- Stage 1: Maven build for one module ----
 FROM eclipse-temurin:21-jdk AS builder
 
 WORKDIR /app
 
-# 先拷贝 Maven 包装器和 pom.xml，利用 Docker 层缓存加速依赖下载
+ARG MODULE
+ARG MAVEN_ARGS="-DskipTests"
+
 COPY mvnw mvnw.cmd ./
 COPY .mvn .mvn
 COPY pom.xml ./
+COPY jasmine-common-core/pom.xml jasmine-common-core/pom.xml
+COPY jasmine-common/pom.xml jasmine-common/pom.xml
+COPY jasmine-schema/pom.xml jasmine-schema/pom.xml
+COPY jasmine-gateway/pom.xml jasmine-gateway/pom.xml
+COPY jasmine-iam/pom.xml jasmine-iam/pom.xml
+COPY jasmine-product/pom.xml jasmine-product/pom.xml
+COPY jasmine-trade/pom.xml jasmine-trade/pom.xml
+COPY jasmine-crm/pom.xml jasmine-crm/pom.xml
 
-RUN chmod +x ./mvnw && ./mvnw dependency:go-offline -B
+# 修正 mvnw 行尾（兼容 Windows 上 CRLF 检出），并使用 BuildKit cache 复用 ~/.m2 加速依赖解析
+RUN --mount=type=cache,target=/root/.m2 \
+    test -n "$MODULE" && sed -i 's/\r$//' ./mvnw && chmod +x ./mvnw && \
+    ./mvnw -s .mvn/settings.xml -pl "$MODULE" -am dependency:go-offline -B
 
-# 再拷贝源码并编译
-COPY src src
-RUN ./mvnw -DskipTests package -B
+COPY jasmine-common-core jasmine-common-core
+COPY jasmine-common jasmine-common
+COPY jasmine-schema jasmine-schema
+COPY jasmine-gateway jasmine-gateway
+COPY jasmine-iam jasmine-iam
+COPY jasmine-product jasmine-product
+COPY jasmine-trade jasmine-trade
+COPY jasmine-crm jasmine-crm
 
-# ---- Stage 2: 最小化运行镜像 ----
+RUN --mount=type=cache,target=/root/.m2 \
+    ./mvnw -s .mvn/settings.xml -pl "$MODULE" -am $MAVEN_ARGS package -B && \
+    cp ${MODULE}/target/${MODULE}-0.0.1-SNAPSHOT-exec.jar /app/app.jar
+
+# ---- Stage 2: runtime image ----
 FROM eclipse-temurin:21-jre
 
 WORKDIR /app
 
-RUN apt-get update && apt-get install -y --no-install-recommends curl && rm -rf /var/lib/apt/lists/*
+ARG MODULE
+ARG APP_PORT=8080
 
-COPY --from=builder /app/target/Jasmine-0.0.1-SNAPSHOT.jar /app/jasmine.jar
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends curl \
+    && rm -rf /var/lib/apt/lists/*
 
-EXPOSE 9999
+COPY --from=builder /app/app.jar /app/app.jar
 
-# JVM 内存与 GC 优化：
-#   -XX:+UseZGC              : ZGC 低延迟收集器，暂停 <1ms，适合容器化 Web 服务
-#   -Xms/-Xmx                : 固定堆大小，避免依赖 cgroup 检测（部分环境 mem_limit 未生效时
-#                               百分比参数会按宿主机内存计算，导致堆远超预期）
-#   -XX:+UseCompressedOops   : 压缩对象指针，减少 40%+ 堆内存开销
-#   -XX:+UseStringDeduplication : 字符串去重，Spring 大量重复字符串场景可省 10-20%
-#   -XX:+AlwaysPreTouch      : 启动时预分配所有堆内存，避免运行时缺页抖动
+EXPOSE ${APP_PORT}
+
 ENTRYPOINT ["java", \
   "-XX:+UseZGC", \
   "-Xms256m", \
@@ -39,4 +61,4 @@ ENTRYPOINT ["java", \
   "-XX:+UseCompressedOops", \
   "-XX:+UseStringDeduplication", \
   "-XX:+AlwaysPreTouch", \
-  "-jar", "/app/jasmine.jar"]
+  "-jar", "/app/app.jar"]

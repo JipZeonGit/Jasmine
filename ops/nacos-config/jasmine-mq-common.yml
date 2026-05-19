@@ -1,0 +1,16 @@
+# Jasmine RabbitMQ 公共配置
+# Nacos Data ID: jasmine-mq-common.yml
+# Nacos Group: JASMINE
+# Namespace: dev / prod
+
+spring:
+  rabbitmq:
+    host: ${RABBITMQ_HOST}
+    port: ${RABBITMQ_PORT:5672}
+    username: ${RABBITMQ_USERNAME}
+    password: ${RABBITMQ_PASSWORD}
+    virtual-host: ${RABBITMQ_VHOST:/jasmine}
+    listener:
+      simple:
+        auto-startup: ${APP_MQ_ENABLED:false}
+        default-requeue-rejected: false
