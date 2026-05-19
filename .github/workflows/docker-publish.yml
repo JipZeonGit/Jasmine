@@ -36,7 +36,8 @@ jobs:
       owner: ${{ steps.meta.outputs.owner }}
       ref_tag: ${{ steps.meta.outputs.ref_tag }}
       short_sha: ${{ steps.meta.outputs.short_sha }}
-      modules: ${{ steps.meta.outputs.modules }}
+      backend_modules: ${{ steps.meta.outputs.backend_modules }}
+      include_frontend: ${{ steps.meta.outputs.include_frontend }}
     steps:
       - name: 1. 拉取最新代码
         uses: actions/checkout@v4
@@ -55,28 +56,34 @@ jobs:
             ref_tag="${safe_ref}-latest"
           fi
 
-          # 默认全量；workflow_dispatch 传入时可以缩小
-          all_modules='["jasmine-schema","jasmine-gateway","jasmine-iam","jasmine-product","jasmine-trade","jasmine-crm","frontend"]'
+          # 默认全量构建；workflow_dispatch 传入 modules 时可缩小范围
+          ALL_BACKEND='["jasmine-schema","jasmine-gateway","jasmine-iam","jasmine-product","jasmine-trade","jasmine-crm"]'
           input='${{ inputs.modules }}'
           if [ -n "$input" ]; then
-            modules=$(echo "$input" | tr ',' '\n' | sed 's/^ *//;s/ *$//' | grep -v '^$' | jq -R -s -c 'split("\n") | map(select(length>0))')
+            # 把逗号分隔字符串规整成 JSON 数组
+            selected=$(echo "$input" | tr ',' '\n' | sed 's/^ *//;s/ *$//' | grep -v '^$' | jq -R -s -c 'split("\n") | map(select(length>0))')
+            # 取交集：只保留已知的 backend module
+            backend_modules=$(jq -nc --argjson sel "$selected" --argjson all "$ALL_BACKEND" '$all | map(select(. as $m | $sel | index($m)))')
+            include_frontend=$(jq -nr --argjson sel "$selected" 'if ($sel | index("frontend")) then "true" else "false" end')
           else
-            modules="$all_modules"
+            backend_modules="$ALL_BACKEND"
+            include_frontend="true"
           fi
 
           echo "owner=$owner" >> "$GITHUB_OUTPUT"
           echo "ref_tag=$ref_tag" >> "$GITHUB_OUTPUT"
           echo "short_sha=$short_sha" >> "$GITHUB_OUTPUT"
-          echo "modules=$modules" >> "$GITHUB_OUTPUT"
+          echo "backend_modules=$backend_modules" >> "$GITHUB_OUTPUT"
+          echo "include_frontend=$include_frontend" >> "$GITHUB_OUTPUT"
 
   build-backend:
     needs: prepare
+    if: needs.prepare.outputs.backend_modules != '[]'
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        module: [jasmine-schema, jasmine-gateway, jasmine-iam, jasmine-product, jasmine-trade, jasmine-crm]
-    if: contains(fromJSON(needs.prepare.outputs.modules), matrix.module)
+        module: ${{ fromJSON(needs.prepare.outputs.backend_modules) }}
     steps:
       - name: 1. 拉取最新代码
         uses: actions/checkout@v4
@@ -118,8 +125,8 @@ jobs:
 
   build-frontend:
     needs: prepare
+    if: needs.prepare.outputs.include_frontend == 'true'
     runs-on: ubuntu-latest
-    if: contains(fromJSON(needs.prepare.outputs.modules), 'frontend')
     steps:
       - name: 1. 拉取最新代码
         uses: actions/checkout@v4
