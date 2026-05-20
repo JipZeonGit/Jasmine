@@ -18,9 +18,9 @@ export default defineConfig(({ mode }) => {
       host: '0.0.0.0',
       proxy: {
         '/prod-api': {
-          target: env.VITE_API_PROXY_TARGET || 'http://localhost:9999',
+          target: env.VITE_API_PROXY_TARGET || 'http://localhost:8080',
           changeOrigin: true,
-          // 旧前端通过 Nginx 会自动剥掉 /prod-api 前缀，Vite 代理需要显式重写。
+          // Gateway 统一入口，前端 /prod-api 前缀在代理层剥掉
           rewrite: (path) => path.replace(/^\/prod-api/, ''),
         },
       },

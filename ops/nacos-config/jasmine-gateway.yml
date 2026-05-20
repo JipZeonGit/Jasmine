@@ -2,5 +2,34 @@
 # Nacos Data ID: jasmine-gateway.yml
 # Nacos Group: JASMINE
 # Namespace: dev / prod
-#
-# 阶段 2 将添加路由规则和 JWT 鉴权过滤器配置
+
+spring:
+  cloud:
+    gateway:
+      routes:
+        # IAM 服务：用户/角色/菜单/登录/刷新
+        - id: iam-service
+          uri: lb://iam-service
+          predicates:
+            - Path=/user/**,/role/**,/menu/**,/sys/**
+        # 商品服务：花卉主数据
+        - id: product-service
+          uri: lb://product-service
+          predicates:
+            - Path=/flower/**
+        # 交易服务：销售/库存/库存预警
+        - id: trade-service
+          uri: lb://trade-service
+          predicates:
+            - Path=/sales/**,/inventory/**,/inventory-alert/**
+        # CRM 服务：会员/预约/站内通知
+        - id: crm-service
+          uri: lb://crm-service
+          predicates:
+            - Path=/vip/**,/appointment/**,/site-message/**
+
+app:
+  cors:
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:8888,http://localhost:5173,http://127.0.0.1:5173,http://localhost}
+  security:
+    jwt-secret: ${JWT_SECRET:jasmine-dev-jwt-secret-for-local-debug-only-change-me-2026}
