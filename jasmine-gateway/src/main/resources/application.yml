@@ -26,12 +26,6 @@ logging:
   level:
     com.nfu.jasmine: INFO
 
-app:
-  cors:
-    allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:8888,http://localhost:5173,http://127.0.0.1:5173,http://localhost}
-  security:
-    jwt-secret: ${JWT_SECRET:jasmine-dev-jwt-secret-for-local-debug-only-change-me-2026}
-
 management:
   endpoints:
     web:

@@ -8,7 +8,10 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
  * <p>
  * 阶段 2 将在此模块中实现 JWT 网关鉴权过滤器与路由转发规则。
  */
-@SpringBootApplication(scanBasePackages = "com.nfu.jasmine")
+@SpringBootApplication(scanBasePackages = {
+		"com.nfu.jasmine.gateway",
+		"com.nfu.jasmine.common.utils"
+})
 public class GatewayApplication {
 
 	public static void main(String[] args) {

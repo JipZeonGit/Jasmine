@@ -36,6 +36,7 @@ public class MySecurityConfig {
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
+                        .requestMatchers("/internal/**").permitAll()
                         .requestMatchers(
                                 "/user/login",
                                 "/user/refresh",

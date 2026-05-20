@@ -10,10 +10,12 @@ import com.nfu.jasmine.flower.application.support.ProductStockFacade;
 import com.nfu.jasmine.flower.model.entity.Flower;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 /**
- * 花卉内部接口 —— 仅供服务间调用，网关层拦截外部访问。
+ * 花卉内部接口 —— 仅供服务间调用，网关层 + InternalEndpointGuardFilter 双重保护。
  */
 @Tag(name = "内部接口")
 @RestController
@@ -40,7 +42,7 @@ public class FlowerInternalController {
 
     @Operation(summary = "库存调整（内部）")
     @PostMapping("/stock/adjust")
-    public StockAdjustResult adjustStock(@RequestBody StockAdjustRequest request) {
+    public ResponseEntity<StockAdjustResult> adjustStock(@RequestBody StockAdjustRequest request) {
         try {
             ProductStockFacade.StockChangeResult result = productStockFacade.adjustStock(
                     request.getFlowerId(),
@@ -49,9 +51,13 @@ public class FlowerInternalController {
                     Boolean.TRUE.equals(request.getUpdateCostPrice()),
                     request.getReason()
             );
-            return StockAdjustResult.ok(result.afterStock());
+            FlowerDTO flowerDTO = toFlowerDTO(result.flower());
+            StockAdjustResult ok = StockAdjustResult.ok(result.beforeStock(), result.afterStock(), flowerDTO);
+            return ResponseEntity.ok(ok);
         } catch (BusinessException e) {
-            return StockAdjustResult.fail(e.getMessage());
+            // 业务失败返回 422，让 LoadBalancer / 断路器不要把它当成"服务不可用"来重试或熔断
+            return ResponseEntity.status(HttpStatus.UNPROCESSABLE_ENTITY)
+                    .body(StockAdjustResult.fail(e.getMessage()));
         }
     }
 

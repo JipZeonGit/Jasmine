@@ -6,3 +6,7 @@
 app:
   cache:
     type: ${APP_CACHE_TYPE:redis}
+  security:
+    # 网关与下游服务之间的共享密钥；网关注入到 X-Gateway-Token，
+    # 下游服务通过 InternalEndpointGuardFilter 校验，prod 必须通过环境变量覆盖。
+    gateway-shared-token: ${GATEWAY_SHARED_TOKEN:jasmine-dev-gateway-shared-token-change-me-2026}

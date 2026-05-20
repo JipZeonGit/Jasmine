@@ -5,6 +5,8 @@ import com.nfu.jasmine.common.dto.internal.StockAdjustResult;
 import com.nfu.jasmine.common.exception.BusinessException;
 import com.nfu.jasmine.flower.application.support.ProductStockFacade;
 import com.nfu.jasmine.flower.model.entity.Flower;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.cloud.client.circuitbreaker.CircuitBreaker;
 import org.springframework.cloud.client.circuitbreaker.CircuitBreakerFactory;
 import org.springframework.context.annotation.Primary;
@@ -19,11 +21,13 @@ import java.math.BigDecimal;
  * 后续移除 jasmine-product 依赖后可去掉 @Primary。
  * <p>
  * 使用 Resilience4j 断路器保护远程调用，当 product-service 持续不可用时快速失败，
- * 避免级联故障拖垮 trade-service。
+ * 避免级联故障拖垮 trade-service。业务异常（库存不足等）直接透传，不触发降级。
  */
 @Primary
 @Component
 public class RemoteProductStockFacade implements ProductStockFacade {
+
+    private static final Logger log = LoggerFactory.getLogger(RemoteProductStockFacade.class);
 
     private final FlowerClient flowerClient;
     private final CircuitBreakerFactory circuitBreakerFactory;
@@ -40,6 +44,11 @@ public class RemoteProductStockFacade implements ProductStockFacade {
         return cb.run(
                 () -> doAdjustStock(flowerId, delta, costPrice, updateCostPrice, insufficientMessage),
                 throwable -> {
+                    // 业务异常透传，断路器只为真正的"服务不可用"降级
+                    if (throwable instanceof BusinessException be) {
+                        throw be;
+                    }
+                    log.error("商品服务调用失败，断路器降级 flowerId={} delta={}", flowerId, delta, throwable);
                     throw new BusinessException("商品服务暂时不可用，请稍后重试");
                 }
         );
@@ -54,14 +63,16 @@ public class RemoteProductStockFacade implements ProductStockFacade {
         request.setUpdateCostPrice(updateCostPrice);
         request.setReason(insufficientMessage);
 
-        StockAdjustResult result = flowerClient.adjustStock(request);
+        StockAdjustResult result = flowerClient.adjustStock(request).getBody();
 
-        if (!Boolean.TRUE.equals(result.getSuccess())) {
-            throw new BusinessException(result.getMessage() != null ? result.getMessage() : "库存调整失败！");
+        if (result == null || !Boolean.TRUE.equals(result.getSuccess())) {
+            // 4xx 业务失败：库存不足、参数非法等，直接抛出业务异常
+            String msg = result != null && result.getMessage() != null ? result.getMessage() : "库存调整失败！";
+            throw new BusinessException(msg);
         }
 
-        // 远程调用后需要获取完整花卉信息来构造 StockChangeResult
-        var flowerDTO = flowerClient.getFlowerById(flowerId);
+        // 服务端在响应中直接带回完整花卉信息与 beforeStock，避免再发一次请求
+        var flowerDTO = result.getFlower();
         Flower flower = new Flower();
         flower.setId(flowerDTO.getId());
         flower.setName(flowerDTO.getName());
@@ -70,10 +81,6 @@ public class RemoteProductStockFacade implements ProductStockFacade {
         flower.setStatus(flowerDTO.getStatus());
         flower.setCurrentStock(result.getCurrentStock());
 
-        // 远程调用无法精确获取 beforeStock，通过 delta 反推
-        int afterStock = result.getCurrentStock();
-        int beforeStock = afterStock - delta;
-
-        return new StockChangeResult(flower, beforeStock, afterStock);
+        return new StockChangeResult(flower, result.getBeforeStock(), result.getCurrentStock());
     }
 }
