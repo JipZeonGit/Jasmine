@@ -23,7 +23,7 @@ COPY jasmine-crm/pom.xml jasmine-crm/pom.xml
 # 修正 mvnw 行尾（兼容 Windows 上 CRLF 检出），并使用 BuildKit cache 复用 ~/.m2 加速依赖解析
 RUN --mount=type=cache,target=/root/.m2 \
     test -n "$MODULE" && sed -i 's/\r$//' ./mvnw && chmod +x ./mvnw && \
-    ./mvnw -s .mvn/settings.xml -pl "$MODULE" -am dependency:go-offline -B
+    ./mvnw -pl "$MODULE" -am dependency:go-offline -B
 
 COPY jasmine-common-core jasmine-common-core
 COPY jasmine-common jasmine-common
@@ -35,7 +35,7 @@ COPY jasmine-trade jasmine-trade
 COPY jasmine-crm jasmine-crm
 
 RUN --mount=type=cache,target=/root/.m2 \
-    ./mvnw -s .mvn/settings.xml -pl "$MODULE" -am $MAVEN_ARGS package -B && \
+    ./mvnw -pl "$MODULE" -am $MAVEN_ARGS package -B && \
     cp ${MODULE}/target/${MODULE}-0.0.1-SNAPSHOT-exec.jar /app/app.jar
 
 # ---- Stage 2: runtime image ----
