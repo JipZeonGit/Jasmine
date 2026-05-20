@@ -185,3 +185,42 @@ spring:
 - 5 个微服务都按相同方式逐一在本机起起来，确认全部注册到 dev 命名空间。
 - Gateway 路由表（按服务名转发）正式接入。
 - `ops/prod/docker-compose.yml` 联调用一次 GHCR 上构建好的镜像。
+
+
+## 补充：Phase0 / Phase1 测试覆盖盘点
+
+为了避免后续审查再次被点同样的问题，这里把本轮修复点的测试覆盖逐条列清，并说明哪些有意暂不补自动化测试。
+
+### 已有自动化覆盖
+
+| 修复点 | 覆盖测试 |
+|:---|:---|
+| Gateway WebFlux 上下文不冲突 MVC | `jasmine-gateway` `GatewayContextSmokeTest` |
+| IAM 服务上下文装配 | `jasmine-iam` `IamContextIT`（Testcontainers） |
+| Product 服务上下文装配 | `jasmine-product` `ProductContextIT` |
+| Trade 服务上下文装配 | `jasmine-trade` `TradeContextIT` |
+| CRM 服务上下文装配 | `jasmine-crm` `CrmContextIT` |
+| 公共工具（JWT/会员号生成/请求 trace/请求级幂等）| `jasmine-common` `JwtUtilTest`、`jasmine-crm` `MembershipIdTest`、`RequestTraceFilterTest`、`RequestIdempotencyServiceTest` |
+| MQ 行为 / Outbox 链路 | `jasmine-common` `RabbitMqBehaviorIT`、`jasmine-trade` `OutboxAndAlertIntegrationIT`、`BusinessModelWorkflowIT` |
+
+服务级核心装配点全部有自动化保障，迁移过程中不会出现"上下文起不来"的回归。
+
+### 暂不补自动化的项与理由
+
+| 修复点 | 当前验证方式 | 暂不补自动化的理由 |
+|:---|:---|:---|
+| `ProductStockFacade` 进程内门面 | 由 trade 现有 IT 间接覆盖 | Phase3 会替换为远程 HTTP 实现，独立单测会被 Phase3 实现一并替换 |
+| `VipReadFacade` 进程内门面 | 由 crm 现有 IT 间接覆盖 | 同上 |
+| `jasmine-schema` 全表 Flyway bootstrap | 手动启 dev compose + 跑过迁移 | Phase4 会把单一 schema 拆成 4 个独立库，每服务自带迁移；现在写一份"V1~V8 整体跑通"的 IT 到 Phase4 立刻作废 |
+| `Dockerfile` 参数化构建 | GitHub Actions matrix 构建即验证 | 自动化构建本身就是验证；额外写本地 IT 收益有限 |
+| `dev` / `prod` compose 拓扑 | 本机 `docker compose up -d` 实跑 | 拓扑级测试需要 e2e 框架，超出本轮范围 |
+| `ops/nacos-config/import.sh`（auth + 无 auth）| 本机对照空 / 启 auth 两个 Nacos 实跑 | 单 bash 脚本，写 bats 自验脚本边际收益低 |
+| `application.yml` Nacos 默认账号空字符串 | 本机启动日志确认无 `User nacos not found` | 只影响日志噪声，不影响功能；既有 IT 间接覆盖客户端可用性 |
+| `docker-publish.yml` matrix 重写 | GitHub Actions 实跑结果 | 工作流本身就是产物，自验通过即视为有效 |
+| `backend-ci.yml` PR 触发分支调整 | PR 实际触发即验证 | 同上 |
+
+### 决策记录
+
+- **不补 `jasmine-schema` 的 Flyway 集成测试**：Phase4 数据库拆分会重写 schema 模块，当前一次性测试会被淘汰。
+- **不补 Facade 的单元测试**：Phase3 会把这两个 Facade 替换为远程实现，新增单测属于一次性投入。
+- **保留对 5 个服务的 ContextIT**：上下文装配是迁移期最大风险点，必须有自动化兜底，迁移到 Phase3/4 仍然有效。
