@@ -30,6 +30,12 @@
 			<artifactId>spring-cloud-starter-alibaba-nacos-config</artifactId>
 		</dependency>
 
+		<!-- Resilience4j 断路器 -->
+		<dependency>
+			<groupId>org.springframework.cloud</groupId>
+			<artifactId>spring-cloud-starter-circuitbreaker-resilience4j</artifactId>
+		</dependency>
+
 		<!-- 商品服务（阶段 0 临时依赖，阶段 3 改为远程调用后移除） -->
 		<dependency>
 			<groupId>com.nfu</groupId>

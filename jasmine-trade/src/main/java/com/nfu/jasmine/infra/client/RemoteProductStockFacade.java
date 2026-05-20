@@ -5,6 +5,8 @@ import com.nfu.jasmine.common.dto.internal.StockAdjustResult;
 import com.nfu.jasmine.common.exception.BusinessException;
 import com.nfu.jasmine.flower.application.support.ProductStockFacade;
 import com.nfu.jasmine.flower.model.entity.Flower;
+import org.springframework.cloud.client.circuitbreaker.CircuitBreaker;
+import org.springframework.cloud.client.circuitbreaker.CircuitBreakerFactory;
 import org.springframework.context.annotation.Primary;
 import org.springframework.stereotype.Component;
 
@@ -15,20 +17,36 @@ import java.math.BigDecimal;
  * <p>
  * 标记 @Primary 使其在 trade-service 中优先于 jasmine-product 模块内的本地实现。
  * 后续移除 jasmine-product 依赖后可去掉 @Primary。
+ * <p>
+ * 使用 Resilience4j 断路器保护远程调用，当 product-service 持续不可用时快速失败，
+ * 避免级联故障拖垮 trade-service。
  */
 @Primary
 @Component
 public class RemoteProductStockFacade implements ProductStockFacade {
 
     private final FlowerClient flowerClient;
+    private final CircuitBreakerFactory circuitBreakerFactory;
 
-    public RemoteProductStockFacade(FlowerClient flowerClient) {
+    public RemoteProductStockFacade(FlowerClient flowerClient, CircuitBreakerFactory circuitBreakerFactory) {
         this.flowerClient = flowerClient;
+        this.circuitBreakerFactory = circuitBreakerFactory;
     }
 
     @Override
     public StockChangeResult adjustStock(Integer flowerId, int delta, BigDecimal costPrice,
                                          boolean updateCostPrice, String insufficientMessage) {
+        CircuitBreaker cb = circuitBreakerFactory.create("productStock");
+        return cb.run(
+                () -> doAdjustStock(flowerId, delta, costPrice, updateCostPrice, insufficientMessage),
+                throwable -> {
+                    throw new BusinessException("商品服务暂时不可用，请稍后重试");
+                }
+        );
+    }
+
+    private StockChangeResult doAdjustStock(Integer flowerId, int delta, BigDecimal costPrice,
+                                            boolean updateCostPrice, String insufficientMessage) {
         StockAdjustRequest request = new StockAdjustRequest();
         request.setFlowerId(flowerId);
         request.setQuantity(delta);

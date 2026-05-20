@@ -25,6 +25,12 @@ spring:
       config:
         namespace: ${NACOS_NAMESPACE:dev}
         group: JASMINE
+    loadbalancer:
+      retry:
+        enabled: true
+        max-retries-on-same-service-instance: 0
+        max-retries-on-next-service-instance: 1
+        retryable-status-codes: 500,502,503
   flyway:
     enabled: ${APP_FLYWAY_ENABLED:true}
     locations: classpath:db/migration
@@ -97,3 +103,16 @@ info:
   app:
     name: ${spring.application.name}
     description: Jasmine 交易服务
+
+resilience4j:
+  circuitbreaker:
+    configs:
+      default:
+        sliding-window-size: 10
+        failure-rate-threshold: 50
+        wait-duration-in-open-state: 10s
+        permitted-number-of-calls-in-half-open-state: 3
+  timelimiter:
+    configs:
+      default:
+        timeout-duration: 5s

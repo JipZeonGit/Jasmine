@@ -2,6 +2,7 @@ package com.nfu.jasmine.config;
 
 import com.nfu.jasmine.infra.cache.CacheNames;
 import jakarta.annotation.Resource;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -28,6 +29,12 @@ public class MyRedisConfig {
     @Resource
     private RedisConnectionFactory factory;
 
+    /**
+     * 以服务名作为 Redis 缓存 key 前缀，实现多服务共享同一 Redis 实例时的命名空间隔离。
+     */
+    @Value("${spring.application.name:jasmine}")
+    private String appName;
+
     @Bean
     public RedisTemplate redisTemplate() {
         RedisTemplate<String, Object> redisTemplate = new RedisTemplate<>();
@@ -47,6 +54,7 @@ public class MyRedisConfig {
     @Bean
     public RedisCacheManager cacheManager(RedisConnectionFactory factory) {
         RedisCacheConfiguration config = RedisCacheConfiguration.defaultCacheConfig()
+                .prefixCacheNameWith(appName + ":")
                 .entryTtl(Duration.ofMinutes(30))
                 .serializeKeysWith(RedisSerializationContext.SerializationPair.fromSerializer(new StringRedisSerializer()))
                 .serializeValuesWith(RedisSerializationContext.SerializationPair.fromSerializer(new GenericJackson2JsonRedisSerializer()));
