@@ -385,7 +385,7 @@ chmod +x ops/prod/up.sh ops/prod/down.sh
 - `docs/upgrade/logs/microservices/phase0-phase1-code-quality-fixes.md`
 - `docs/upgrade/logs/microservices/phase2-5-review-fixes.md`
 - `docs/upgrade/logs/microservices/phase3-5-timeout-circuitbreaker-cache-prefix.md`
-- `docs/upgrade/review/microservices/phase0-phase1-code-review-2026-05-19.md`
+- `docs/upgrade/review/microservices/phase0-phase1-code-review.md`
 - `docs/upgrade/logs/monolith/pr20-security-hardening-and-message-reliability.md`
 
 ## 说明
