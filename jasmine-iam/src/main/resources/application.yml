@@ -38,8 +38,6 @@ spring:
       mandatory: true
 
 app:
-  cors:
-    allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:8888,http://localhost:5173,http://127.0.0.1:5173,http://localhost}
   security:
     jwt-expire-millis: ${JWT_EXPIRE_MILLIS:1800000}
     jwt-refresh-expire-millis: ${JWT_REFRESH_EXPIRE_MILLIS:604800000}
