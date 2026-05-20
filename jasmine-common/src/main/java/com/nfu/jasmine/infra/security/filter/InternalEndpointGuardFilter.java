@@ -44,10 +44,10 @@ public class InternalEndpointGuardFilter extends OncePerRequestFilter {
             throws ServletException, IOException {
         String token = request.getHeader(HEADER_GATEWAY_TOKEN);
         if (!StringUtils.hasText(token) || !expectedToken.equals(token)) {
-            log.warn("internal endpoint accessed without valid gateway token, uri={}", request.getRequestURI());
+            log.warn("microservice business endpoint accessed without valid gateway token, uri={}", request.getRequestURI());
             response.setStatus(HttpServletResponse.SC_FORBIDDEN);
             response.setContentType("application/json;charset=utf-8");
-            Result<Object> fail = Result.fail(ResultCode.FORBIDDEN, "禁止直接访问内部接口！");
+            Result<Object> fail = Result.fail(ResultCode.FORBIDDEN, "禁止绕过网关直接访问微服务接口！");
             response.getWriter().write(JSON.toJSONString(fail));
             response.getWriter().flush();
             return;
@@ -55,9 +55,22 @@ public class InternalEndpointGuardFilter extends OncePerRequestFilter {
         filterChain.doFilter(request, response);
     }
 
+    private static final java.util.List<String> EXCLUDE_PATH_PATTERNS = java.util.List.of(
+            "/actuator/**",
+            "/swagger-ui/**",
+            "/v3/api-docs/**",
+            "/swagger-resources/**",
+            "/error"
+    );
+
+    private final org.springframework.util.AntPathMatcher pathMatcher = new org.springframework.util.AntPathMatcher();
+
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
-        // 仅守卫 /internal/** 路径
-        return !request.getRequestURI().startsWith("/internal/");
+        String uri = request.getRequestURI();
+        // 放行系统级监控、API文档以及错误端点，其余所有业务请求均需进行 X-Gateway-Token 防守校验
+        return EXCLUDE_PATH_PATTERNS.stream()
+                .anyMatch(pattern -> pathMatcher.match(pattern, uri));
     }
 }
+

@@ -76,7 +76,9 @@ services:
       interval: 20s
       timeout: 10s
       retries: 10
-      start_period: 40s
+      # 首次启动需要完整初始化 datadir + 跑 init-databases.sql 创建 5 个库，
+      # 给足 180s 防止初始化中途被 healthcheck 判定为 unhealthy 触发 restart。
+      start_period: 180s
 
   redis:
     image: redis:7.2-alpine

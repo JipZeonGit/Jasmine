@@ -17,7 +17,7 @@
 
 services:
   mysql:
-    image: mysql:8.4
+    image: mysql:8.0
     container_name: jasmine-dev-mysql
     restart: unless-stopped
     environment:
@@ -29,17 +29,15 @@ services:
       - --character-set-server=utf8mb4
       - --collation-server=utf8mb4_0900_ai_ci
       - --default-time-zone=+08:00
+      - --skip-name-resolve
+      - --innodb_use_native_aio=0
     ports:
       - "${MYSQL_PORT:-13306}:3306"
+    tmpfs:
+      - /var/lib/mysql
     volumes:
-      - mysql-data:/var/lib/mysql
       - ./init-databases.sql:/docker-entrypoint-initdb.d/01-init-databases.sql:ro
-    healthcheck:
-      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p$$MYSQL_ROOT_PASSWORD || exit 1"]
-      interval: 20s
-      timeout: 10s
-      retries: 10
-      start_period: 40s
+
 
   redis:
     image: redis:7.2-alpine
@@ -50,12 +48,7 @@ services:
       - "${REDIS_PORT:-6379}:6379"
     volumes:
       - redis-data:/data
-    healthcheck:
-      test: ["CMD-SHELL", "redis-cli -a ${REDIS_PASSWORD:?REDIS_PASSWORD is required} ping | grep PONG || exit 1"]
-      interval: 20s
-      timeout: 10s
-      retries: 10
-      start_period: 20s
+
 
   rabbitmq:
     image: rabbitmq:4.2-management
@@ -72,12 +65,7 @@ services:
     volumes:
       - rabbitmq-data:/var/lib/rabbitmq
       - ./logs/rabbitmq:/var/log/rabbitmq
-    healthcheck:
-      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
-      interval: 20s
-      timeout: 10s
-      retries: 10
-      start_period: 30s
+
 
   nacos:
     image: nacos/nacos-server:v2.4.3
@@ -95,15 +83,9 @@ services:
     volumes:
       - nacos-data:/home/nacos/data
       - ./logs/nacos:/home/nacos/logs
-    healthcheck:
-      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:8848/nacos/v1/console/health/readiness || exit 1"]
-      interval: 15s
-      timeout: 10s
-      retries: 15
-      start_period: 30s
+
 
 volumes:
-  mysql-data:
   redis-data:
   rabbitmq-data:
   nacos-data:
