@@ -4,3 +4,7 @@
 # Namespace: dev / prod
 #
 # Trade 服务专属业务参数放在这里；数据库、Redis、MQ、观测配置分别由公共 Data ID 提供。
+
+spring:
+  datasource:
+    url: jdbc:mysql://${MYSQL_HOST}:${MYSQL_PORT:3306}/jasmine_trade?useUnicode=true&characterEncoding=UTF-8&connectionCollation=utf8mb4_0900_ai_ci&serverTimezone=Asia/Shanghai

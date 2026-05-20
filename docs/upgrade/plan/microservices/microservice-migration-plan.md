@@ -236,6 +236,8 @@
 | trade-service | `jasmine_trade` | sales, sales_item, inventory, inventory_alert, event_outbox（trade 相关） |
 | crm-service | `jasmine_crm` | vip, appointment, site_message, event_outbox（crm 相关） |
 
+| 序号 | 工作项 | 说明 |
+|:---|:---|:---|
 | 4.2 | Flyway 迁移拆分 | 每个服务维护独立的 `db/migration/` 目录 |
 | 4.3 | 跨服务数据一致性 | 采用事件驱动最终一致性：trade-service 的 `inventory.changed` 通过 MQ 通知 crm-service 更新站内信 |
 | 4.4 | 共享数据查询 | 通过内部接口查询，不跨库 JOIN |

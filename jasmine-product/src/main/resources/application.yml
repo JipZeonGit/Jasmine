@@ -25,6 +25,12 @@ spring:
       config:
         namespace: ${NACOS_NAMESPACE:dev}
         group: JASMINE
+  flyway:
+    enabled: ${APP_FLYWAY_ENABLED:true}
+    locations: classpath:db/migration
+    baseline-on-migrate: true
+    baseline-version: 0
+    clean-disabled: true
 
 logging:
   level:
