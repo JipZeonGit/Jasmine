@@ -64,6 +64,13 @@ public class JwtAuthGlobalFilter implements GlobalFilter, Ordered {
         ServerHttpRequest request = exchange.getRequest();
         String path = request.getURI().getPath();
 
+        // 内部接口禁止外部访问
+        if (path.startsWith("/internal/")) {
+            log.warn("Gateway: blocked external access to internal path={}", path);
+            exchange.getResponse().setStatusCode(HttpStatus.FORBIDDEN);
+            return exchange.getResponse().setComplete();
+        }
+
         // 白名单放行
         if (isWhiteListed(path)) {
             return chain.filter(exchange);
