@@ -270,3 +270,20 @@ RestClient 层暂未配置 Spring Retry 重试。当前已通过 Resilience4j �
 - Gateway 测试使用 `MockServerWebExchange` 模拟 WebFlux 请求
 - 远程客户端相关测试通过 mock `FlowerClient`、`VipClient`、`CrmUserClient` 隔离网络依赖
 - 断言使用 AssertJ（`assertThat`）保持与现有测试风格一致
+
+### 测试代码审查修复
+
+初始提交后 CI 编译/测试失败，修复以下问题：
+
+| 问题 | 修复 |
+|:---|:---|
+| `UserServiceImpl.getActiveUserIdsByRoleNames()` 引用 `userMapper` 但该类继承 `ServiceImpl`，无直接字段 | 改为 `getBaseMapper().getActiveUserIdsByRoleNames()` |
+| `InventoryServiceImpl` 缺少 `import java.util.Set` | 补充导入 |
+| `GlobalExceptionHandlerTest` 中 `BusinessExceptionHandler` 包路径错误（写成 `common.handler`，实际在 `common`） | 修正为 `com.nfu.jasmine.common.BusinessExceptionHandler` |
+| `GlobalExceptionHandlerTest` 中 `BindException` 无零参构造器 | 改为 `new BindException("dto", "name")` |
+| `GlobalExceptionHandlerTest` 中 `MethodArgumentNotValidException` 构造器不匹配 | 改为 `new MethodArgumentNotValidException(null, new BeanPropertyBindingResult(...))` |
+| `SalesServiceImplTest` 中 `SalesMapper`/`SalesItemMapper` 包路径写错（`inventory` → `sales`） | 修正导入路径 |
+| `JwtAuthGlobalFilterTest` 缺少 `reactor-test` 依赖 | 移除 `StepVerifier`，改用 `.block()` 同步断言 |
+| `JwtAuthGlobalFilterTest.shouldBlockInternalPaths` 多余的 `chain.filter()` stub | 移除多余 stub，内部路径被拦截时不调用 chain |
+| `SalesServiceImplTest` 中 `ServiceImpl` 的 baseMapper 无法通过 `@InjectMocks` 注入 | 使用 `ReflectionTestUtils.setField(salesService, "baseMapper", salesMapper)` |
+| `SalesServiceImplTest.saveSalesShouldThrowWhenItemsEmpty` 期望 "销售明细不能为空" 但先触发了会员校验 | 设置 `vipId=null` 跳过会员校验 |
