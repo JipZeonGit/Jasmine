@@ -290,7 +290,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements IU
 
     @Override
     public List<Integer> getActiveUserIdsByRoleNames(List<String> roleNames) {
-        return userMapper.getActiveUserIdsByRoleNames(roleNames);
+        return getBaseMapper().getActiveUserIdsByRoleNames(roleNames);
     }
 
     private boolean isUserActive(User user) {
