@@ -40,7 +40,6 @@ class JwtAuthGlobalFilterTest {
     void shouldBlockInternalPaths() {
         MockServerHttpRequest request = MockServerHttpRequest.get("/internal/flower/1").build();
         MockServerWebExchange exchange = MockServerWebExchange.from(request);
-        when(chain.filter(any())).thenReturn(Mono.empty());
 
         filter.filter(exchange, chain).block();
 

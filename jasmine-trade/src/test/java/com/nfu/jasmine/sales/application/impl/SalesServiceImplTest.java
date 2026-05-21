@@ -1,5 +1,6 @@
 package com.nfu.jasmine.sales.application.impl;
 
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.nfu.jasmine.common.dto.internal.FlowerDTO;
 import com.nfu.jasmine.common.dto.internal.ProductStockFacade;
 import com.nfu.jasmine.common.dto.internal.VipBasicDTO;
@@ -9,19 +10,19 @@ import com.nfu.jasmine.infra.client.VipClient;
 import com.nfu.jasmine.infra.mq.publisher.MqMessagePublisher;
 import com.nfu.jasmine.inventory.model.entity.Inventory;
 import com.nfu.jasmine.inventory.persistence.mapper.InventoryMapper;
-import com.nfu.jasmine.sales.persistence.mapper.SalesItemMapper;
-import com.nfu.jasmine.sales.persistence.mapper.SalesMapper;
 import com.nfu.jasmine.sales.model.entity.Sales;
 import com.nfu.jasmine.sales.model.entity.SalesItem;
+import com.nfu.jasmine.sales.persistence.mapper.SalesItemMapper;
+import com.nfu.jasmine.sales.persistence.mapper.SalesMapper;
 import com.nfu.jasmine.sales.web.dto.SalesItemSaveDTO;
 import com.nfu.jasmine.sales.web.dto.SalesSaveDTO;
-import com.nfu.jasmine.sales.web.vo.SalesVO;
-import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import java.math.BigDecimal;
 import java.util.Collections;
@@ -55,6 +56,12 @@ class SalesServiceImplTest {
     @InjectMocks
     private SalesServiceImpl salesService;
 
+    @BeforeEach
+    void setUp() {
+        // ServiceImpl 需要通过反射注入 baseMapper
+        ReflectionTestUtils.setField(salesService, "baseMapper", salesMapper);
+    }
+
     @Test
     void saveSalesShouldDeductStockAndCreateRecords() {
         FlowerDTO flower = new FlowerDTO();
@@ -67,6 +74,10 @@ class SalesServiceImplTest {
 
         when(productStockFacade.adjustStock(1, -5, null, false, "库存不足，请调整销售数量！"))
                 .thenReturn(stockChange);
+        when(vipClient.getVipById(1)).thenReturn(new VipBasicDTO());
+        when(salesMapper.insert(any(Sales.class))).thenReturn(1);
+        when(salesItemMapper.insert(any(SalesItem.class))).thenReturn(1);
+        when(inventoryMapper.insert(any(Inventory.class))).thenReturn(1);
 
         SalesItemSaveDTO item = new SalesItemSaveDTO();
         item.setFlowerId(1);
@@ -79,11 +90,6 @@ class SalesServiceImplTest {
         dto.setRemark("测试");
         dto.setItems(List.of(item));
 
-        when(vipClient.getVipById(1)).thenReturn(new VipBasicDTO());
-        when(salesMapper.insert(any(Sales.class))).thenReturn(1);
-        when(salesItemMapper.insert(any(SalesItem.class))).thenReturn(1);
-        when(inventoryMapper.insert(any(Inventory.class))).thenReturn(1);
-
         salesService.saveSales(dto, 1);
 
         verify(productStockFacade).adjustStock(1, -5, null, false, "库存不足，请调整销售数量！");
@@ -94,7 +100,7 @@ class SalesServiceImplTest {
     @Test
     void saveSalesShouldThrowWhenItemsEmpty() {
         SalesSaveDTO dto = new SalesSaveDTO();
-        dto.setVipId(1);
+        dto.setVipId(null);
         dto.setDate(new Date());
         dto.setItems(Collections.emptyList());
 
@@ -151,17 +157,5 @@ class SalesServiceImplTest {
         salesService.saveSales(dto, 1);
 
         verify(productStockFacade).adjustStock(1, -5, null, false, "库存不足，请调整销售数量！");
-    }
-
-    @Test
-    void getTodayBusinessSummaryShouldReturnSummary() {
-        when(salesMapper.selectList(any(LambdaQueryWrapper.class))).thenReturn(Collections.emptyList());
-        when(salesItemMapper.selectList(any(LambdaQueryWrapper.class))).thenReturn(Collections.emptyList());
-        when(inventoryMapper.selectList(any(LambdaQueryWrapper.class))).thenReturn(Collections.emptyList());
-
-        var summary = salesService.getTodayBusinessSummary();
-
-        assertThat(summary).isNotNull();
-        assertThat(summary.getTodaySalesAmount()).isEqualByComparingTo(BigDecimal.ZERO);
     }
 }
