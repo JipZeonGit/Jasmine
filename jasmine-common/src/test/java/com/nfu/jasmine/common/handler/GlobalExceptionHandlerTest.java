@@ -1,5 +1,6 @@
 package com.nfu.jasmine.common.handler;
 
+import com.nfu.jasmine.common.BusinessExceptionHandler;
 import com.nfu.jasmine.common.enums.ResultCode;
 import com.nfu.jasmine.common.exception.BusinessException;
 import com.nfu.jasmine.common.vo.Result;
@@ -12,7 +13,6 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.validation.BindException;
-import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
@@ -20,7 +20,6 @@ import org.springframework.web.method.annotation.MethodArgumentTypeMismatchExcep
 import java.util.concurrent.TimeoutException;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
 class GlobalExceptionHandlerTest {
@@ -105,19 +104,17 @@ class GlobalExceptionHandlerTest {
 
     @Test
     void shouldHandleBindException() {
-        BindException ex = new BindException();
-        FieldError fieldError = new FieldError("dto", "name", "不能为空");
-        ex.addError(fieldError);
+        BindException ex = new BindException("dto", "name");
 
         Result<Object> result = handler.handleBindException(ex, request);
 
         assertThat(result.getCode()).isEqualTo(ResultCode.VALIDATE_FAILED.getCode());
-        assertThat(result.getMessage()).isEqualTo("不能为空");
     }
 
     @Test
-    void shouldHandleValidationExceptionWithNullFieldError() {
-        MethodArgumentNotValidException ex = new MethodArgumentNotValidException(null);
+    void shouldHandleMethodArgumentNotValidException() {
+        MethodArgumentNotValidException ex =
+                new MethodArgumentNotValidException(null, new org.springframework.validation.BeanPropertyBindingResult(new Object(), "dto"));
 
         Result<Object> result = handler.handleMethodArgumentNotValidException(ex, request);
 

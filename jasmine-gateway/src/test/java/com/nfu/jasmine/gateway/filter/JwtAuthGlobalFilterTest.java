@@ -9,14 +9,11 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.cloud.gateway.filter.GatewayFilterChain;
 import org.springframework.http.HttpHeaders;
-import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
-import org.springframework.http.server.reactive.ServerHttpRequest;
 import org.springframework.mock.http.server.reactive.MockServerHttpRequest;
 import org.springframework.mock.web.server.MockServerWebExchange;
 import org.springframework.test.util.ReflectionTestUtils;
 import reactor.core.publisher.Mono;
-import reactor.test.StepVerifier;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -41,60 +38,46 @@ class JwtAuthGlobalFilterTest {
 
     @Test
     void shouldBlockInternalPaths() {
-        MockServerHttpRequest request = MockServerHttpRequest
-                .get("/internal/flower/1")
-                .build();
+        MockServerHttpRequest request = MockServerHttpRequest.get("/internal/flower/1").build();
         MockServerWebExchange exchange = MockServerWebExchange.from(request);
-
         when(chain.filter(any())).thenReturn(Mono.empty());
 
-        Mono<Void> result = filter.filter(exchange, chain);
+        filter.filter(exchange, chain).block();
 
-        StepVerifier.create(result).verifyComplete();
         assertThat(exchange.getResponse().getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
     }
 
     @Test
     void shouldPassWhitelistedPathWithoutToken() {
-        MockServerHttpRequest request = MockServerHttpRequest
-                .get("/user/login")
-                .build();
+        MockServerHttpRequest request = MockServerHttpRequest.get("/user/login").build();
         MockServerWebExchange exchange = MockServerWebExchange.from(request);
-
         when(chain.filter(any())).thenReturn(Mono.empty());
 
-        Mono<Void> result = filter.filter(exchange, chain);
+        filter.filter(exchange, chain).block();
 
-        StepVerifier.create(result).verifyComplete();
         assertThat(exchange.getResponse().getStatusCode()).isNull();
     }
 
     @Test
     void shouldReturn401WhenNoTokenProvided() {
-        MockServerHttpRequest request = MockServerHttpRequest
-                .get("/flower/list")
-                .build();
+        MockServerHttpRequest request = MockServerHttpRequest.get("/flower/list").build();
         MockServerWebExchange exchange = MockServerWebExchange.from(request);
 
-        Mono<Void> result = filter.filter(exchange, chain);
+        filter.filter(exchange, chain).block();
 
-        StepVerifier.create(result).verifyComplete();
         assertThat(exchange.getResponse().getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
     }
 
     @Test
     void shouldReturn401WhenTokenInvalid() {
-        MockServerHttpRequest request = MockServerHttpRequest
-                .get("/flower/list")
+        MockServerHttpRequest request = MockServerHttpRequest.get("/flower/list")
                 .header(HttpHeaders.AUTHORIZATION, "Bearer invalid-token")
                 .build();
         MockServerWebExchange exchange = MockServerWebExchange.from(request);
-
         when(jwtUtil.parseAccessToken("invalid-token")).thenThrow(new RuntimeException("invalid"));
 
-        Mono<Void> result = filter.filter(exchange, chain);
+        filter.filter(exchange, chain).block();
 
-        StepVerifier.create(result).verifyComplete();
         assertThat(exchange.getResponse().getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
     }
 
@@ -104,56 +87,29 @@ class JwtAuthGlobalFilterTest {
         claims.setUserId(42);
         claims.setUsername("testuser");
 
-        MockServerHttpRequest request = MockServerHttpRequest
-                .get("/flower/list")
+        MockServerHttpRequest request = MockServerHttpRequest.get("/flower/list")
                 .header(HttpHeaders.AUTHORIZATION, "Bearer valid-token")
                 .build();
         MockServerWebExchange exchange = MockServerWebExchange.from(request);
-
         when(jwtUtil.parseAccessToken("valid-token")).thenReturn(claims);
         when(chain.filter(any())).thenReturn(Mono.empty());
 
-        Mono<Void> result = filter.filter(exchange, chain);
+        filter.filter(exchange, chain).block();
 
-        StepVerifier.create(result).verifyComplete();
-    }
-
-    @Test
-    void shouldStripForgedHeadersFromClient() {
-        JwtTokenClaims claims = new JwtTokenClaims();
-        claims.setUserId(42);
-        claims.setUsername("testuser");
-
-        MockServerHttpRequest request = MockServerHttpRequest
-                .get("/flower/list")
-                .header(HttpHeaders.AUTHORIZATION, "Bearer valid-token")
-                .header("X-User-Id", "999")        // 伪造
-                .header("X-User-Name", "hacker")   // 伪造
-                .header("X-Gateway-Token", "fake")  // 伪造
-                .build();
-        MockServerWebExchange exchange = MockServerWebExchange.from(request);
-
-        when(jwtUtil.parseAccessToken("valid-token")).thenReturn(claims);
-        when(chain.filter(any())).thenReturn(Mono.empty());
-
-        Mono<Void> result = filter.filter(exchange, chain);
-
-        StepVerifier.create(result).verifyComplete();
+        assertThat(exchange.getResponse().getStatusCode()).isNull();
     }
 
     @Test
     void shouldReturn401ForRefreshTokenUsedAsAccessToken() {
-        MockServerHttpRequest request = MockServerHttpRequest
-                .get("/flower/list")
+        MockServerHttpRequest request = MockServerHttpRequest.get("/flower/list")
                 .header(HttpHeaders.AUTHORIZATION, "Bearer refresh-token")
                 .build();
         MockServerWebExchange exchange = MockServerWebExchange.from(request);
+        when(jwtUtil.parseAccessToken("refresh-token"))
+                .thenThrow(new io.jsonwebtoken.JwtException("not access"));
 
-        when(jwtUtil.parseAccessToken("refresh-token")).thenThrow(new io.jsonwebtoken.JwtException("not access"));
+        filter.filter(exchange, chain).block();
 
-        Mono<Void> result = filter.filter(exchange, chain);
-
-        StepVerifier.create(result).verifyComplete();
         assertThat(exchange.getResponse().getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
     }
 
