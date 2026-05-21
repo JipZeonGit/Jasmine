@@ -14,4 +14,6 @@ public class FlowerDTO {
     private BigDecimal price;
     private BigDecimal cost;
     private Integer status;
+    private Integer safeStock;
+    private Integer currentStock;
 }

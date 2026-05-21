@@ -1,14 +1,18 @@
 server:
   port: 8080
+  shutdown: graceful
 
 spring:
   application:
     name: jasmine-gateway
   profiles:
     default: dev
+  lifecycle:
+    timeout-per-shutdown-phase: 30s
   config:
     import:
       - optional:nacos:jasmine-observability.yml?refresh=true
+      - optional:nacos:jasmine-redis-common.yml?refresh=true
       - optional:nacos:jasmine-gateway.yml?refresh=true
   cloud:
     nacos:

@@ -1,6 +1,6 @@
 # Jasmine 微服务架构与详细接口说明书
 
-> 本文档基于 `microservices` 分支 Phase 0~5 全部完成后的代码基线编写，用于全面记录当前微服务架构的形态、服务拆分、接口清单、数据模型、事件驱动机制与基础设施配置。
+> 本文档基于 `microservices` 分支 Phase 0~6 完成后的代码基线编写，用于全面记录当前微服务架构的形态、服务拆分、接口清单、数据模型、事件驱动机制与基础设施配置。
 
 ---
 
@@ -93,13 +93,16 @@ jasmine-common  （依赖 common-core）
        ▲
        ├─── jasmine-iam     （依赖 common）
        ├─── jasmine-product （依赖 common）
-       ├─── jasmine-trade   （依赖 common + product + crm）
-       └─── jasmine-crm     （依赖 common + iam）
+       ├─── jasmine-trade   （依赖 common）   ← 已解除对 product/crm 的编译期依赖
+       └─── jasmine-crm     （依赖 common）   ← 已解除对 iam 的编译期依赖
 
 jasmine-gateway  （仅依赖 common-core，避免 MVC/DB/MQ 污染）
 
 jasmine-schema   （独立，仅 Flyway + MySQL）
 ```
+
+> Phase 3 完成后，所有服务间调用均通过 `RestClient + @HttpExchange` 远程接口实现，
+> 不再有跨模块的 Maven 编译期依赖。各服务可独立编译、独立部署。
 
 ### 2.4 服务职责划分
 
@@ -122,7 +125,7 @@ jasmine-schema   （独立，仅 Flyway + MySQL）
 | application.support | `{domain}.application.support` | Facade 接口，用于跨域数据访问抽象 |
 | model | `{domain}.model` | Entity + 枚举，对应数据库表 |
 | persistence | `{domain}.persistence` | Mapper 接口 + XML，数据库访问 |
-| infra.client | `infra.client` | 服务间 HTTP 调用客户端（@HttpExchange） |
+| infra.client | `infra.client` | 服务间 HTTP 调用客户端（@HttpExchange + InternalClientFactory） |
 | infra.mq.listener | `infra.mq.listener` | MQ 消费者监听器 |
 
 ---
@@ -131,7 +134,7 @@ jasmine-schema   （独立，仅 Flyway + MySQL）
 
 ### 3.1 路由配置
 
-路由规则定义在 Nacos 配置 `jasmine-gateway.yml` 中，支持运行时刷新：
+路由规则定义在 Nacos 配置 `jasmine-gateway.yml` 中，支持运行时刷新。所有路由均配置 `RequestRateLimiter` 限流过滤器（按 IP 限流，replenishRate=50，burstCapacity=100）：
 
 | 路由 ID | URI | 路径谓词 | 目标服务 |
 |:---|:---|:---|:---|
@@ -238,8 +241,11 @@ jasmine-schema   （独立，仅 Flyway + MySQL）
 | HTTP 方法 | 路径 | 说明 | 认证要求 |
 |:---|:---|:---|:---|
 | GET | `/internal/user/{id}` | 根据 ID 查询用户基本信息 | 网关令牌（服务间调用） |
+| GET | `/internal/user/active-ids-by-roles` | 按角色名查询活跃用户 ID 列表 | 网关令牌（服务间调用） |
 
-**响应**：`UserBasicDTO`（id, username, realName），无 `Result` 包装
+**响应**：
+- `GET /{id}`：`UserBasicDTO`（id, username, realName），无 `Result` 包装
+- `GET /active-ids-by-roles`：`List<Integer>`，无 `Result` 包装
 
 ---
 
@@ -271,10 +277,12 @@ jasmine-schema   （独立，仅 Flyway + MySQL）
 | HTTP 方法 | 路径 | 说明 | 认证要求 |
 |:---|:---|:---|:---|
 | GET | `/internal/flower/{id}` | 查询花卉基本信息 | 网关令牌（服务间调用） |
+| POST | `/internal/flower/batch` | 批量查询花卉基本信息 | 网关令牌（服务间调用） |
+| GET | `/internal/flower/ids-by-name` | 按名称模糊查询花卉 ID 列表 | 网关令牌（服务间调用） |
 | POST | `/internal/flower/stock/adjust` | CAS 原子库存变更 | 网关令牌（服务间调用） |
 
 **请求/响应**：
-- `FlowerDTO`：id, name, price, cost, status（无 `Result` 包装）
+- `FlowerDTO`：id, name, price, cost, status, safeStock, currentStock（无 `Result` 包装）
 - `StockAdjustRequest`：flowerId, quantity, costPrice, updateCostPrice, operatorId, reason
 - `StockAdjustResult`：success, beforeStock, currentStock, flower, message
 
@@ -396,6 +404,17 @@ jasmine-schema   （独立，仅 Flyway + MySQL）
 | GET | `/site-message/list` | 分页查询当前用户未读站内信列表 | 已登录 |
 | PUT | `/site-message/read/{id}` | 标记单条站内信为已读（验证归属） | 已登录 |
 | PUT | `/site-message/read-all` | 全部标记为已读 | 已登录 |
+
+#### VipInternalController (`/internal/vip`)
+
+| HTTP 方法 | 路径 | 说明 | 认证要求 |
+|:---|:---|:---|:---|
+| GET | `/internal/vip/{id}` | 根据 ID 查询会员基本信息 | 网关令牌（服务间调用） |
+| POST | `/internal/vip/batch` | 批量查询会员基本信息 | 网关令牌（服务间调用） |
+| GET | `/internal/vip/exists/{id}` | 判断会员是否存在 | 网关令牌（服务间调用） |
+
+**响应**：
+- `VipBasicDTO`：id, vid, name, sex, phone，无 `Result` 包装
 
 ---
 
@@ -692,17 +711,31 @@ AppointmentReminderListener 消费
 
 ### 7.1 调用方式
 
-使用 Spring 6+ `RestClient` + `@HttpExchange` 声明式接口（不使用 OpenFeign）：
+使用 Spring 6+ `RestClient` + `@HttpExchange` 声明式接口（不使用 OpenFeign）。
+
+公共客户端创建逻辑封装在 `InternalClientFactory`（`jasmine-common` 模块），各服务的 `ClientConfig` 只声明 Bean，委托工厂方法：
 
 ```java
-// trade-service 中的声明式客户端
+// trade-service ClientConfig — 纯 Bean 声明
+@Bean
+public FlowerClient flowerClient(@LoadBalanced RestClient.Builder builder, InternalClientFactory factory) {
+    return factory.createClient(builder, "http://product-service", FlowerClient.class);
+}
+
+// HTTP Interface 声明
 @HttpExchange(url = "/internal/flower", contentType = "application/json")
 public interface FlowerClient {
     @GetExchange("/{id}")
     FlowerDTO getFlowerById(@PathVariable Integer id);
 
+    @PostExchange("/batch")
+    List<FlowerDTO> getFlowersByIds(@RequestBody List<Integer> ids);
+
+    @GetExchange("/ids-by-name")
+    List<Integer> getFlowerIdsByName(@RequestParam String name);
+
     @PostExchange("/stock/adjust")
-    StockAdjustResult adjustStock(@RequestBody StockAdjustRequest request);
+    ResponseEntity<StockAdjustResult> adjustStock(@RequestBody StockAdjustRequest request);
 }
 ```
 
@@ -711,10 +744,14 @@ public interface FlowerClient {
 | 调用方 | 被调用方 | 接口 | 说明 |
 |:---|:---|:---|:---|
 | trade-service | product-service | `GET /internal/flower/{id}` | 查询花卉售价/成本 |
+| trade-service | product-service | `POST /internal/flower/batch` | 批量查询花卉信息（列表展示） |
+| trade-service | product-service | `GET /internal/flower/ids-by-name` | 按名称模糊查询花卉 ID（库存流水筛选） |
 | trade-service | product-service | `POST /internal/flower/stock/adjust` | CAS 原子库存扣减/恢复 |
 | trade-service | iam-service | `GET /internal/user/{id}` | 查询操作员姓名 |
-| crm-service | crm-service 内部 | — | 同一服务，无需远程调用 |
-| trade-service | crm-service 内部 | — | 通过 VipReadFacade 本地调用（临时依赖） |
+| trade-service | crm-service | `GET /internal/vip/{id}` | 查询会员信息 |
+| trade-service | crm-service | `POST /internal/vip/batch` | 批量查询会员信息（销售单列表） |
+| trade-service | crm-service | `GET /internal/vip/exists/{id}` | 判断会员是否存在 |
+| crm-service | iam-service | `GET /internal/user/active-ids-by-roles` | 按角色查询活跃用户 ID（预约提醒通知） |
 
 ### 7.3 内部接口设计规范
 
@@ -844,8 +881,9 @@ Payload: {
 | product | `addFlower()` | `@CacheEvict` | flowerList + flowerDetail（全部） | — |
 | product | `updateFlower()` | `@CacheEvict` | flowerList（全部）+ flowerDetail | `#flower.id` |
 | product | `deleteFlowerById()` | `@CacheEvict` | flowerList（全部）+ flowerDetail | `#id` |
-| trade | `saveSales/updateSales/deleteSales()` | `@CacheEvict` | flowerList + flowerDetail | 每个受影响的 flowerId |
-| trade | `saveInventory/updateInventory/deleteInventory()` | `@CacheEvict` | flowerList + flowerDetail | 每个受影响的 flowerId |
+
+> Phase 3 完成后，trade-service 不再持有花卉缓存。花卉数据通过远程接口从 product-service 获取，
+> 缓存由 product-service 管理（key 前缀 `product-service:`）。
 
 ---
 
@@ -854,7 +892,7 @@ Payload: {
 ### 10.1 请求级幂等
 
 - 覆盖接口：`POST /sales`、`POST /inventory`、`POST /appointment`
-- 机制：前端传 `X-Idempotency-Key` 请求头，后端 `RequestIdempotencyService` 基于 Redis SETNX 去重
+- 机制：前端 Axios 拦截器对 POST/PUT 请求自动生成 `X-Idempotency-Key`（UUID），后端 `RequestIdempotencyService` 基于 Redis SETNX 去重
 - 默认防重窗口：30 秒
 - 回退机制：Redis 不可用时降级为本地 `ConcurrentHashMap`
 - 失败释放：业务操作失败时释放幂等键，允许客户端重试
@@ -1018,6 +1056,8 @@ MySQL 启动时通过 `init-databases.sql` 自动创建 5 个数据库（jasmine
 | 配置项 | 默认值 | 说明 |
 |:---|:---|:---|
 | `server.port` | 8080(gateway)/9101(iam)/9102(product)/9103(trade)/9104(crm) | 各服务端口 |
+| `server.shutdown` | graceful | 优雅关闭 |
+| `spring.lifecycle.timeout-per-shutdown-phase` | 30s | 关闭超时 |
 | `spring.application.name` | jasmine-gateway/iam-service/product-service/trade-service/crm-service | 服务名（Nacos 注册） |
 | `app.cache.type` | memory(dev) / redis(prod) | 缓存类型 |
 | `app.security.jwt-secret` | 开发默认值 | JWT 签名密钥 |

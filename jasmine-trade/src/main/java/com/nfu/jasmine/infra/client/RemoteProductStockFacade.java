@@ -1,10 +1,10 @@
 package com.nfu.jasmine.infra.client;
 
+import com.nfu.jasmine.common.dto.internal.FlowerDTO;
+import com.nfu.jasmine.common.dto.internal.ProductStockFacade;
 import com.nfu.jasmine.common.dto.internal.StockAdjustRequest;
 import com.nfu.jasmine.common.dto.internal.StockAdjustResult;
 import com.nfu.jasmine.common.exception.BusinessException;
-import com.nfu.jasmine.flower.application.support.ProductStockFacade;
-import com.nfu.jasmine.flower.model.entity.Flower;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.cloud.client.circuitbreaker.CircuitBreaker;
@@ -17,13 +17,9 @@ import java.math.BigDecimal;
 /**
  * 远程商品库存门面实现 —— 通过 HTTP 调用 product-service 内部接口。
  * <p>
- * 标记 @Primary 使其在 trade-service 中优先于 jasmine-product 模块内的本地实现。
- * 后续移除 jasmine-product 依赖后可去掉 @Primary。
- * <p>
  * 使用 Resilience4j 断路器保护远程调用，当 product-service 持续不可用时快速失败，
  * 避免级联故障拖垮 trade-service。业务异常（库存不足等）直接透传，不触发降级。
  */
-@Primary
 @Component
 public class RemoteProductStockFacade implements ProductStockFacade {
 
@@ -72,15 +68,7 @@ public class RemoteProductStockFacade implements ProductStockFacade {
         }
 
         // 服务端在响应中直接带回完整花卉信息与 beforeStock，避免再发一次请求
-        var flowerDTO = result.getFlower();
-        Flower flower = new Flower();
-        flower.setId(flowerDTO.getId());
-        flower.setName(flowerDTO.getName());
-        flower.setSalePrice(flowerDTO.getPrice());
-        flower.setCostPrice(flowerDTO.getCost());
-        flower.setStatus(flowerDTO.getStatus());
-        flower.setCurrentStock(result.getCurrentStock());
-
-        return new StockChangeResult(flower, result.getBeforeStock(), result.getCurrentStock());
+        FlowerDTO flowerDTO = result.getFlower();
+        return new StockChangeResult(flowerDTO, result.getBeforeStock(), result.getCurrentStock());
     }
 }

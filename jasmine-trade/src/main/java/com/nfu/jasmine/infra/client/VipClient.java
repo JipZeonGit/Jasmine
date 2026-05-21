@@ -1,0 +1,29 @@
+package com.nfu.jasmine.infra.client;
+
+import com.nfu.jasmine.common.dto.internal.VipBasicDTO;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.service.annotation.GetExchange;
+import org.springframework.web.service.annotation.HttpExchange;
+import org.springframework.web.service.annotation.PostExchange;
+
+import java.util.Collection;
+import java.util.List;
+
+/**
+ * CRM 服务会员远程调用客户端。
+ * <p>
+ * 基于 Spring 6 HTTP Interface + RestClient，通过 Spring Cloud LoadBalancer 实现服务发现。
+ */
+@HttpExchange(url = "/internal/vip", contentType = "application/json")
+public interface VipClient {
+
+    @GetExchange("/{id}")
+    VipBasicDTO getVipById(@PathVariable Integer id);
+
+    @PostExchange("/batch")
+    List<VipBasicDTO> getVipsByIds(@RequestBody Collection<Integer> ids);
+
+    @GetExchange("/exists/{id}")
+    boolean existsById(@PathVariable Integer id);
+}

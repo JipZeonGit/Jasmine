@@ -30,12 +30,6 @@
 			<artifactId>spring-cloud-starter-alibaba-nacos-config</artifactId>
 		</dependency>
 
-		<!-- IAM 服务（阶段 0 临时依赖，阶段 3 改为远程调用后移除） -->
-		<dependency>
-			<groupId>com.nfu</groupId>
-			<artifactId>jasmine-iam</artifactId>
-		</dependency>
-
 		<!-- Lombok -->
 		<dependency>
 			<groupId>org.projectlombok</groupId>

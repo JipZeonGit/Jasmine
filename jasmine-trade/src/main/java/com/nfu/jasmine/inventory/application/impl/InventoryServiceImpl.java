@@ -3,26 +3,23 @@ package com.nfu.jasmine.inventory.application.impl;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
+import com.nfu.jasmine.common.dto.internal.FlowerDTO;
+import com.nfu.jasmine.common.dto.internal.ProductStockFacade;
 import com.nfu.jasmine.common.exception.BusinessException;
 import com.nfu.jasmine.common.utils.BusinessNoUtil;
 import com.nfu.jasmine.common.vo.TableData;
-import com.nfu.jasmine.flower.application.support.ProductStockFacade;
-import com.nfu.jasmine.infra.cache.CacheNames;
+import com.nfu.jasmine.infra.client.FlowerClient;
 import com.nfu.jasmine.infra.mq.message.InventoryChangedMessage;
 import com.nfu.jasmine.infra.mq.message.InventoryChangeSource;
 import com.nfu.jasmine.infra.mq.publisher.MqMessagePublisher;
-import com.nfu.jasmine.inventory.web.dto.InventoryQueryDTO;
-import com.nfu.jasmine.inventory.web.dto.InventorySaveDTO;
-import com.nfu.jasmine.flower.model.entity.Flower;
+import com.nfu.jasmine.inventory.application.IInventoryService;
 import com.nfu.jasmine.inventory.model.entity.Inventory;
 import com.nfu.jasmine.inventory.model.enumtype.InventoryBizType;
-import com.nfu.jasmine.flower.persistence.mapper.FlowerMapper;
 import com.nfu.jasmine.inventory.persistence.mapper.InventoryMapper;
-import com.nfu.jasmine.inventory.application.IInventoryService;
+import com.nfu.jasmine.inventory.web.dto.InventoryQueryDTO;
+import com.nfu.jasmine.inventory.web.dto.InventorySaveDTO;
 import com.nfu.jasmine.inventory.web.vo.InventoryVO;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.cache.Cache;
-import org.springframework.cache.CacheManager;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -31,27 +28,22 @@ import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Date;
-import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 import java.util.stream.Collectors;
 
 @Service
 public class InventoryServiceImpl extends ServiceImpl<InventoryMapper, Inventory> implements IInventoryService {
     @Autowired
-    private FlowerMapper flowerMapper;
+    private FlowerClient flowerClient;
 
     @Autowired
     private MqMessagePublisher mqMessagePublisher;
 
     @Autowired
     private ProductStockFacade productStockFacade;
-
-    @Autowired
-    private CacheManager cacheManager;
 
     @Autowired
     private com.nfu.jasmine.inventory.alert.service.InventoryAlertService inventoryAlertService;
@@ -81,11 +73,8 @@ public class InventoryServiceImpl extends ServiceImpl<InventoryMapper, Inventory
             wrapper.le(Inventory::getDate, queryDTO.getEndTime());
         }
         if (StringUtils.hasLength(queryDTO.getName())) {
-            List<Integer> flowerIds = flowerMapper.selectList(new LambdaQueryWrapper<Flower>()
-                            .like(Flower::getName, queryDTO.getName()))
-                    .stream()
-                    .map(Flower::getId)
-                    .toList();
+            // 通过远程接口按花卉名称模糊查询花卉ID列表
+            List<Integer> flowerIds = flowerClient.getFlowerIdsByName(queryDTO.getName());
             if (flowerIds.isEmpty()) {
                 TableData<InventoryVO> empty = new TableData<>();
                 empty.setTotal(0L);
@@ -118,18 +107,21 @@ public class InventoryServiceImpl extends ServiceImpl<InventoryMapper, Inventory
 
         BigDecimal unitCost = resolveUnitCost(bizType, inventoryDTO.getUnitCost());
         BigDecimal totalCost = buildTotalCost(unitCost, quantity);
+
+        // 先查花卉名称用于错误提示
+        FlowerDTO flowerInfo = flowerClient.getFlowerById(inventoryDTO.getFlowerId());
+
         ProductStockFacade.StockChangeResult stockChange = productStockFacade.adjustStock(
                 inventoryDTO.getFlowerId(),
                 bizType.apply(quantity),
                 unitCost,
                 bizType == InventoryBizType.PURCHASE_IN && unitCost != null,
-                requireFlower(inventoryDTO.getFlowerId()).getName() + "库存不足，请先补货后再操作！"
+                flowerInfo.getName() + "库存不足，请先补货后再操作！"
         );
-        Flower flower = stockChange.flower();
 
         Inventory inventory = new Inventory();
         inventory.setBizNo(BusinessNoUtil.generateInventoryBizNo());
-        inventory.setFlowerId(flower.getId());
+        inventory.setFlowerId(stockChange.flower().getId());
         inventory.setBizType(bizType.name());
         inventory.setQuantity(quantity);
         inventory.setBeforeStock(stockChange.beforeStock());
@@ -157,7 +149,6 @@ public class InventoryServiceImpl extends ServiceImpl<InventoryMapper, Inventory
                 InventoryChangeSource.MANUAL_INVENTORY,
                 InventoryChangeSource.ACTION_CREATE
         ));
-        evictFlowerCaches(Set.of(flower.getId()));
     }
 
     @Override
@@ -172,20 +163,19 @@ public class InventoryServiceImpl extends ServiceImpl<InventoryMapper, Inventory
         int newQuantity = requirePositiveQuantity(inventoryDTO.getQuantity());
         BigDecimal unitCost = resolveUnitCost(newBizType, inventoryDTO.getUnitCost());
         BigDecimal totalCost = buildTotalCost(unitCost, newQuantity);
-        Set<Integer> affectedFlowerIds = new HashSet<>();
 
         if (Objects.equals(existing.getFlowerId(), inventoryDTO.getFlowerId())) {
             // 同一花卉：先回滚旧影响 -> 得到基准库存 -> 再叠加新影响。
+            FlowerDTO flowerInfo = flowerClient.getFlowerById(existing.getFlowerId());
             ProductStockFacade.StockChangeResult stockChange = productStockFacade.adjustStock(
                     existing.getFlowerId(),
                     newBizType.apply(newQuantity) - oldDelta,
                     unitCost,
                     newBizType == InventoryBizType.PURCHASE_IN && unitCost != null,
-                    requireFlower(existing.getFlowerId()).getName() + "库存不足，请先补货后再操作！"
+                    flowerInfo.getName() + "库存不足，请先补货后再操作！"
             );
             int baseStock = stockChange.beforeStock() - oldDelta;
             int afterStock = stockChange.afterStock();
-            affectedFlowerIds.add(existing.getFlowerId());
 
             existing.setBizType(newBizType.name());
             existing.setQuantity(newQuantity);
@@ -194,15 +184,14 @@ public class InventoryServiceImpl extends ServiceImpl<InventoryMapper, Inventory
         } else {
             // 换花卉：旧花卉回滚库存，新花卉按新业务类型重新计算库存。
             productStockFacade.adjustStock(existing.getFlowerId(), -oldDelta, null, false, null);
+            FlowerDTO newFlowerInfo = flowerClient.getFlowerById(inventoryDTO.getFlowerId());
             ProductStockFacade.StockChangeResult stockChange = productStockFacade.adjustStock(
                     inventoryDTO.getFlowerId(),
                     newBizType.apply(newQuantity),
                     unitCost,
                     newBizType == InventoryBizType.PURCHASE_IN && unitCost != null,
-                    requireFlower(inventoryDTO.getFlowerId()).getName() + "库存不足，请先补货后再操作！"
+                    newFlowerInfo.getName() + "库存不足，请先补货后再操作！"
             );
-            affectedFlowerIds.add(existing.getFlowerId());
-            affectedFlowerIds.add(inventoryDTO.getFlowerId());
 
             existing.setFlowerId(inventoryDTO.getFlowerId());
             existing.setBizType(newBizType.name());
@@ -233,8 +222,6 @@ public class InventoryServiceImpl extends ServiceImpl<InventoryMapper, Inventory
                 InventoryChangeSource.MANUAL_INVENTORY,
                 InventoryChangeSource.ACTION_UPDATE
         ));
-
-        evictFlowerCaches(affectedFlowerIds);
     }
 
     @Override
@@ -251,16 +238,15 @@ public class InventoryServiceImpl extends ServiceImpl<InventoryMapper, Inventory
                 existing.getBizNo(),
                 existing.getFlowerId(),
                 existing.getBizType(),
-                -existing.getQuantity(), // 删除用负数表示
+                -existing.getQuantity(),
                 existing.getAfterStock(),
-                existing.getBeforeStock(), // 删除后的库存是删除前的值
+                existing.getBeforeStock(),
                 existing.getOperatorId(),
                 existing.getDate(),
                 new Date(),
                 InventoryChangeSource.MANUAL_INVENTORY,
                 InventoryChangeSource.ACTION_DELETE
         ));
-        evictFlowerCaches(Set.of(existing.getFlowerId()));
     }
 
     private List<InventoryVO> buildInventoryVOs(List<Inventory> records) {
@@ -268,14 +254,14 @@ public class InventoryServiceImpl extends ServiceImpl<InventoryMapper, Inventory
             return Collections.emptyList();
         }
 
-        // 列表展示需要花名，但流水表只存 flowerId，这里统一做一次批量回填。
+        // 列表展示需要花名，但流水表只存 flowerId，通过远程接口批量回填。
         Set<Integer> flowerIds = records.stream().map(Inventory::getFlowerId).collect(Collectors.toSet());
-        Map<Integer, Flower> flowerMap = flowerMapper.selectBatchIds(flowerIds).stream()
-                .collect(Collectors.toMap(Flower::getId, flower -> flower, (left, right) -> left, LinkedHashMap::new));
+        Map<Integer, FlowerDTO> flowerMap = flowerClient.getFlowersByIds(new ArrayList<>(flowerIds)).stream()
+                .collect(Collectors.toMap(FlowerDTO::getId, f -> f, (left, right) -> left, LinkedHashMap::new));
 
         List<InventoryVO> result = new ArrayList<>(records.size());
         for (Inventory inventory : records) {
-            Flower flower = flowerMap.get(inventory.getFlowerId());
+            FlowerDTO flower = flowerMap.get(inventory.getFlowerId());
             InventoryBizType bizType = InventoryBizType.fromCode(inventory.getBizType());
             InventoryVO vo = new InventoryVO();
             vo.setId(inventory.getId());
@@ -304,14 +290,6 @@ public class InventoryServiceImpl extends ServiceImpl<InventoryMapper, Inventory
         return inventory;
     }
 
-    private Flower requireFlower(Integer flowerId) {
-        Flower flower = flowerMapper.selectById(flowerId);
-        if (flower == null) {
-            throw new BusinessException("花卉不存在或已下架！");
-        }
-        return flower;
-    }
-
     private int requirePositiveQuantity(Integer quantity) {
         if (quantity == null || quantity <= 0) {
             throw new BusinessException("变动数量必须大于 0！");
@@ -336,23 +314,8 @@ public class InventoryServiceImpl extends ServiceImpl<InventoryMapper, Inventory
         return unitCost.multiply(BigDecimal.valueOf(quantity));
     }
 
-    private void evictFlowerCaches(Set<Integer> flowerIds) {
-        Cache flowerListCache = cacheManager.getCache(CacheNames.FLOWER_LIST);
-        if (flowerListCache != null) {
-            flowerListCache.evict("all");
-        }
-        Cache flowerDetailCache = cacheManager.getCache(CacheNames.FLOWER_DETAIL);
-        if (flowerDetailCache != null) {
-            for (Integer flowerId : flowerIds) {
-                flowerDetailCache.evict(flowerId);
-            }
-        }
-    }
-
     @Override
     public Long getLowStockCount() {
         return inventoryAlertService.getLowStockCount();
     }
 }
-
-

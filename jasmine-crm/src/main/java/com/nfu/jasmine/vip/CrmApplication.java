@@ -19,8 +19,7 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 @MapperScan({"com.nfu.jasmine.vip.persistence.mapper",
 		"com.nfu.jasmine.appointment.persistence.mapper",
 		"com.nfu.jasmine.infra.notification.persistence.mapper",
-		"com.nfu.jasmine.infra.outbox.persistence.mapper",
-		"com.nfu.jasmine.iam.persistence.mapper"})
+		"com.nfu.jasmine.infra.outbox.persistence.mapper"})
 public class CrmApplication {
 
 	public static void main(String[] args) {

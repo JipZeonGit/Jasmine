@@ -6,9 +6,12 @@ import com.nfu.jasmine.common.dto.internal.StockAdjustResult;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.service.annotation.GetExchange;
 import org.springframework.web.service.annotation.HttpExchange;
 import org.springframework.web.service.annotation.PostExchange;
+
+import java.util.List;
 
 /**
  * 商品服务远程调用客户端。
@@ -21,6 +24,12 @@ public interface FlowerClient {
 
     @GetExchange("/{id}")
     FlowerDTO getFlowerById(@PathVariable Integer id);
+
+    @PostExchange("/batch")
+    List<FlowerDTO> getFlowersByIds(@RequestBody List<Integer> ids);
+
+    @GetExchange("/ids-by-name")
+    List<Integer> getFlowerIdsByName(@RequestParam String name);
 
     @PostExchange("/stock/adjust")
     ResponseEntity<StockAdjustResult> adjustStock(@RequestBody StockAdjustRequest request);

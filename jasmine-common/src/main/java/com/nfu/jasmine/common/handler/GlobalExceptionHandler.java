@@ -1,6 +1,7 @@
 package com.nfu.jasmine.common.handler;
 
 import com.nfu.jasmine.common.enums.ResultCode;
+import com.nfu.jasmine.common.exception.BusinessException;
 import com.nfu.jasmine.common.vo.Result;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.ConstraintViolationException;
@@ -15,13 +16,12 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 
+import java.util.concurrent.TimeoutException;
+
 /**
+ * 全局异常处理器。
  * <p>
- * 全局异常处理器
- * </p>
- *
- * @author jipzeongit
- * @since 2026-04-07
+ * 覆盖参数校验、数据库约束、业务异常、远程调用超时、断路器熔断等场景。
  */
 @RestControllerAdvice
 public class GlobalExceptionHandler {
@@ -67,8 +67,28 @@ public class GlobalExceptionHandler {
         return Result.fail(ResultCode.CONFLICT, "数据违反唯一约束或关联约束，请检查后重试！");
     }
 
+    /**
+     * 远程调用超时 —— RestClient 或 WebClient 调用下游服务超时。
+     */
+    @ExceptionHandler(TimeoutException.class)
+    public Result<Object> handleTimeoutException(TimeoutException e, HttpServletRequest request) {
+        log.error("远程调用超时 method={} uri={}", request.getMethod(), request.getRequestURI(), e);
+        return Result.fail(ResultCode.SERVER_ERROR, "服务调用超时，请稍后重试！");
+    }
+
+    /**
+     * Resilience4j 断路器熔断 —— 下游服务持续不可用时触发。
+     * <p>
+     * 异常全限定名：io.github.resilience4j.circuitbreaker.CallNotPermittedException
+     * 通过 Exception 类名字符串匹配，避免 common 模块直接依赖 resilience4j。
+     */
     @ExceptionHandler(Exception.class)
     public Result<Object> handleException(Exception e, HttpServletRequest request) {
+        // 断路器熔断异常特殊处理：返回 503 语义，让前端提示"服务暂时不可用"
+        if ("io.github.resilience4j.circuitbreaker.CallNotPermittedException".equals(e.getClass().getName())) {
+            log.error("断路器熔断 method={} uri={}", request.getMethod(), request.getRequestURI(), e);
+            return Result.fail(ResultCode.SERVER_ERROR, "下游服务暂时不可用，请稍后重试！");
+        }
         log.error("系统异常 method={} uri={}", request.getMethod(), request.getRequestURI(), e);
         return Result.fail(ResultCode.SERVER_ERROR);
     }

@@ -1,5 +1,7 @@
 package com.nfu.jasmine.flower.application.support;
 
+import com.nfu.jasmine.common.dto.internal.FlowerDTO;
+import com.nfu.jasmine.common.dto.internal.ProductStockFacade;
 import com.nfu.jasmine.common.enums.ResultCode;
 import com.nfu.jasmine.common.exception.BusinessException;
 import com.nfu.jasmine.flower.model.entity.Flower;
@@ -46,7 +48,7 @@ public class FlowerStockService implements ProductStockFacade {
                 if (updateCostPrice) {
                     flower.setCostPrice(costPrice);
                 }
-                return new ProductStockFacade.StockChangeResult(flower, beforeStock, afterStock);
+                return new ProductStockFacade.StockChangeResult(toFlowerDTO(flower), beforeStock, afterStock);
             }
         }
         throw new BusinessException(ResultCode.CONFLICT, "库存正在被其他请求更新，请稍后重试！");
@@ -62,5 +64,15 @@ public class FlowerStockService implements ProductStockFacade {
 
     private int safeStock(Flower flower) {
         return flower.getCurrentStock() == null ? 0 : flower.getCurrentStock();
+    }
+
+    private FlowerDTO toFlowerDTO(Flower flower) {
+        FlowerDTO dto = new FlowerDTO();
+        dto.setId(flower.getId());
+        dto.setName(flower.getName());
+        dto.setPrice(flower.getSalePrice());
+        dto.setCost(flower.getCostPrice());
+        dto.setStatus(flower.getStatus());
+        return dto;
     }
 }

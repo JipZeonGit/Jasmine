@@ -40,4 +40,6 @@ public interface IUserService extends IService<User> {
     User getActiveUserById(Integer id);
 
     List<String> getRoleNamesByUserId(Integer userId);
+
+    List<Integer> getActiveUserIdsByRoleNames(List<String> roleNames);
 }

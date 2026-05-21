@@ -3,36 +3,33 @@ package com.nfu.jasmine.sales.application.impl;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
+import com.nfu.jasmine.common.dto.internal.FlowerDTO;
+import com.nfu.jasmine.common.dto.internal.ProductStockFacade;
 import com.nfu.jasmine.common.exception.BusinessException;
 import com.nfu.jasmine.common.utils.BusinessNoUtil;
 import com.nfu.jasmine.common.vo.TableData;
-import com.nfu.jasmine.flower.application.support.ProductStockFacade;
-import com.nfu.jasmine.infra.cache.CacheNames;
+import com.nfu.jasmine.infra.client.FlowerClient;
+import com.nfu.jasmine.infra.client.VipClient;
 import com.nfu.jasmine.infra.mq.message.InventoryChangedMessage;
 import com.nfu.jasmine.infra.mq.message.InventoryChangeSource;
 import com.nfu.jasmine.infra.mq.message.SalesCreatedMessage;
 import com.nfu.jasmine.infra.mq.publisher.MqMessagePublisher;
+import com.nfu.jasmine.inventory.model.entity.Inventory;
+import com.nfu.jasmine.inventory.model.enumtype.InventoryBizType;
+import com.nfu.jasmine.inventory.persistence.mapper.InventoryMapper;
+import com.nfu.jasmine.sales.application.ISalesService;
+import com.nfu.jasmine.sales.model.entity.Sales;
+import com.nfu.jasmine.sales.model.entity.SalesItem;
+import com.nfu.jasmine.sales.persistence.mapper.SalesItemMapper;
+import com.nfu.jasmine.sales.persistence.mapper.SalesMapper;
 import com.nfu.jasmine.sales.web.dto.SalesItemSaveDTO;
 import com.nfu.jasmine.sales.web.dto.SalesQueryDTO;
 import com.nfu.jasmine.sales.web.dto.SalesSaveDTO;
-import com.nfu.jasmine.flower.model.entity.Flower;
-import com.nfu.jasmine.inventory.model.entity.Inventory;
-import com.nfu.jasmine.sales.model.entity.Sales;
-import com.nfu.jasmine.sales.model.entity.SalesItem;
-import com.nfu.jasmine.vip.model.entity.Vip;
-import com.nfu.jasmine.inventory.model.enumtype.InventoryBizType;
-import com.nfu.jasmine.flower.persistence.mapper.FlowerMapper;
-import com.nfu.jasmine.inventory.persistence.mapper.InventoryMapper;
-import com.nfu.jasmine.sales.persistence.mapper.SalesItemMapper;
-import com.nfu.jasmine.sales.persistence.mapper.SalesMapper;
-import com.nfu.jasmine.vip.application.support.VipReadFacade;
-import com.nfu.jasmine.sales.application.ISalesService;
 import com.nfu.jasmine.sales.web.vo.SalesItemVO;
 import com.nfu.jasmine.sales.web.vo.SalesVO;
 import com.nfu.jasmine.sales.web.vo.TodayBusinessSummaryVO;
+import com.nfu.jasmine.common.dto.internal.VipBasicDTO;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.cache.Cache;
-import org.springframework.cache.CacheManager;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -59,22 +56,19 @@ public class SalesServiceImpl extends ServiceImpl<SalesMapper, Sales> implements
     private SalesItemMapper salesItemMapper;
 
     @Autowired
-    private FlowerMapper flowerMapper;
-
-    @Autowired
     private InventoryMapper inventoryMapper;
 
     @Autowired
-    private VipReadFacade vipReadFacade;
+    private FlowerClient flowerClient;
+
+    @Autowired
+    private VipClient vipClient;
 
     @Autowired
     private MqMessagePublisher mqMessagePublisher;
 
     @Autowired
     private ProductStockFacade productStockFacade;
-
-    @Autowired
-    private CacheManager cacheManager;
 
     @Override
     public List<SalesVO> listSales() {
@@ -119,7 +113,7 @@ public class SalesServiceImpl extends ServiceImpl<SalesMapper, Sales> implements
         Date startTime = Date.from(today.atStartOfDay(BUSINESS_ZONE).toInstant());
         Date endTime = Date.from(today.plusDays(1).atStartOfDay(BUSINESS_ZONE).toInstant());
 
-        // 统计按业务日自然日口径汇总，避免页面把“今日”理解成最近 24 小时。
+        // 统计按业务日自然日口径汇总，避免页面把"今日"理解成最近 24 小时。
         List<Sales> todaySalesList = this.list(new LambdaQueryWrapper<Sales>()
                 .ge(Sales::getDate, startTime)
                 .lt(Sales::getDate, endTime));
@@ -170,8 +164,7 @@ public class SalesServiceImpl extends ServiceImpl<SalesMapper, Sales> implements
         sales.setDeleted(0);
         this.save(sales);
 
-        Set<Integer> affectedFlowerIds = new HashSet<>();
-        BigDecimal totalAmount = rebuildSalesItems(sales, salesDTO.getItems(), operatorId, affectedFlowerIds);
+        BigDecimal totalAmount = rebuildSalesItems(sales, salesDTO.getItems(), operatorId);
         sales.setTotalAmount(totalAmount);
         this.updateById(sales);
 
@@ -186,7 +179,6 @@ public class SalesServiceImpl extends ServiceImpl<SalesMapper, Sales> implements
                 sales.getDate(),
                 new Date()
         ));
-        evictFlowerCaches(affectedFlowerIds);
     }
 
     @Override
@@ -195,8 +187,7 @@ public class SalesServiceImpl extends ServiceImpl<SalesMapper, Sales> implements
         Sales existing = requireSales(salesDTO.getId());
         validateVipIfPresent(salesDTO.getVipId());
 
-        // 修改采用“先回滚再重建”策略：把旧明细库存全部恢复，然后按新明细重新扣减。
-        Set<Integer> affectedFlowerIds = new HashSet<>(collectFlowerIds(listSalesItemsBySalesId(existing.getId())));
+        // 修改采用"先回滚再重建"策略：把旧明细库存全部恢复，然后按新明细重新扣减。
         restoreSales(existing);
 
         // 销售单修改后，需要为被回补的旧库存发送ROLLBACK事件
@@ -225,17 +216,15 @@ public class SalesServiceImpl extends ServiceImpl<SalesMapper, Sales> implements
         existing.setRemark(salesDTO.getRemark());
         existing.setOperatorId(operatorId);
 
-        BigDecimal totalAmount = rebuildSalesItems(existing, salesDTO.getItems(), operatorId, affectedFlowerIds);
+        BigDecimal totalAmount = rebuildSalesItems(existing, salesDTO.getItems(), operatorId);
         existing.setTotalAmount(totalAmount);
         this.updateById(existing);
-        evictFlowerCaches(affectedFlowerIds);
     }
 
     @Override
     @Transactional
     public void deleteSales(Integer id) {
         Sales existing = requireSales(id);
-        Set<Integer> affectedFlowerIds = new HashSet<>(collectFlowerIds(listSalesItemsBySalesId(existing.getId())));
         restoreSales(existing);
         
         // 销售单删除后，需要为被回补的库存发送ROLLBACK事件
@@ -248,9 +237,9 @@ public class SalesServiceImpl extends ServiceImpl<SalesMapper, Sales> implements
                     inventory.getBizNo(),
                     inventory.getFlowerId(),
                     inventory.getBizType(),
-                    -inventory.getQuantity(), // 回补用负数表示
+                    -inventory.getQuantity(),
                     inventory.getAfterStock(),
-                    inventory.getBeforeStock(), // 回补后的库存是删除前的值
+                    inventory.getBeforeStock(),
                     inventory.getOperatorId(),
                     inventory.getDate(),
                     new Date(),
@@ -260,7 +249,6 @@ public class SalesServiceImpl extends ServiceImpl<SalesMapper, Sales> implements
         }
         
         this.removeById(id);
-        evictFlowerCaches(affectedFlowerIds);
     }
 
     // 回滚销售单对库存的影响：把已出库的数量加回花卉库存，然后清除明细和对应的库存流水。
@@ -276,7 +264,7 @@ public class SalesServiceImpl extends ServiceImpl<SalesMapper, Sales> implements
                 .eq(Inventory::getBizType, InventoryBizType.SALE_OUT.name()));
     }
 
-    private BigDecimal rebuildSalesItems(Sales sales, List<SalesItemSaveDTO> items, Integer operatorId, Set<Integer> affectedFlowerIds) {
+    private BigDecimal rebuildSalesItems(Sales sales, List<SalesItemSaveDTO> items, Integer operatorId) {
         if (items == null || items.isEmpty()) {
             throw new BusinessException("销售明细不能为空！");
         }
@@ -291,18 +279,17 @@ public class SalesServiceImpl extends ServiceImpl<SalesMapper, Sales> implements
                     false,
                     "库存不足，请调整销售数量！"
             );
-            Flower flower = stockChange.flower();
+            FlowerDTO flower = stockChange.flower();
             BigDecimal unitPrice = requirePositivePrice(itemDTO.getUnitPrice(), "销售单价必须大于 0！");
-            BigDecimal unitCost = requirePositivePrice(flower.getCostPrice(), "请先维护花卉成本价，再创建销售单！");
+            BigDecimal unitCost = requirePositivePrice(flower.getCost(), "请先维护花卉成本价，再创建销售单！");
             int beforeStock = stockChange.beforeStock();
             int afterStock = stockChange.afterStock();
-            affectedFlowerIds.add(flower.getId());
 
             BigDecimal amount = unitPrice.multiply(BigDecimal.valueOf(quantity));
             BigDecimal costAmount = unitCost.multiply(BigDecimal.valueOf(quantity));
             totalAmount = totalAmount.add(amount);
 
-            // 明细里冻结销售时刻的成本快照，避免花卉成本后续变化把历史毛利“改写”掉。
+            // 明细里冻结销售时刻的成本快照，避免花卉成本后续变化把历史毛利"改写"掉。
             SalesItem salesItem = new SalesItem();
             salesItem.setSalesId(sales.getId());
             salesItem.setFlowerId(flower.getId());
@@ -314,7 +301,7 @@ public class SalesServiceImpl extends ServiceImpl<SalesMapper, Sales> implements
             salesItem.setDeleted(0);
             salesItemMapper.insert(salesItem);
 
-            // 销售出库也写入库存流水，保证“销售链路”和“库存链路”始终能对得上。
+            // 销售出库也写入库存流水，保证"销售链路"和"库存链路"始终能对得上。
             Inventory inventory = new Inventory();
             inventory.setBizNo(sales.getOrderNo());
             inventory.setFlowerId(flower.getId());
@@ -349,10 +336,6 @@ public class SalesServiceImpl extends ServiceImpl<SalesMapper, Sales> implements
         return totalAmount;
     }
 
-    private Set<Integer> collectFlowerIds(List<SalesItem> items) {
-        return items.stream().map(SalesItem::getFlowerId).collect(Collectors.toSet());
-    }
-
     private List<SalesVO> buildSalesVOs(List<Sales> records) {
         if (records == null || records.isEmpty()) {
             return Collections.emptyList();
@@ -365,9 +348,10 @@ public class SalesServiceImpl extends ServiceImpl<SalesMapper, Sales> implements
                 .filter(id -> id != null)
                 .collect(Collectors.toSet());
 
-        Map<Integer, Vip> vipMap = vipIds.isEmpty()
+        Map<Integer, VipBasicDTO> vipMap = vipIds.isEmpty()
                 ? Collections.emptyMap()
-                : vipReadFacade.findByIds(vipIds);
+                : vipClient.getVipsByIds(new ArrayList<>(vipIds)).stream()
+                .collect(Collectors.toMap(VipBasicDTO::getId, v -> v, (left, right) -> left, LinkedHashMap::new));
 
         List<SalesItem> salesItems = salesItemMapper.selectList(new LambdaQueryWrapper<SalesItem>()
                 .in(SalesItem::getSalesId, salesIds)
@@ -375,14 +359,14 @@ public class SalesServiceImpl extends ServiceImpl<SalesMapper, Sales> implements
         Map<Integer, List<SalesItem>> itemGroup = salesItems.stream().collect(Collectors.groupingBy(SalesItem::getSalesId));
 
         Set<Integer> flowerIds = salesItems.stream().map(SalesItem::getFlowerId).collect(Collectors.toSet());
-        Map<Integer, Flower> flowerMap = flowerIds.isEmpty()
+        Map<Integer, FlowerDTO> flowerMap = flowerIds.isEmpty()
                 ? Collections.emptyMap()
-                : flowerMapper.selectBatchIds(flowerIds).stream()
-                .collect(Collectors.toMap(Flower::getId, flower -> flower, (left, right) -> left, LinkedHashMap::new));
+                : flowerClient.getFlowersByIds(new ArrayList<>(flowerIds)).stream()
+                .collect(Collectors.toMap(FlowerDTO::getId, f -> f, (left, right) -> left, LinkedHashMap::new));
 
         List<SalesVO> result = new ArrayList<>(records.size());
         for (Sales sales : records) {
-            Vip vip = sales.getVipId() == null ? null : vipMap.get(sales.getVipId());
+            VipBasicDTO vip = sales.getVipId() == null ? null : vipMap.get(sales.getVipId());
             List<SalesItemVO> itemVOList = itemGroup.getOrDefault(sales.getId(), Collections.emptyList()).stream()
                     .map(item -> toSalesItemVO(item, flowerMap.get(item.getFlowerId())))
                     .toList();
@@ -403,7 +387,7 @@ public class SalesServiceImpl extends ServiceImpl<SalesMapper, Sales> implements
         return result;
     }
 
-    private SalesItemVO toSalesItemVO(SalesItem item, Flower flower) {
+    private SalesItemVO toSalesItemVO(SalesItem item, FlowerDTO flower) {
         SalesItemVO vo = new SalesItemVO();
         vo.setId(item.getId());
         vo.setFlowerId(item.getFlowerId());
@@ -431,17 +415,17 @@ public class SalesServiceImpl extends ServiceImpl<SalesMapper, Sales> implements
     }
 
     private void validateVipIfPresent(Integer vipId) {
-        if (vipId != null && !vipReadFacade.existsById(vipId)) {
-            throw new BusinessException("所选会员不存在，请刷新后重试！");
+        if (vipId != null) {
+            try {
+                VipBasicDTO vip = vipClient.getVipById(vipId);
+                if (vip == null) {
+                    throw new BusinessException("所选会员不存在，请刷新后重试！");
+                }
+            } catch (BusinessException e) {
+                // 远程接口返回 404 时抛出的 BusinessException，直接透传
+                throw new BusinessException("所选会员不存在，请刷新后重试！");
+            }
         }
-    }
-
-    private Flower requireFlower(Integer flowerId) {
-        Flower flower = flowerMapper.selectById(flowerId);
-        if (flower == null) {
-            throw new BusinessException("花卉不存在或已下架！");
-        }
-        return flower;
     }
 
     private int requirePositiveQuantity(Integer quantity, String message) {
@@ -458,24 +442,9 @@ public class SalesServiceImpl extends ServiceImpl<SalesMapper, Sales> implements
         return price;
     }
 
-    private void evictFlowerCaches(Set<Integer> flowerIds) {
-        Cache flowerListCache = cacheManager.getCache(CacheNames.FLOWER_LIST);
-        if (flowerListCache != null) {
-            flowerListCache.evict("all");
-        }
-        Cache flowerDetailCache = cacheManager.getCache(CacheNames.FLOWER_DETAIL);
-        if (flowerDetailCache != null) {
-            for (Integer flowerId : flowerIds) {
-                flowerDetailCache.evict(flowerId);
-            }
-        }
-    }
-
     private BigDecimal sumBigDecimal(List<BigDecimal> values) {
         return values.stream()
                 .filter(value -> value != null)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
     }
 }
-
-

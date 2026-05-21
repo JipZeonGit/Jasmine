@@ -7,10 +7,9 @@ import com.nfu.jasmine.iam.application.IUserService;
 import com.nfu.jasmine.iam.model.entity.User;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
 
 /**
  * 用户内部接口 —— 仅供服务间调用，网关层拦截外部访问。
@@ -34,6 +33,12 @@ public class UserInternalController {
             throw new BusinessException(ResultCode.NOT_FOUND, "用户不存在！");
         }
         return toUserBasicDTO(user);
+    }
+
+    @Operation(summary = "按角色名查询活跃用户ID列表（内部）")
+    @GetMapping("/active-ids-by-roles")
+    public List<Integer> getActiveUserIdsByRoles(@RequestParam List<String> roleNames) {
+        return userService.getActiveUserIdsByRoleNames(roleNames);
     }
 
     private UserBasicDTO toUserBasicDTO(User user) {

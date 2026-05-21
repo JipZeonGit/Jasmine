@@ -2,13 +2,13 @@ package com.nfu.jasmine.infra.mq.listener;
 
 import com.nfu.jasmine.appointment.model.entity.Appointment;
 import com.nfu.jasmine.appointment.persistence.mapper.AppointmentMapper;
+import com.nfu.jasmine.infra.client.CrmUserClient;
 import com.nfu.jasmine.infra.mq.JasmineMqConstants;
 import com.nfu.jasmine.infra.mq.MqKeyNames;
 import com.nfu.jasmine.infra.mq.message.AppointmentCreatedMessage;
 import com.nfu.jasmine.infra.mq.support.MqIdempotencyService;
 import com.nfu.jasmine.infra.mq.support.MqMessageSupport;
 import com.nfu.jasmine.infra.notification.service.SiteMessageService;
-import com.nfu.jasmine.iam.persistence.mapper.UserMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
@@ -29,19 +29,22 @@ import java.util.List;
 public class AppointmentReminderListener {
     private static final Logger log = LoggerFactory.getLogger(AppointmentReminderListener.class);
 
+    /** 预约提醒站内信的接收角色列表 */
+    private static final List<String> REMINDER_RECEIVER_ROLES = List.of("admin", "Boss", "clerk");
+
     private final SiteMessageService siteMessageService;
     private final AppointmentMapper appointmentMapper;
     private final MqIdempotencyService mqIdempotencyService;
-    private final UserMapper userMapper;
+    private final CrmUserClient crmUserClient;
 
     public AppointmentReminderListener(SiteMessageService siteMessageService,
                                        AppointmentMapper appointmentMapper,
                                        MqIdempotencyService mqIdempotencyService,
-                                       UserMapper userMapper) {
+                                       CrmUserClient crmUserClient) {
         this.siteMessageService = siteMessageService;
         this.appointmentMapper = appointmentMapper;
         this.mqIdempotencyService = mqIdempotencyService;
-        this.userMapper = userMapper;
+        this.crmUserClient = crmUserClient;
     }
 
     @RabbitListener(queues = JasmineMqConstants.APPOINTMENT_REMINDER_QUEUE)
@@ -88,7 +91,8 @@ public class AppointmentReminderListener {
             content = "无备注";
         }
 
-        List<Integer> receiverUserIds = userMapper.getActiveUserIdsByRoleNames(List.of("admin", "Boss", "clerk"));
+        // 通过远程接口查询活跃用户
+        List<Integer> receiverUserIds = crmUserClient.getActiveUserIdsByRoles(REMINDER_RECEIVER_ROLES);
         siteMessageService.createForUsers(
                 "APPOINTMENT_REMINDER",
                 String.valueOf(message.getAppointmentId()),

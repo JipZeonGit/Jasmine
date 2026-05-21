@@ -36,18 +36,6 @@
 			<artifactId>spring-cloud-starter-circuitbreaker-resilience4j</artifactId>
 		</dependency>
 
-		<!-- 商品服务（阶段 0 临时依赖，阶段 3 改为远程调用后移除） -->
-		<dependency>
-			<groupId>com.nfu</groupId>
-			<artifactId>jasmine-product</artifactId>
-		</dependency>
-
-		<!-- CRM 服务（阶段 0 临时依赖，阶段 3 改为远程调用后移除） -->
-		<dependency>
-			<groupId>com.nfu</groupId>
-			<artifactId>jasmine-crm</artifactId>
-		</dependency>
-
 		<!-- Lombok -->
 		<dependency>
 			<groupId>org.projectlombok</groupId>

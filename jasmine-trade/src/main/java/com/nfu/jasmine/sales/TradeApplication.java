@@ -13,9 +13,6 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 @SpringBootApplication(scanBasePackages = {
 		"com.nfu.jasmine.sales",
 		"com.nfu.jasmine.inventory",
-		"com.nfu.jasmine.flower",
-		"com.nfu.jasmine.vip",
-		"com.nfu.jasmine.appointment",
 		"com.nfu.jasmine.infra",
 		"com.nfu.jasmine.common",
 		"com.nfu.jasmine.config"
@@ -24,11 +21,6 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 @MapperScan({"com.nfu.jasmine.sales.persistence.mapper",
 		"com.nfu.jasmine.inventory.persistence.mapper",
 		"com.nfu.jasmine.inventory.alert.persistence.mapper",
-		"com.nfu.jasmine.flower.persistence.mapper",
-		"com.nfu.jasmine.vip.persistence.mapper",
-		"com.nfu.jasmine.appointment.persistence.mapper",
-		"com.nfu.jasmine.infra.notification.persistence.mapper",
-		"com.nfu.jasmine.iam.persistence.mapper",
 		"com.nfu.jasmine.infra.outbox.persistence.mapper"})
 public class TradeApplication {
 

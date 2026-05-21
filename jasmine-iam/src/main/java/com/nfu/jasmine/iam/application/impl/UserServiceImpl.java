@@ -288,6 +288,11 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements IU
         authRefreshTokenMapper.update(null, wrapper);
     }
 
+    @Override
+    public List<Integer> getActiveUserIdsByRoleNames(List<String> roleNames) {
+        return userMapper.getActiveUserIdsByRoleNames(roleNames);
+    }
+
     private boolean isUserActive(User user) {
         return user != null
                 && !Integer.valueOf(1).equals(user.getDeleted())

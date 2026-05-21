@@ -50,6 +50,10 @@ service.interceptors.request.use((config) => {
   if (shouldAttachToken) {
     config.headers.Authorization = `Bearer ${token}`
   }
+  // POST/PUT 请求自动生成幂等键，防止重复提交
+  if (config.method === 'post' || config.method === 'put') {
+    config.headers['X-Idempotency-Key'] = crypto.randomUUID()
+  }
   return config
 })
 

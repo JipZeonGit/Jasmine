@@ -12,21 +12,45 @@ spring:
           uri: lb://iam-service
           predicates:
             - Path=/user/**,/role/**,/menu/**,/sys/**
+          filters:
+            - name: RequestRateLimiter
+              args:
+                redis-rate-limiter.replenishRate: 50
+                redis-rate-limiter.burstCapacity: 100
+                key-resolver: "#{@ipKeyResolver}"
         # 商品服务：花卉主数据
         - id: product-service
           uri: lb://product-service
           predicates:
             - Path=/flower/**
+          filters:
+            - name: RequestRateLimiter
+              args:
+                redis-rate-limiter.replenishRate: 50
+                redis-rate-limiter.burstCapacity: 100
+                key-resolver: "#{@ipKeyResolver}"
         # 交易服务：销售/库存/库存预警
         - id: trade-service
           uri: lb://trade-service
           predicates:
             - Path=/sales/**,/inventory/**,/inventory-alert/**
+          filters:
+            - name: RequestRateLimiter
+              args:
+                redis-rate-limiter.replenishRate: 50
+                redis-rate-limiter.burstCapacity: 100
+                key-resolver: "#{@ipKeyResolver}"
         # CRM 服务：会员/预约/站内通知
         - id: crm-service
           uri: lb://crm-service
           predicates:
             - Path=/vip/**,/appointment/**,/site-message/**
+          filters:
+            - name: RequestRateLimiter
+              args:
+                redis-rate-limiter.replenishRate: 50
+                redis-rate-limiter.burstCapacity: 100
+                key-resolver: "#{@ipKeyResolver}"
 
 app:
   cors:

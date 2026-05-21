@@ -1,7 +1,7 @@
 # Jasmine
 
 > **分支说明**：
-> 当前 `microservices` 分支已完成微服务迁移 Phase0 ~ Phase5：Maven 多模块拆分、Nacos 配置/注册接入、Gateway 路由与鉴权、服务间远程调用（RestClient + 共享密钥）、数据库按服务独立拆分、前端适配与安全加固、Docker 开发/生产环境全链路就绪。
+> 当前 `microservices` 分支已完成微服务迁移 Phase0 ~ Phase6：Maven 多模块拆分、Nacos 配置/注册接入、Gateway 路由与鉴权、服务间远程调用（RestClient + 共享密钥）、数据库按服务独立拆分、前端适配与安全加固、**服务间编译期耦合彻底解除（Phase3）**、**架构加固：优雅关闭 / 网关限流 / 前端幂等键 / 异常处理器（Phase6）**。
 
 一个面向花店门店场景的管理系统，当前包含：
 
@@ -17,6 +17,8 @@
 - 高并发本地消息表（Outbox）及全链路强一致性预警机制构建
 - 基于延时死信架构的业务级消息定时提醒及前端闭环
 - 微服务 Phase0~Phase5 全阶段完成（模块拆分 → Nacos → Gateway → 服务通信 → 数据库拆分 → 前端适配与安全加固）
+- 微服务 Phase3 远程化完成（trade→product / trade→crm / crm→iam 编译期耦合彻底解除，各服务独立可部署）
+- 微服务 Phase6 架构加固完成（优雅关闭 / 网关限流 / 前端幂等键 / 异常处理器补充）
 
 ## 当前技术栈
 
@@ -91,14 +93,15 @@
 
 ### 安全架构
 
-- **网关层**：Gateway 统一进行 JWT 鉴权，向下游透传 `X-User-Id` / `X-User-Role` / `X-Gateway-Token`
+- **网关层**：Gateway 统一进行 JWT 鉴权，向下游透传 `X-User-Id` / `X-User-Name` / `X-Gateway-Token`；配置 `RequestRateLimiter` 按 IP 限流
 - **下游服务层**：`InternalEndpointGuardFilter` 拦截所有业务请求，强制校验 `X-Gateway-Token` 共享密钥，阻止绕过网关直连微服务端口的越权攻击
 - **服务间通信**：RestClient 调用内部接口时自动附加 `X-Gateway-Token`，下游服务校验通过后放行
 - **放行白名单**：`/actuator/**`、`/swagger-ui/**`、`/v3/api-docs/**`、`/error`
+- **优雅关闭**：所有服务配置 `server.shutdown: graceful`，30 秒超时
 
 ## 应用架构与详细接口说明书
 
-- `docs/architecture-and-api-spec.md`
+- `docs/architecture/microservices/architecture-and-api-spec.md`
 
 ## 项目阶段
 
@@ -385,13 +388,14 @@ chmod +x ops/prod/up.sh ops/prod/down.sh
 - `docs/upgrade/logs/microservices/phase0-phase1-code-quality-fixes.md`
 - `docs/upgrade/logs/microservices/phase2-5-review-fixes.md`
 - `docs/upgrade/logs/microservices/phase3-5-timeout-circuitbreaker-cache-prefix.md`
+- `docs/upgrade/logs/microservices/phase3-phase6-remote-decoupling-and-hardening.md`
 - `docs/upgrade/review/microservices/phase0-phase1-code-review.md`
 - `docs/upgrade/logs/monolith/pr20-security-hardening-and-message-reliability.md`
 
 ## 说明
 
 - 当前 `web/` 已作为正式前端迁移主线
-- 当前微服务迁移 Phase0 ~ Phase5 已全部完成，全链路可用
+- 当前微服务迁移 Phase0 ~ Phase6 已全部完成，各服务独立可部署，全链路可用
 - 当前 `PR18` 高并发增强与 `PR19` 延时提醒架构已平稳落地
 - 当前 `PR20` 代码审查、安全加固与消息隔离修复已完成
 - 后续主线将继续推进：
