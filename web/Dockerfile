@@ -1,4 +1,5 @@
-FROM oven/bun:1.3.12 AS build-stage
+# syntax=docker/dockerfile:1
+FROM --platform=$BUILDPLATFORM oven/bun:1.3.12 AS build-stage
 
 WORKDIR /app
 
