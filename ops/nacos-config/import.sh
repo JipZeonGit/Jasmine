@@ -29,49 +29,71 @@ echo ""
 ACCESS_TOKEN=""
 
 echo ">>> 尝试使用配置的密码进行登录..."
-LOGIN_RESP="$(curl -sS -X POST "$BASE/v1/auth/users/login" \
-  --data-urlencode "username=$NACOS_USER" \
-  --data-urlencode "password=$NACOS_PASS" || true)"
-
-if echo "$LOGIN_RESP" | grep -q '"accessToken"'; then
-  ACCESS_TOKEN="$(echo "$LOGIN_RESP" | sed -n 's/.*"accessToken"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')"
-  echo ">>> [OK] 成功使用配置的自定义密码登录并获取 accessToken！"
-else
-  echo ">>> [提示] 使用配置的密码登录失败，尝试使用 Nacos 默认密码 'nacos' 进行登录..."
-  DEFAULT_LOGIN_RESP="$(curl -sS -X POST "$BASE/v1/auth/users/login" \
-    --data-urlencode "username=nacos" \
-    --data-urlencode "password=nacos" || true)"
+for i in {1..5}; do
+  LOGIN_RESP="$(curl -sS -X POST "$BASE/v1/auth/users/login" \
+    --data-urlencode "username=$NACOS_USER" \
+    --data-urlencode "password=$NACOS_PASS" || true)"
   
-  if echo "$DEFAULT_LOGIN_RESP" | grep -q '"accessToken"'; then
-    DEFAULT_TOKEN="$(echo "$DEFAULT_LOGIN_RESP" | sed -n 's/.*"accessToken"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')"
-    echo ">>> [OK] 成功使用默认密码登录！"
-    
-    # 如果用户配置了自定义密码，且目前数据库里还是默认密码，则启动自愈同步
-    if [ "$NACOS_PASS" != "nacos" ]; then
-      echo ">>> [自愈启动] 正在自动将 Nacos 数据库中的管理员密码同步修改为你 .env 中的自定义密码..."
-      # Nacos 2.x 修改密码 API (PUT 表单传参 username, newPassword)
-      curl -fsS -X PUT "$BASE/v1/auth/users?accessToken=$DEFAULT_TOKEN" \
-        --data-urlencode "username=nacos" \
-        --data-urlencode "newPassword=$NACOS_PASS" > /dev/null
-      
-      echo ">>> [自愈成功] Nacos 数据库密码已热更新！正在重新以最新密码获取 accessToken..."
-      # 重新使用新密码登录获取 token
-      NEW_LOGIN_RESP="$(curl -sS -X POST "$BASE/v1/auth/users/login" \
-        --data-urlencode "username=$NACOS_USER" \
-        --data-urlencode "password=$NACOS_PASS" || true)"
-      
-      if echo "$NEW_LOGIN_RESP" | grep -q '"accessToken"'; then
-        ACCESS_TOKEN="$(echo "$NEW_LOGIN_RESP" | sed -n 's/.*"accessToken"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')"
-        echo ">>> [OK] 成功获取最新的自定义密码 accessToken！"
-      else
-        echo ">>> [警告] 重新获取 accessToken 失败，后续导入可能会被拒绝。"
-      fi
-    else
-      ACCESS_TOKEN="$DEFAULT_TOKEN"
-    fi
-  else
-    echo ">>> [警告] 无法使用配置密码或默认密码登录。后续请求将以未鉴权方式发送..."
+  if echo "$LOGIN_RESP" | grep -q '"accessToken"'; then
+    ACCESS_TOKEN="$(echo "$LOGIN_RESP" | sed -n 's/.*"accessToken"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')"
+    echo ">>> [OK] 成功使用配置的自定义密码登录并获取 accessToken！"
+    break
   fi
+  
+  echo ">>> [配置密码尝试 $i/5] 接口返回内容: ${LOGIN_RESP:-'(无内容)'}"
+  if [ $i -lt 5 ]; then
+    echo ">>> Nacos 服务或数据库连接池可能在初始化中，等待3秒后重试..."
+    sleep 3
+  fi
+done
+
+if [ -z "$ACCESS_TOKEN" ]; then
+  echo ">>> [提示] 使用配置的密码登录失败，尝试使用 Nacos 默认密码 'nacos' 进行登录..."
+  for i in {1..5}; do
+    DEFAULT_LOGIN_RESP="$(curl -sS -X POST "$BASE/v1/auth/users/login" \
+      --data-urlencode "username=nacos" \
+      --data-urlencode "password=nacos" || true)"
+    
+    if echo "$DEFAULT_LOGIN_RESP" | grep -q '"accessToken"'; then
+      DEFAULT_TOKEN="$(echo "$DEFAULT_LOGIN_RESP" | sed -n 's/.*"accessToken"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')"
+      echo ">>> [OK] 成功使用默认密码登录！"
+      
+      # 如果用户配置了自定义密码，且目前数据库里还是默认密码，则启动自愈同步
+      if [ "$NACOS_PASS" != "nacos" ]; then
+        echo ">>> [自愈启动] 正在自动将 Nacos 数据库中的管理员密码同步修改为你 .env 中的自定义密码..."
+        # Nacos 2.x 修改密码 API (PUT 表单传参 username, newPassword)
+        curl -fsS -X PUT "$BASE/v1/auth/users?accessToken=$DEFAULT_TOKEN" \
+          --data-urlencode "username=nacos" \
+          --data-urlencode "newPassword=$NACOS_PASS" > /dev/null
+        
+        echo ">>> [自愈成功] Nacos 数据库密码已热更新！正在重新以最新密码获取 accessToken..."
+        # 重新使用新密码登录获取 token
+        NEW_LOGIN_RESP="$(curl -sS -X POST "$BASE/v1/auth/users/login" \
+          --data-urlencode "username=$NACOS_USER" \
+          --data-urlencode "password=$NACOS_PASS" || true)"
+        
+        if echo "$NEW_LOGIN_RESP" | grep -q '"accessToken"'; then
+          ACCESS_TOKEN="$(echo "$NEW_LOGIN_RESP" | sed -n 's/.*"accessToken"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')"
+          echo ">>> [OK] 成功获取最新的自定义密码 accessToken！"
+        else
+          echo ">>> [警告] 重新获取 accessToken 失败，接口返回: $NEW_LOGIN_RESP"
+        fi
+      else
+        ACCESS_TOKEN="$DEFAULT_TOKEN"
+      fi
+      break
+    fi
+    
+    echo ">>> [默认密码尝试 $i/5] 接口返回内容: ${DEFAULT_LOGIN_RESP:-'(无内容)'}"
+    if [ $i -lt 5 ]; then
+      echo ">>> 正在等待 Nacos 鉴权服务就绪，等待3秒后重试..."
+      sleep 3
+    fi
+  done
+fi
+
+if [ -z "$ACCESS_TOKEN" ]; then
+  echo ">>> [警告] 无法使用配置密码或默认密码登录。后续请求将以未鉴权方式发送..."
 fi
 
 # 统一拼装鉴权参数（开启 auth 时附带 accessToken，否则为空）
