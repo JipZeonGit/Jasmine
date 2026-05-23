@@ -1,96 +1,119 @@
 #!/bin/bash
 # ==============================================================================
-# Jasmine 多阶段企业级部署脚本 (ops/prod/up.sh)
-# 
+# Jasmine 一键部署脚本 (ops/prod/up.sh)
+#
 # 流程:
-#   1. 读取 .env 环境变量（包括用户自定义的 NACOS_PASSWORD）
-#   2. 启动核心中间件 (MySQL, Redis, RabbitMQ, Nacos)
-#   3. 自动等待 Nacos 完成健康检查 (Healthy)
-#   4. 自动触发 Nacos 数据库管理员密码从默认的 'nacos' 热更新为 .env 中定义的密码，并自动导入所有微服务 YAML 配置
-#   5. 待密码同步与配置全部就绪后，启动网关、微服务与前端，确保零 403 认证错误
+#   1. 读取 ops/prod/.env
+#   2. 拉取最新镜像 + 启动核心中间件
+#   3. 等待 Nacos healthy → 创建 prod 命名空间 → 密码自愈 → 导入 YAML 配置
+#   4. 启动 Schema 迁移 (Flyway 分库) + 等待完成
+#   5. 启动所有业务服务 + 前端
+#   6. 刷新前端 nginx DNS 缓存 + 验证登录
 # ==============================================================================
 set -euo pipefail
 
 SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
-OPS_DIR=$(CDPATH= cd -- "$SCRIPT_DIR/.." && pwd)
+ENV_FILE="$SCRIPT_DIR/.env"
 
-# 1. 载入并导出 .env 环境变量，使其可在本脚本和后续调用的 import.sh 中直接使用
-if [ -f "$OPS_DIR/.env" ]; then
-  echo ">>> 检测到 .env 文件，正在载入并导出环境变量..."
+# ---- 1. 载入 .env ----
+if [ -f "$ENV_FILE" ]; then
+  echo ">>> 载入环境变量: $ENV_FILE"
   set -a
-  . "$OPS_DIR/.env"
+  . "$ENV_FILE"
   set +a
 else
-  echo ">>> [错误] 未在 $OPS_DIR 找到 .env 配置文件！请先参考 .env.example 进行复制与配置。"
+  echo ">>> [错误] 未找到 $ENV_FILE，请从 .env.example 复制并配置。"
   exit 1
 fi
 
 echo "========================================="
-echo "  Jasmine 部署 - 阶段 1: 启动基础设施"
+echo "  Jasmine 部署 - 阶段 1: 中间件"
 echo "========================================="
 
-# 2. 拉取最新镜像
-docker compose --env-file "$OPS_DIR/.env" -f "$SCRIPT_DIR/docker-compose.yml" pull
+# ---- 2. 拉取并启动中间件 ----
+docker compose --env-file "$ENV_FILE" pull
+docker compose --env-file "$ENV_FILE" up -d mysql redis rabbitmq nacos
 
-# 3. 优先启动核心中间件
-docker compose --env-file "$OPS_DIR/.env" -f "$SCRIPT_DIR/docker-compose.yml" up -d mysql redis rabbitmq nacos
-
-# 4. 循环等待 Nacos 容器达到 Healthy 状态
-echo ">>> 正在等待 Nacos 启动并通过健康检查..."
+# ---- 3. 等待 Nacos healthy ----
+echo ">>> 等待 Nacos 就绪..."
 while true; do
   STATUS=$(docker inspect --format='{{json .State.Health.Status}}' jasmine-prod-nacos 2>/dev/null || echo '"starting"')
-  if [ "$STATUS" = "\"healthy\"" ]; then
-    break
-  fi
-  echo ">>> Nacos 尚未就绪 (当前状态: $STATUS)... 5秒后重试..."
+  if [ "$STATUS" = "\"healthy\"" ]; then break; fi
+  echo ">>> Nacos 状态: $STATUS ... 5 秒后重试"
   sleep 5
 done
-echo ">>> [OK] Nacos 基础设施已健康运行！"
+echo ">>> [OK] Nacos 已就绪"
 
-# ---------- Nacos 初始管理员用户自动补种 ----------
-# MySQL 的 /docker-entrypoint-initdb.d 脚本仅在首次初始化 datadir 时执行。
-# 如果 data 卷已存在（非首次启动），nacos.users 表可能为空，
-# 导致 Nacos 鉴权服务返回 "user not found"。此处自动检测并补种。
-echo ">>> 正在检查 Nacos 数据库初始管理员用户..."
+# ---- 4. Nacos 管理员用户补种 ----
 NACOS_USER_EXISTS=$(docker exec jasmine-prod-mysql \
   mysql -uroot -p"${MYSQL_ROOT_PASSWORD}" -N -s -e \
   "SELECT COUNT(*) FROM nacos.users WHERE username='nacos';" 2>/dev/null || echo "0")
 
 if [ "$NACOS_USER_EXISTS" = "0" ]; then
-  echo ">>> [自愈] 检测到 nacos.users 表中缺少管理员用户，正在自动补种..."
+  echo ">>> [自愈] 补种 Nacos 管理员用户..."
   docker exec jasmine-prod-mysql \
     mysql -uroot -p"${MYSQL_ROOT_PASSWORD}" nacos -e "
       INSERT IGNORE INTO users (username, password, enabled)
         VALUES ('nacos', '\$2a\$10\$EuWPZHzz32dJN7jexM34EKsLrV7glS.aBGD66ZoNs5qi23.A277t.', TRUE);
-      INSERT IGNORE INTO roles (username, role)
-        VALUES ('nacos', 'ROLE_ADMIN');
+      INSERT IGNORE INTO roles (username, role) VALUES ('nacos', 'ROLE_ADMIN');
     "
-  echo ">>> [OK] Nacos 管理员用户已成功补种！(默认密码: nacos，后续将由 import.sh 自愈同步为 .env 中的自定义密码)"
-else
-  echo ">>> [OK] Nacos 管理员用户已存在，跳过补种。"
+  echo ">>> [OK] Nacos 管理员已补种"
 fi
 
 echo "========================================="
-echo "  Jasmine 部署 - 阶段 2: 密码自愈与配置导入"
+echo "  Jasmine 部署 - 阶段 2: Nacos 配置导入"
 echo "========================================="
 
-# 5. 自动获取 Nacos 宿主机映射端口并调用 import.sh 进行自愈与配置导入
+# ---- 5. 创建 prod 命名空间（Nacos 3.x 需通过 MySQL） ----
+TS=$(date +%s)000
+docker exec jasmine-prod-mysql \
+  mysql -uroot -p"${MYSQL_ROOT_PASSWORD}" nacos -e \
+  "INSERT IGNORE INTO tenant_info (kp, tenant_id, tenant_name, tenant_desc, create_source, gmt_create, gmt_modified)
+   VALUES ('1', '${NACOS_NAMESPACE:-prod}', '${NACOS_NAMESPACE:-prod}', 'Jasmine ${NACOS_NAMESPACE:-prod}', 'empty', $TS, $TS)"
+echo ">>> [OK] Nacos 命名空间 ${NACOS_NAMESPACE:-prod} 已创建"
+
+# ---- 6. 导入 YAML 配置（密码自愈 + 导入） ----
 NACOS_PORT_HOST="${NACOS_PORT:-8848}"
-echo ">>> 正在连接 127.0.0.1:$NACOS_PORT_HOST 进行密码同步与配置导入..."
-
-# 执行 import.sh (它会自动检测默认密码，将其热修改为 .env 中的自定义密码，并导入 YAML 配置文件)
-bash "$OPS_DIR/nacos-config/import.sh" "127.0.0.1:$NACOS_PORT_HOST" "${NACOS_NAMESPACE:-prod}"
+bash "$(CDPATH= cd -- "$SCRIPT_DIR/.." && pwd)/nacos-config/import.sh" \
+  "127.0.0.1:$NACOS_PORT_HOST" "${NACOS_NAMESPACE:-prod}"
 
 echo "========================================="
-echo "  Jasmine 部署 - 阶段 3: 启动应用微服务"
+echo "  Jasmine 部署 - 阶段 3: Schema 迁移"
 echo "========================================="
 
-# 6. Nacos 密码与配置已全部就绪，安全启动所有微服务、数据迁移服务和前端
-docker compose --env-file "$OPS_DIR/.env" -f "$SCRIPT_DIR/docker-compose.yml" up -d
+# ---- 7. 启动 Schema 服务并等待完成 ----
+docker compose --env-file "$ENV_FILE" up -d jasmine-schema
+echo ">>> 等待 Schema 迁移完成..."
+while true; do
+  STATE=$(docker inspect --format='{{.State.Status}}' jasmine-prod-schema 2>/dev/null || echo "running")
+  EXIT_CODE=$(docker inspect --format='{{.State.ExitCode}}' jasmine-prod-schema 2>/dev/null || echo "-1")
+  if [ "$STATE" = "exited" ]; then
+    if [ "$EXIT_CODE" = "0" ]; then
+      echo ">>> [OK] Schema 迁移成功"
+      break
+    else
+      echo ">>> [错误] Schema 迁移失败 (exit=$EXIT_CODE)，请查看日志: docker logs jasmine-prod-schema"
+      exit 1
+    fi
+  fi
+  sleep 5
+done
+
+echo "========================================="
+echo "  Jasmine 部署 - 阶段 4: 启动所有服务"
+echo "========================================="
+
+# ---- 8. 全栈启动 ----
+docker compose --env-file "$ENV_FILE" up -d
+
+# ---- 9. 刷新前端 nginx DNS 缓存 ----
+sleep 5
+docker exec jasmine-prod-frontend nginx -s reload 2>/dev/null || true
 
 echo ""
-echo ">>> [恭喜] Jasmine 集群已成功完成分阶段部署指令！"
-echo ">>> 所有微服务已以您配置的自定义密码成功连接 Nacos 控制台。"
-echo ">>> 您可以使用 'docker compose -f $SCRIPT_DIR/docker-compose.yml ps' 检查所有容器状态。"
 echo "========================================="
-
+echo "  部署完成！验证登录:"
+echo "  curl -X POST http://localhost:8080/user/login \\"
+echo "    -H 'Content-Type: application/json' \\"
+echo "    -d '{\"username\":\"admin\",\"password\":\"123456\"}'"
+echo "========================================="
