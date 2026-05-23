@@ -196,8 +196,18 @@ INSERT IGNORE INTO `roles` (`username`, `role`) VALUES ('nacos', 'ROLE_ADMIN');
 /******************************************/
 /*   ipv6 support & extra columns          */
 /******************************************/
-ALTER TABLE `his_config_info` ADD COLUMN IF NOT EXISTS `src_ip` varchar(50) DEFAULT NULL;
-ALTER TABLE `config_info` ADD COLUMN IF NOT EXISTS `src_ip` varchar(50) DEFAULT NULL;
-ALTER TABLE `his_config_info` ADD COLUMN IF NOT EXISTS `publish_type` varchar(50) DEFAULT 'formal';
-ALTER TABLE `his_config_info` ADD COLUMN IF NOT EXISTS `ext_info` longtext;
-ALTER TABLE `his_config_info` ADD COLUMN IF NOT EXISTS `gray_name` varchar(128) DEFAULT NULL;
+-- MySQL 8.4 不支持 ADD COLUMN IF NOT EXISTS，改用条件预检
+SET @sql = (SELECT IF(EXISTS(SELECT 1 FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'his_config_info' AND column_name = 'src_ip'), 'SELECT 1', 'ALTER TABLE `his_config_info` ADD COLUMN `src_ip` varchar(50) DEFAULT NULL'));
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+SET @sql = (SELECT IF(EXISTS(SELECT 1 FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'config_info' AND column_name = 'src_ip'), 'SELECT 1', 'ALTER TABLE `config_info` ADD COLUMN `src_ip` varchar(50) DEFAULT NULL'));
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+SET @sql = (SELECT IF(EXISTS(SELECT 1 FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'his_config_info' AND column_name = 'publish_type'), 'SELECT 1', 'ALTER TABLE `his_config_info` ADD COLUMN `publish_type` varchar(50) DEFAULT ''formal'''));
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+SET @sql = (SELECT IF(EXISTS(SELECT 1 FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'his_config_info' AND column_name = 'ext_info'), 'SELECT 1', 'ALTER TABLE `his_config_info` ADD COLUMN `ext_info` longtext'));
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+SET @sql = (SELECT IF(EXISTS(SELECT 1 FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'his_config_info' AND column_name = 'gray_name'), 'SELECT 1', 'ALTER TABLE `his_config_info` ADD COLUMN `gray_name` varchar(128) DEFAULT NULL'));
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;

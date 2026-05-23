@@ -1,179 +1,291 @@
-# Jasmine 运维与生产部署手册 (ops/README.md)
+# Jasmine 运维与生产部署手册
 
-本目录为 Jasmine 微服务项目统一的 **Docker 容器化与运维基础设施基线**。项目已全面适配 **`linux/amd64` (x86_64)** 与 **`linux/arm64` (aarch64 / Apple Silicon)** 双主流硬件架构，实现了一键式、零差异的多架构混合部署。
+本目录为 Jasmine 微服务项目的 Docker 容器化部署基础设施，支持 `linux/amd64` 与 `linux/arm64` 双架构。
 
 ---
 
-## 一、 部署架构概览
+## 一、部署架构
 
-```text
-                  【 外部用户浏览器 (HTTP 80) 】
-                                │
-                                ▼
-                   ┌────────────────────────┐
-                   │    jasmine-frontend    │ (Nginx 静态网页容器)
-                   └───────────┬────────────┘
-                               │
-                API 请求跨域    │ (经由外部网络)
-                ───────────────┼──────────────┐
-                               │              │
-                               ▼              ▼
-                   ┌────────────────────────┐┌────────────────────────┐
-                   │    jasmine-gateway     ││     nacos-server       │ (Nacos 配置/注册中心)
-                   │      (API 网关 8080)     ││      (端口 8848)       │
-                   └───────────┬────────────┘└───────────┬────────────┘
-                               │                         │ 注册发现与拉取配置
-                               ├─────────────────────────┤
-                               ▼
-     ┌──────────────────┬──────────────┬──────────────────┐ (内网防护校验网关 Token)
-     ▼                  ▼              ▼                  ▼
-┌──────────┐      ┌──────────┐   ┌──────────┐       ┌──────────┐
-│   IAM    │      │ Product  │   │  Trade   │       │   CRM    │ (微服务集群)
-│ (9101)   │      │  (9102)  │   │  (9103)  │       │  (9104)  │
-└────┬─────┘      └────┬─────┘   └────┬─────┘       └────┬─────┘
-     │                 │              │                  │
-     ├─────────────────┼──────────────┼──────────────────┤ (内部高可靠性数据存取)
-     ▼                 ▼              ▼                  ▼
-┌──────────┐      ┌──────────┐   ┌──────────┐       ┌──────────┐
-│  MySQL   │      │  Redis   │   │ RabbitMQ │       │  Nacos   │ (核心中间件群)
-│ (3306)   │      │ (6379)   │   │ (5672)   │       │  (3306)  │
-└──────────┘      └──────────┘   └──────────┘       └──────────┘
+```
+用户浏览器 (HTTP 80)
+     │
+     ▼
+┌──────────────┐    API →    ┌──────────────┐
+│  frontend    │────────────▶│   gateway    │
+│  (Nginx:80)  │             │  (8080)      │
+└──────────────┘             └──────┬───────┘
+        │                           │ 注册/配置发现
+        │                           ▼
+        │                    ┌──────────────┐
+        │                    │    nacos     │ (3.0.3, 鉴权开启)
+        │                    │  (8848)      │
+        │                    └──────────────┘
+        │
+        ▼
+┌─────────────────────────────────────────────┐
+│   IAM (jasmine_iam)    Product (jasmine_product)  │
+│   Trade (jasmine_trade) CRM (jasmine_crm)        │
+│   各服务独立数据库，Flyway 分库迁移                  │
+└─────────────────────────────────────────────┘
+        │
+        ▼
+┌──────────┬──────────┬──────────┐
+│  MySQL   │  Redis   │ RabbitMQ │ (核心中间件)
+│  (3306)  │  (6379)  │  (5672)  │
+└──────────┴──────────┴──────────┘
 ```
 
 ---
 
-## 二、 目录结构说明
+## 二、目录结构
 
-本目录包含开发环境和生产环境两套隔离的部署体系：
-
-```text
+```
 ops/
-├── README.md               # 本运维手册
-├── .env.example            # 全局通用环境变量模板（供本地构建参考）
-├── dev/                    # 【本地开发环境】 (仅部署 MySQL/Redis/MQ/Nacos 四个中间件)
-│   ├── docker-compose.yml
-│   ├── init-databases.sql
-│   ├── up.sh
-│   └── down.sh
-├── prod/                   # 【生产环境】 (全栈一键拉起：中间件 + 5 微服务 + 网关 + 前端)
-│   ├── docker-compose.yml  # 生产容器编排服务定义
-│   ├── .env.example        # 生产专属环境变量模板（开箱即用，标准端口配置）
-│   ├── init-databases.sql  # 自动创建 5 个独立微服务数据库
-│   ├── up.sh               # 生产一键启动脚本
-│   └── down.sh             # 生产一键停止脚本
-└── nacos-config/           # 【Nacos 配置导入包】
-    ├── import.sh           # Nacos 配置自动解包并安全导入脚本
-    └── nacos_config_export.zip # 默认微服务配置包
+├── README.md                # 本手册
+├── .env.example             # 全局环境变量模板
+├── prod/
+│   ├── docker-compose.yml   # 生产全栈编排
+│   ├── .env                 # 生产环境变量（需从 .env.example 创建）
+│   ├── nacos-application.properties  # Nacos 3.0.3 配置（鉴权开启）
+│   ├── init-databases.sql   # 创建 4 个微服务独立数据库 + nacos 库
+│   ├── nacos-schema.sql     # Nacos 官方表结构
+│   ├── up.sh / down.sh      # 启停脚本
+│   └── data/                # 持久化数据卷（自动创建）
+└── nacos-config/
+    ├── import.sh            # Nacos 3.0 配置导入脚本（鉴权自适应）
+    ├── jasmine-common.yml   # 公共配置
+    ├── jasmine-db-common.yml
+    ├── jasmine-gateway.yml
+    ├── jasmine-iam.yml      # IAM 数据库 URL → jasmine_iam
+    ├── jasmine-crm.yml      # CRM 数据库 URL → jasmine_crm
+    ├── jasmine-trade.yml    # Trade 数据库 URL → jasmine_trade
+    ├── jasmine-product.yml  # Product 数据库 URL → jasmine_product
+    ├── jasmine-mq-common.yml
+    ├── jasmine-redis-common.yml
+    └── jasmine-observability.yml
 ```
 
 ---
 
-## 三、 生产环境部署操作指南
+## 三、全新部署步骤
 
-本指南适用于将 Jasmine 部署于 **CentOS/Ubuntu/AWS Graviton/阿里云 Arm 实例/本地 macOS** 等物理或虚拟服务器中。
+### 前置条件
+- Docker 24+ 与 Docker Compose v2
+- 服务器有足够磁盘空间（建议 ≥ 5 GB 空闲）
 
-### 步骤 1：拷贝运维文件至服务器
-在服务器中创建主工作目录（如 `/opt/jasmine`），将项目的 `ops/` 目录拷贝至该路径下。保证结构如下：
+### 步骤 1：准备环境和配置
+
 ```bash
-/opt/jasmine/
-└── ops/
-    ├── dev/
-    ├── prod/
-    ├── nacos-config/
-    └── .env.example
+# 将仓库克隆到服务器
+git clone https://github.com/JipZeonGit/Jasmine.git /opt/jasmine
+cd /opt/jasmine/ops/prod
+
+# 从模板创建 .env 并修改密钥
+cp .env.example .env
 ```
 
-### 步骤 2：创建并编辑 `.env` 生产环境配置文件
-1. 进入 `/opt/jasmine/ops` 目录，将生产专属模板复制为工作环境文件：
-   ```bash
-   cd /opt/jasmine/ops
-   cp prod/.env.example .env
-   ```
-2. 编辑 `.env` 文件，修改以下核心安全字段：
-   - **安全随机密钥**：
-     - **`JWT_SECRET`**：签名密钥。使用头部注释中的 `openssl rand -base64 64` 命令生成，避免越权安全隐患。
-     - **`NACOS_AUTH_TOKEN`**：Nacos 2.x 安全 Token。使用 `openssl rand -base64 32` 命令生成并替换。
-   - **组件安全密码**：
-     - 将 `MYSQL_ROOT_PASSWORD`、`MYSQL_PASSWORD`、`REDIS_PASSWORD`、`RABBITMQ_PASSWORD` 更改为您独有的强随机密码。
-   - **跨域与域名绑定**：
-     - `CORS_ALLOWED_ORIGINS` 默认配置为 `http://localhost,http://127.0.0.1` 满足开箱即用。若绑定了公网域名，请务必追加，如 `,https://jasmine.yourdomain.com`。
+编辑 `prod/.env`，**至少修改以下项**：
+```
+JWT_SECRET=<openssl rand -base64 64 生成的密钥>
+NACOS_AUTH_TOKEN=<openssl rand -base64 32 生成的密钥>
+MYSQL_ROOT_PASSWORD=<强密码>
+MYSQL_PASSWORD=<强密码>
+REDIS_PASSWORD=<强密码>
+RABBITMQ_PASSWORD=<强密码>
+```
 
-### 步骤 3：初次启动中间件并自动初始化数据库
-1. 给启动脚本赋予执行权限，并执行：
-   ```bash
-   chmod +x prod/up.sh prod/down.sh
-   ./prod/up.sh
-   ```
-2. **多库初始化机制**：
-   - 编排已配置挂载了宿主机物理路径 `ops/prod/data/mysql` 保证数据持久化。
-   - 首次拉起 MySQL 容器时，会自动加载 `init-databases.sql` 脚本，在库中创建 `nacos`、`jasmine_iam`、`jasmine_product`、`jasmine_trade`、`jasmine_crm` 5 个独立的微服务 Schema，并进行精准权限分配。
+### 步骤 2：拉取镜像
 
-### 步骤 4：导入 Nacos 微服务配置
-在微服务（Gateway/IAM 等）拉起之前，必须先把持久化的应用配置文件刷入 Nacos 配置中心中：
-1. 进入配置导入目录：
-   ```bash
-   cd /opt/jasmine/ops/nacos-config
-   ```
-2. 执行一键导入脚本：
-   ```bash
-   # 脚本会自动根据 ../.env 中配置的账号密码、Nacos 鉴权 Token 进行合法登录并无缝导入
-   bash import.sh 127.0.0.1:8848 prod
-   ```
+```bash
+cd /opt/jasmine/ops
+export TAG=microservices-latest
 
-### 步骤 5：启动全栈应用与 Flyway 自动表结构迁移
-1. 返回并再次运行启动脚本以拉起全部应用：
-   ```bash
-   cd /opt/jasmine/ops
-   ./prod/up.sh
-   ```
-2. **Flyway 表结构自动迁移**：
-   - 编排中的 `jasmine-schema` 服务会作为一次性迁移工具（Migration Tool）最先启动。
-   - 它会连接 MySQL 自动对 4 个独立的业务 Schema 跑 Flyway 迁移，建立全部表结构并灌入初始测试数据。
-   - 迁移成功后 `jasmine-schema` 会以退出码 `0` 自动退出释放系统资源。随后各核心微服务（Gateway/IAM/Product 等）有序注册上线，前端 Nginx 正常对外工作。
+for mod in jasmine-schema jasmine-gateway jasmine-iam jasmine-product \
+           jasmine-trade jasmine-crm jasmine-frontend; do
+  docker pull "ghcr.io/jipzeongit/$mod:$TAG"
+done
+```
+
+### 步骤 3：启动中间件并等待就绪
+
+```bash
+cd /opt/jasmine/ops/prod
+docker compose --env-file .env up -d mysql redis rabbitmq nacos
+
+# 等待三者全部 healthy（约 2-3 分钟）
+docker compose ps
+```
+
+### 步骤 4：创建 Nacos 命名空间并导入配置
+
+> Nacos 3.0.3 已开启鉴权，默认账号 `nacos / nacos`。
+
+```bash
+# 创建 prod 命名空间（Nacos 3.x 需要通过 MySQL 直接操作）
+docker exec jasmine-prod-mysql mysql -u<jasmine_app> -p<密码> nacos -e \
+  "INSERT IGNORE INTO tenant_info (kp, tenant_id, tenant_name, tenant_desc, create_source, gmt_create, gmt_modified)
+   VALUES ('1', 'prod', 'prod', 'Jasmine prod', 'empty', UNIX_TIMESTAMP()*1000, UNIX_TIMESTAMP()*1000)"
+
+# 导入所有微服务配置
+cd /opt/jasmine/ops/nacos-config
+NACOS_USERNAME=nacos NACOS_PASSWORD=nacos NACOS_AUTH_ENABLED=true bash import.sh 127.0.0.1:8848 prod
+```
+
+### 步骤 5：运行 Schema 迁移
+
+```bash
+cd /opt/jasmine/ops/prod
+
+# Schema 服务会对 jasmine_iam / product / trade / crm 四个库
+# 分别执行 Flyway 独立分库迁移（每个库有独立的 flyway_schema_history）
+docker compose --env-file .env up -d jasmine-schema
+
+# 等待显示 "exited (0)"（约 30 秒）
+docker compose ps jasmine-schema
+```
+
+### 步骤 6：启动所有业务服务
+
+```bash
+docker compose --env-file .env up -d
+
+# 等待全部 healthy（约 2 分钟）
+docker compose ps
+```
+
+预期输出：8 个容器均为 `Up (healthy)`：
+```
+jasmine-prod-crm         Up XX minutes (healthy)
+jasmine-prod-frontend    Up XX minutes (healthy)
+jasmine-prod-gateway     Up XX minutes (healthy)
+jasmine-prod-iam         Up XX minutes (healthy)
+jasmine-prod-mysql       Up XX minutes (healthy)
+jasmine-prod-nacos       Up XX minutes (healthy)
+jasmine-prod-product     Up XX minutes (healthy)
+jasmine-prod-trade       Up XX minutes (healthy)
+```
+
+### 步骤 7：验证
+
+```bash
+# 测试登录（默认账号 admin / 123456）
+curl -X POST http://localhost:8080/user/login \
+  -H "Content-Type: application/json" \
+  -d '{"username":"admin","password":"123456"}'
+
+# 预期返回:
+# {"code":20000,"message":"success","data":{"token":"eyJ..."}}
+
+# 浏览器访问 http://<服务器IP>/
+```
 
 ---
 
-## 四、 常见运维诊断命令
+## 四、数据库与 Flyway 架构
 
-### 1. 查看容器运行健康状态
-```bash
-docker compose -f prod/docker-compose.yml ps
+### 微服务分库
+
+| 数据库 | 所属服务 | 主要表 |
+|--------|---------|--------|
+| `jasmine_iam` | IAM | user, role, menu, user_role, role_menu, auth_refresh_token |
+| `jasmine_product` | Product | flower |
+| `jasmine_trade` | Trade | sales, sales_item, inventory, inventory_alert |
+| `jasmine_crm` | CRM | vip, appointment, site_message, event_outbox |
+
+### Flyway 迁移脚本
+
 ```
-正常运行时，5 个业务服务、Gateway、Frontend 和 4 个中间件的状态应均显示为 `Up (healthy)`。
-
-### 2. 实时滚动查看业务运行日志
-例如查看网关（Gateway）与交易服务（Trade）的日志：
-```bash
-docker compose -f prod/docker-compose.yml logs -f jasmine-gateway
-docker compose -f prod/docker-compose.yml logs -f trade-service
+jasmine-schema/src/main/resources/db/migration/
+├── iam/       V1~V3 (baseline → auth → hardening)
+├── product/   V1~V3
+├── trade/     V1~V5
+└── crm/       V1~V6
 ```
 
-### 3. 在 ARM64 架构下验证 JVM 运行状态
-我们采用的后端容器完全基于 **Java 21 + 原生 ARM64 JRE** 运行：
-1. 监控 ZGC 垃圾回收器状态：
-   ```bash
-   docker compose -f prod/docker-compose.yml logs -f crm-service | grep -i "gc"
-   ```
-2. 校验物理内存限额（512M）：
-   ```bash
-   # 查看容器占用物理内存详情与 JVM 缩放是否限制在 512MB 内
-   docker stats jasmine-prod-iam
-   ```
+- Schema 服务（`jasmine-schema`）作为独立的一次性迁移工具运行
+- 对 4 个数据库分别执行独立目录中的 Flyway 迁移
+- 每个数据库维护独立的 `flyway_schema_history` 表
+- 业务服务设置 `spring.flyway.enabled=false`，不参与迁移
 
 ---
 
-## 五、 数据卷持久化与数据备份指南
+## 五、Nacos 鉴权说明
 
-生产环境已经做好了全套数据卷持久化，所有核心持久化数据直接落地到宿主机的物理磁盘上：
+生产环境 Nacos 已默认开启鉴权：
 
-| 服务 | 宿主机物理挂载路径 | 容器内挂载路径 | 作用说明 |
-| :--- | :--- | :--- | :--- |
-| **MySQL** | `./prod/data/mysql` | `/var/lib/mysql` | 存储全部 5 个独立库的物理表与索引文件 |
-| **Redis** | `./prod/data/redis` | `/data` | 存储 AOF (Append Only File) 持久化文件 |
-| **RabbitMQ**| `./prod/data/rabbitmq`| `/var/lib/rabbitmq` | 存储持久化消息、交换机与高可用队列数据 |
-| **Nacos** | `./prod/data/nacos/logs`| `/home/nacos/logs` | 存储配置中心的系统运维日志 |
-| **微服务日志**| `./prod/logs/<service>`| `/app/logs` | 挂载出运行日志，方便通过 ELK/Filebeat 收集 |
+| 配置项 | 值 | 位置 |
+|--------|-----|------|
+| `nacos.core.auth.enabled` | `true` | `nacos-application.properties` |
+| `nacos.core.auth.console.enabled` | `true` | `nacos-application.properties` |
+| 默认管理员账号 | `nacos / nacos` | Nacos 内置 |
+| 客户端连接 | 需提供 `NACOS_USERNAME` / `NACOS_PASSWORD` | `docker-compose.yml` service-env |
 
-### 备份建议
-- **数据库冷备**：建议定期在宿主机备份整个 `/opt/jasmine/ops/prod/data/mysql` 物理目录，或者在 MySQL 容器内运行 `mysqldump` 定时输出 SQL 归档。
-- **配置冷备**：Nacos 的配置文件会直接保存在 MySQL 的 `nacos` 库中，备份了 MySQL 即可完成对 Nacos 全部注册配置信息的完整备份。
+> ⚠️ 生产环境务必通过 Nacos 控制台修改默认密码，并更新 `.env` 中 `NACOS_PASSWORD`。
+
+---
+
+## 六、常用运维命令
+
+### 查看容器状态
+```bash
+cd /opt/jasmine/ops/prod
+docker compose ps
+```
+
+### 查看指定服务日志
+```bash
+docker compose logs -f jasmine-gateway   # 网关
+docker compose logs -f trade-service     # 交易服务
+docker compose logs jasmine-schema       # Schema 迁移日志
+```
+
+### 重启单个服务
+```bash
+docker compose up -d --force-recreate <service-name>
+```
+
+### 完全重建（保留数据）
+```bash
+docker compose up -d --force-recreate
+```
+
+### 完全重置（清除所有数据）
+```bash
+docker compose down -v
+# 清理数据卷
+docker run --rm -v $(pwd)/data:/data alpine rm -rf /data/*
+```
+
+---
+
+## 七、数据持久化
+
+| 服务 | 宿主机路径 | 内容 |
+|------|-----------|------|
+| MySQL | `./prod/data/mysql/` | 全部数据库物理文件 |
+| Redis | `./prod/data/redis/` | AOF 持久化文件 |
+| RabbitMQ | `./prod/data/rabbitmq/` | 消息和队列数据 |
+| Nacos | `./prod/data/nacos/logs/` | 系统运维日志 |
+| 微服务 | `./prod/logs/<服务名>/` | 业务运行日志 |
+
+备份建议：定期备份 `data/mysql/` 目录（包含了所有业务数据和 Nacos 配置数据）。
+
+---
+
+## 八、默认账号
+
+| 系统 | 账号 | 密码 | 用途 |
+|------|------|------|------|
+| 前端登录 | `admin` | `123456` | 系统管理员 |
+| 前端登录 | `Jasmine` | `Jasmine` | 普通用户 |
+| Nacos 控制台 | `nacos` | `nacos` | Nacos 管理员 |
+
+---
+
+## 九、镜像构建
+
+Docker 镜像由 **GitHub Actions** 自动构建（`.github/workflows/docker-publish.yml`），推送至 `ghcr.io/jipzeongit/<module>`。
+
+支持的架构：`linux/amd64` + `linux/arm64`（通过 QEMU + buildx）。
+
+推送到 `main` 或 `microservices` 分支即触发构建。

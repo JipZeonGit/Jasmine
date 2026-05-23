@@ -11,4 +11,5 @@ CREATE TABLE IF NOT EXISTS `site_message` (
   KEY `idx_site_message_biz_type` (`biz_type`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='站内通知消息表';
 
-ALTER TABLE `event_outbox` ADD COLUMN IF NOT EXISTS `delay_ms` bigint DEFAULT NULL COMMENT '延迟投递毫秒数' AFTER `payload`;
+SET @sql = (SELECT IF(EXISTS(SELECT 1 FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'event_outbox' AND column_name = 'delay_ms'), 'SELECT 1', 'ALTER TABLE `event_outbox` ADD COLUMN `delay_ms` bigint DEFAULT NULL AFTER `payload`'));
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;

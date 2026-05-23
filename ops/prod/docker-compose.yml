@@ -19,6 +19,8 @@ x-service-env: &service-env
   RABBITMQ_VHOST: ${RABBITMQ_VHOST:-/jasmine}
   NACOS_ADDR: nacos:8848
   NACOS_NAMESPACE: ${NACOS_NAMESPACE:-prod}
+  NACOS_USERNAME: ${NACOS_USERNAME:-nacos}
+  NACOS_PASSWORD: ${NACOS_PASSWORD:-nacos}
 
 x-gateway-env: &gateway-env
   SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-prod}
@@ -30,6 +32,8 @@ x-gateway-env: &gateway-env
   REDIS_PASSWORD: ${REDIS_PASSWORD:?REDIS_PASSWORD is required}
   NACOS_ADDR: nacos:8848
   NACOS_NAMESPACE: ${NACOS_NAMESPACE:-prod}
+  NACOS_USERNAME: ${NACOS_USERNAME:-nacos}
+  NACOS_PASSWORD: ${NACOS_PASSWORD:-nacos}
 
 x-service-depends-on: &service-depends-on
   mysql:
@@ -204,6 +208,7 @@ services:
     environment:
       <<: *service-env
       LOGGING_FILE_NAME: /app/logs/iam-service.log
+      SPRING_DATASOURCE_URL: jdbc:mysql://$${MYSQL_HOST}:$${MYSQL_PORT:-3306}/jasmine_iam?useUnicode=true&characterEncoding=UTF-8&connectionCollation=utf8mb4_0900_ai_ci&serverTimezone=Asia/Shanghai
     volumes:
       - ./logs/iam:/app/logs
     <<: *service-resources
@@ -223,6 +228,7 @@ services:
     environment:
       <<: *service-env
       LOGGING_FILE_NAME: /app/logs/product-service.log
+      SPRING_DATASOURCE_URL: jdbc:mysql://$${MYSQL_HOST}:$${MYSQL_PORT:-3306}/jasmine_product?useUnicode=true&characterEncoding=UTF-8&connectionCollation=utf8mb4_0900_ai_ci&serverTimezone=Asia/Shanghai
     volumes:
       - ./logs/product:/app/logs
     <<: *service-resources
@@ -242,6 +248,7 @@ services:
     environment:
       <<: *service-env
       LOGGING_FILE_NAME: /app/logs/trade-service.log
+      SPRING_DATASOURCE_URL: jdbc:mysql://$${MYSQL_HOST}:$${MYSQL_PORT:-3306}/jasmine_trade?useUnicode=true&characterEncoding=UTF-8&connectionCollation=utf8mb4_0900_ai_ci&serverTimezone=Asia/Shanghai
     volumes:
       - ./logs/trade:/app/logs
     <<: *service-resources
@@ -261,6 +268,7 @@ services:
     environment:
       <<: *service-env
       LOGGING_FILE_NAME: /app/logs/crm-service.log
+      SPRING_DATASOURCE_URL: jdbc:mysql://$${MYSQL_HOST}:$${MYSQL_PORT:-3306}/jasmine_crm?useUnicode=true&characterEncoding=UTF-8&connectionCollation=utf8mb4_0900_ai_ci&serverTimezone=Asia/Shanghai
     volumes:
       - ./logs/crm:/app/logs
     <<: *service-resources
