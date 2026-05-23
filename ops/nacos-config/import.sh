@@ -41,7 +41,7 @@ ACCESS_TOKEN=""
 if [ "${NACOS_AUTH_ENABLED:-true}" != "false" ]; then
   echo ">>> 尝试登录 Nacos 获取 accessToken..."
   for i in {1..5}; do
-    LOGIN_RESP="$(curl -sS -X POST "$BASE/v1/auth/users/login" \
+    LOGIN_RESP="$(curl -sS -X POST "$BASE/v3/auth/user/login" \
       --data-urlencode "username=$NACOS_USER" \
       --data-urlencode "password=$NACOS_PASS" || true)"
 
