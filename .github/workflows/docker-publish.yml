@@ -41,6 +41,8 @@ jobs:
     steps:
       - name: 1. 拉取最新代码
         uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: 2. 计算镜像元数据
         id: meta
@@ -87,6 +89,8 @@ jobs:
     steps:
       - name: 1. 拉取最新代码
         uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: 2. 设置 QEMU
         uses: docker/setup-qemu-action@v3
@@ -131,6 +135,8 @@ jobs:
     steps:
       - name: 1. 拉取最新代码
         uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: 2. 设置 QEMU
         uses: docker/setup-qemu-action@v3
