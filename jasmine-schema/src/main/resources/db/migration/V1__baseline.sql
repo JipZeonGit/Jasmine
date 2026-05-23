@@ -6,7 +6,7 @@
 -- ----------------------------
 -- Table structure for appointment
 -- ----------------------------
-CREATE TABLE `appointment`  (
+CREATE TABLE IF NOT EXISTS `appointment`  (
   `id` int NOT NULL AUTO_INCREMENT,
   `date` datetime NULL DEFAULT NULL,
   `vid` varchar(20) NULL DEFAULT NULL,
@@ -31,7 +31,7 @@ INSERT INTO `appointment` VALUES (6, '2023-08-24 00:00:00', '10563933573', '黄�
 -- ----------------------------
 -- Table structure for flower
 -- ----------------------------
-CREATE TABLE `flower`  (
+CREATE TABLE IF NOT EXISTS `flower`  (
   `id` int NOT NULL AUTO_INCREMENT,
   `name` varchar(50) NOT NULL,
   `unitprice` decimal(10, 2) NULL DEFAULT NULL,
@@ -52,7 +52,7 @@ INSERT INTO `flower` VALUES (5, '白玫瑰', 17.00, 14.00, 1);
 -- ----------------------------
 -- Table structure for inventory
 -- ----------------------------
-CREATE TABLE `inventory`  (
+CREATE TABLE IF NOT EXISTS `inventory`  (
   `id` int NOT NULL AUTO_INCREMENT,
   `name` varchar(50) NOT NULL,
   `num` varchar(20) NULL DEFAULT NULL,
@@ -82,7 +82,7 @@ INSERT INTO `inventory` VALUES (12, '葵花', '2023081493090861', 100, '2023-08-
 -- ----------------------------
 -- Table structure for menu
 -- ----------------------------
-CREATE TABLE `menu`  (
+CREATE TABLE IF NOT EXISTS `menu`  (
   `menu_id` int NOT NULL AUTO_INCREMENT,
   `component` varchar(100) NULL DEFAULT NULL,
   `path` varchar(100) NULL DEFAULT NULL,
@@ -112,7 +112,7 @@ INSERT INTO `menu` VALUES (9, 'custom/inventoryManage', 'inventoryManage', NULL,
 -- ----------------------------
 -- Table structure for role
 -- ----------------------------
-CREATE TABLE `role`  (
+CREATE TABLE IF NOT EXISTS `role`  (
   `role_id` int NOT NULL AUTO_INCREMENT,
   `role_name` varchar(50) NOT NULL,
   `role_desc` varchar(100) NULL DEFAULT NULL,
@@ -130,7 +130,7 @@ INSERT INTO `role` VALUES (7, 'Boss', '老板');
 -- ----------------------------
 -- Table structure for role_menu
 -- ----------------------------
-CREATE TABLE `role_menu`  (
+CREATE TABLE IF NOT EXISTS `role_menu`  (
   `id` int NOT NULL AUTO_INCREMENT,
   `role_id` int NOT NULL,
   `menu_id` int NOT NULL,
@@ -163,7 +163,7 @@ INSERT INTO `role_menu` VALUES (49, 7, 9);
 -- ----------------------------
 -- Table structure for sales
 -- ----------------------------
-CREATE TABLE `sales`  (
+CREATE TABLE IF NOT EXISTS `sales`  (
   `id` int NOT NULL AUTO_INCREMENT,
   `date` datetime NULL DEFAULT NULL,
   `money` decimal(15, 2) NULL DEFAULT NULL,
@@ -185,7 +185,7 @@ INSERT INTO `sales` VALUES (7, '2023-08-15 18:25:23', -400.25, 0);
 -- ----------------------------
 -- Table structure for user
 -- ----------------------------
-CREATE TABLE `user`  (
+CREATE TABLE IF NOT EXISTS `user`  (
   `id` int NOT NULL AUTO_INCREMENT,
   `username` varchar(50) NOT NULL,
   `password` varchar(100) NULL DEFAULT NULL,
@@ -200,13 +200,13 @@ CREATE TABLE `user`  (
 -- ----------------------------
 -- Records of user
 -- ----------------------------
-INSERT INTO `user` VALUES (1, 'admin', '$2a$10$JucudGSGaIlP42TJbwaRe.GHjNjoV8opukOxEYQrWwv291Kuyt3iq', 'admin@test.com', '13677778888', 1, 'https://wpimg.wallstcn.com/f778738c-e4f8-4870-b634-56703b4acafe.gif', 0);
+INSERT INTO `user` VALUES (1, 'admin', '$2a$10$8soCrECtCjr6MAr5hdzdhut9qeTdD036ClJ6zbi/AjINBvztCIpKG', 'admin@test.com', '13677778888', 1, 'https://wpimg.wallstcn.com/f778738c-e4f8-4870-b634-56703b4acafe.gif', 0);
 INSERT INTO `user` VALUES (2, 'Jasmine', '$2a$10$PY5vfxJvPMQwEEtklOOgI.pGwB6kOeQBTuh/OSKqhgmN4wjbMGqQu', 'Jasmine@test.com', '13777777777', 1, 'https://wpimg.wallstcn.com/f778738c-e4f8-4870-b634-56703b4acafe.gif', 0);
 
 -- ----------------------------
 -- Table structure for user_role
 -- ----------------------------
-CREATE TABLE `user_role`  (
+CREATE TABLE IF NOT EXISTS `user_role`  (
   `id` int NOT NULL AUTO_INCREMENT,
   `user_id` int NOT NULL,
   `role_id` int NOT NULL,
@@ -222,7 +222,7 @@ INSERT INTO `user_role` VALUES (3, 2, 1);
 -- ----------------------------
 -- Table structure for vip
 -- ----------------------------
-CREATE TABLE `vip`  (
+CREATE TABLE IF NOT EXISTS `vip`  (
   `id` int NOT NULL AUTO_INCREMENT,
   `vid` varchar(20) NULL DEFAULT NULL,
   `name` varchar(50) NOT NULL,

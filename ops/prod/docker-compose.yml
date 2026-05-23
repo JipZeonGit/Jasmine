@@ -2,6 +2,7 @@ x-service-env: &service-env
   SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-prod}
   APP_CACHE_TYPE: ${APP_CACHE_TYPE:-redis}
   APP_MQ_ENABLED: ${APP_MQ_ENABLED:-true}
+  GATEWAY_SHARED_TOKEN: ${GATEWAY_SHARED_TOKEN:?GATEWAY_SHARED_TOKEN is required}
   JWT_SECRET: ${JWT_SECRET:?JWT_SECRET is required}
   CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:?CORS_ALLOWED_ORIGINS is required}
   MYSQL_HOST: mysql
@@ -22,6 +23,7 @@ x-service-env: &service-env
 x-gateway-env: &gateway-env
   SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-prod}
   app.security.jwt-secret: ${JWT_SECRET:?JWT_SECRET is required}
+  app.security.gateway-shared-token: ${GATEWAY_SHARED_TOKEN:?GATEWAY_SHARED_TOKEN is required}
   CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:?CORS_ALLOWED_ORIGINS is required}
   REDIS_HOST: redis
   REDIS_PORT: 6379
