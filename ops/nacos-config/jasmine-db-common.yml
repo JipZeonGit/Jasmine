@@ -9,3 +9,5 @@ spring:
     username: ${MYSQL_USER}
     password: ${MYSQL_PASSWORD}
     url: jdbc:mysql://${MYSQL_HOST}:${MYSQL_PORT:3306}/${MYSQL_DB_NAME:jasmine}?useUnicode=true&characterEncoding=UTF-8&connectionCollation=utf8mb4_0900_ai_ci&serverTimezone=Asia/Shanghai
+  flyway:
+    enabled: false

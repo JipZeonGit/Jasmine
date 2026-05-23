@@ -18,17 +18,16 @@ x-service-env: &service-env
   RABBITMQ_VHOST: ${RABBITMQ_VHOST:-/jasmine}
   NACOS_ADDR: nacos:8848
   NACOS_NAMESPACE: ${NACOS_NAMESPACE:-prod}
-  NACOS_USERNAME: ${NACOS_USERNAME:-nacos}
-  NACOS_PASSWORD: ${NACOS_PASSWORD:-nacos}
 
 x-gateway-env: &gateway-env
   SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-prod}
-  JWT_SECRET: ${JWT_SECRET:?JWT_SECRET is required}
+  app.security.jwt-secret: ${JWT_SECRET:?JWT_SECRET is required}
   CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:?CORS_ALLOWED_ORIGINS is required}
+  REDIS_HOST: redis
+  REDIS_PORT: 6379
+  REDIS_PASSWORD: ${REDIS_PASSWORD:?REDIS_PASSWORD is required}
   NACOS_ADDR: nacos:8848
   NACOS_NAMESPACE: ${NACOS_NAMESPACE:-prod}
-  NACOS_USERNAME: ${NACOS_USERNAME:-nacos}
-  NACOS_PASSWORD: ${NACOS_PASSWORD:-nacos}
 
 x-service-depends-on: &service-depends-on
   mysql:
@@ -120,7 +119,7 @@ services:
       start_period: 30s
 
   nacos:
-    image: nacos/nacos-server:v2.4.3
+    image: nacos/nacos-server:v3.0.3
     container_name: jasmine-prod-nacos
     restart: unless-stopped
     environment:
@@ -132,10 +131,13 @@ services:
       MYSQL_SERVICE_USER: ${MYSQL_USER:?MYSQL_USER is required}
       MYSQL_SERVICE_PASSWORD: ${MYSQL_PASSWORD:?MYSQL_PASSWORD is required}
       MYSQL_SERVICE_DB_PARAM: characterEncoding=utf8&connectTimeout=1000&socketTimeout=3000&autoReconnect=true&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Shanghai
-      NACOS_AUTH_ENABLE: "true"
       NACOS_AUTH_TOKEN: ${NACOS_AUTH_TOKEN:?NACOS_AUTH_TOKEN is required}
       NACOS_AUTH_IDENTITY_KEY: ${NACOS_AUTH_IDENTITY_KEY:-serverIdentity}
       NACOS_AUTH_IDENTITY_VALUE: ${NACOS_AUTH_IDENTITY_VALUE:?NACOS_AUTH_IDENTITY_VALUE is required}
+      NACOS_CORE_API_COMPATIBILITY_CONSOLE_ENABLED: "true"
+      NACOS_CORE_AUTH_ENABLED: "false"
+      NACOS_CORE_AUTH_CONSOLE_ENABLED: "false"
+      NACOS_CORE_AUTH_ADMIN_ENABLED: "false"
       JVM_XMS: 256m
       JVM_XMX: 256m
     depends_on:
@@ -146,8 +148,9 @@ services:
       - "${NACOS_GRPC_PORT:-9848}:9848"
     volumes:
       - ./data/nacos/logs:/home/nacos/logs
+      - ./nacos-application.properties:/home/nacos/conf/application.properties:ro
     healthcheck:
-      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:8848/nacos/v1/console/health/readiness || exit 1"]
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:8848/nacos/ -o /dev/null || exit 1"]
       interval: 15s
       timeout: 10s
       retries: 15
@@ -184,7 +187,7 @@ services:
       - ./logs/gateway:/app/logs
     <<: *service-resources
     healthcheck:
-      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:8080/actuator/health | grep '\"status\":\"UP\"' || exit 1"]
+      test: ["CMD-SHELL", "curl -sS http://127.0.0.1:8080/ -o /dev/null || exit 1"]
       interval: 20s
       timeout: 10s
       retries: 10

@@ -10,3 +10,10 @@ app:
     # 网关与下游服务之间的共享密钥；网关注入到 X-Gateway-Token，
     # 下游服务通过 InternalEndpointGuardFilter 校验，prod 必须通过环境变量覆盖。
     gateway-shared-token: ${GATEWAY_SHARED_TOKEN:jasmine-dev-gateway-shared-token-change-me-2026}
+
+# Spring Boot 3.5 + LoadBalancer 兼容性修复：
+# @LoadBalanced RestClient.Builder 需要显式注册 Bean（否则 NoSuchBeanDefinitionException）
+spring:
+  cloud:
+    loadbalancer:
+      enabled: true

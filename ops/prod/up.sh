@@ -47,6 +47,29 @@ while true; do
 done
 echo ">>> [OK] Nacos 基础设施已健康运行！"
 
+# ---------- Nacos 初始管理员用户自动补种 ----------
+# MySQL 的 /docker-entrypoint-initdb.d 脚本仅在首次初始化 datadir 时执行。
+# 如果 data 卷已存在（非首次启动），nacos.users 表可能为空，
+# 导致 Nacos 鉴权服务返回 "user not found"。此处自动检测并补种。
+echo ">>> 正在检查 Nacos 数据库初始管理员用户..."
+NACOS_USER_EXISTS=$(docker exec jasmine-prod-mysql \
+  mysql -uroot -p"${MYSQL_ROOT_PASSWORD}" -N -s -e \
+  "SELECT COUNT(*) FROM nacos.users WHERE username='nacos';" 2>/dev/null || echo "0")
+
+if [ "$NACOS_USER_EXISTS" = "0" ]; then
+  echo ">>> [自愈] 检测到 nacos.users 表中缺少管理员用户，正在自动补种..."
+  docker exec jasmine-prod-mysql \
+    mysql -uroot -p"${MYSQL_ROOT_PASSWORD}" nacos -e "
+      INSERT IGNORE INTO users (username, password, enabled)
+        VALUES ('nacos', '\$2a\$10\$EuWPZHzz32dJN7jexM34EKsLrV7glS.aBGD66ZoNs5qi23.A277t.', TRUE);
+      INSERT IGNORE INTO roles (username, role)
+        VALUES ('nacos', 'ROLE_ADMIN');
+    "
+  echo ">>> [OK] Nacos 管理员用户已成功补种！(默认密码: nacos，后续将由 import.sh 自愈同步为 .env 中的自定义密码)"
+else
+  echo ">>> [OK] Nacos 管理员用户已存在，跳过补种。"
+fi
+
 echo "========================================="
 echo "  Jasmine 部署 - 阶段 2: 密码自愈与配置导入"
 echo "========================================="
