@@ -7,10 +7,8 @@ import org.springframework.boot.CommandLineRunner;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.autoconfigure.flyway.FlywayAutoConfiguration;
-import org.springframework.boot.jdbc.DataSourceBuilder;
 import org.springframework.core.env.Environment;
 
-import javax.sql.DataSource;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
@@ -63,8 +61,6 @@ public class SchemaApplication implements CommandLineRunner {
         String port = env.getProperty("MYSQL_PORT", "3306");
         String user = env.getRequiredProperty("MYSQL_USER");
         String password = env.getRequiredProperty("MYSQL_PASSWORD");
-        String driver = env.getProperty("SPRING_DATASOURCE_DRIVER_CLASS_NAME",
-                "com.mysql.cj.jdbc.Driver");
 
         log.info("=== Jasmine Schema 迁移开始（多数据库模式） ===");
         log.info("MySQL: {}:{}, 目标数据库: {}", host, port, DATABASES.keySet());
@@ -78,15 +74,8 @@ public class SchemaApplication implements CommandLineRunner {
 
             log.info("--- [{}] 开始迁移 (路径: {}) ---", dbName, entry.getValue());
             try {
-                DataSource ds = DataSourceBuilder.create()
-                        .url(url)
-                        .username(user)
-                        .password(password)
-                        .driverClassName(driver)
-                        .build();
-
                 Flyway flyway = Flyway.configure()
-                        .dataSource(ds)
+                        .dataSource(url, user, password)
                         .locations(entry.getValue())
                         .baselineOnMigrate(true)
                         .baselineVersion("1")
