@@ -35,16 +35,16 @@ public class SchemaApplication implements CommandLineRunner {
     private static final Logger log = LoggerFactory.getLogger(SchemaApplication.class);
 
     /**
-     * 需要执行迁移的微服务独立数据库列表。
-     * 顺序不敏感，但建议与 init-databases.sql 一致以便排查。
+     * 数据库 → Flyway 迁移脚本路径映射。
+     * 每个微服务数据库独立存放迁移脚本，各自维护 flyway_schema_history。
      */
     public static final Map<String, String> DATABASES = new LinkedHashMap<>();
 
     static {
-        DATABASES.put("jasmine_iam", "jasmine_iam");
-        DATABASES.put("jasmine_product", "jasmine_product");
-        DATABASES.put("jasmine_trade", "jasmine_trade");
-        DATABASES.put("jasmine_crm", "jasmine_crm");
+        DATABASES.put("jasmine_iam",     "classpath:db/migration/iam");
+        DATABASES.put("jasmine_product", "classpath:db/migration/product");
+        DATABASES.put("jasmine_trade",   "classpath:db/migration/trade");
+        DATABASES.put("jasmine_crm",     "classpath:db/migration/crm");
     }
 
     private final Environment env;
@@ -76,7 +76,7 @@ public class SchemaApplication implements CommandLineRunner {
                     "jdbc:mysql://%s:%s/%s?useUnicode=true&characterEncoding=UTF-8&connectionCollation=utf8mb4_0900_ai_ci&serverTimezone=Asia/Shanghai",
                     host, port, dbName);
 
-            log.info("--- [{}] 开始迁移 ---", dbName);
+            log.info("--- [{}] 开始迁移 (路径: {}) ---", dbName, entry.getValue());
             try {
                 DataSource ds = DataSourceBuilder.create()
                         .url(url)
@@ -87,7 +87,7 @@ public class SchemaApplication implements CommandLineRunner {
 
                 Flyway flyway = Flyway.configure()
                         .dataSource(ds)
-                        .locations("classpath:db/migration")
+                        .locations(entry.getValue())
                         .baselineOnMigrate(true)
                         .baselineVersion("1")
                         .cleanDisabled(true)

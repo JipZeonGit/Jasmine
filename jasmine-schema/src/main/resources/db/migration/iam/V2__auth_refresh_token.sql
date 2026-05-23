@@ -1,4 +1,4 @@
-CREATE TABLE `auth_refresh_token` (
+CREATE TABLE IF NOT EXISTS `auth_refresh_token` (
   `id` int NOT NULL AUTO_INCREMENT,
   `user_id` int NOT NULL,
   `token_id` varchar(64) NOT NULL,
