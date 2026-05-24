@@ -67,117 +67,40 @@ ops/
 
 ---
 
-## 三、全新部署步骤
+## 三、全新部署
 
 ### 前置条件
 - Docker 24+ 与 Docker Compose v2
-- 服务器有足够磁盘空间（建议 ≥ 5 GB 空闲）
+- 磁盘空间 ≥ 5 GB
 
-### 步骤 1：准备环境和配置
-
-```bash
-# 将仓库克隆到服务器
-git clone https://github.com/JipZeonGit/Jasmine.git /opt/jasmine
-cd /opt/jasmine/ops/prod
-
-# 从模板创建 .env 并修改密钥
-cp .env.example .env
-```
-
-编辑 `prod/.env`，**至少修改以下项**：
-```
-JWT_SECRET=<openssl rand -base64 64 生成的密钥>
-NACOS_AUTH_TOKEN=<openssl rand -base64 32 生成的密钥>
-MYSQL_ROOT_PASSWORD=<强密码>
-MYSQL_PASSWORD=<强密码>
-REDIS_PASSWORD=<强密码>
-RABBITMQ_PASSWORD=<强密码>
-```
-
-### 步骤 2：拉取镜像
+### 一键部署
 
 ```bash
-cd /opt/jasmine/ops
-export TAG=microservices-latest
-
-for mod in jasmine-schema jasmine-gateway jasmine-iam jasmine-product \
-           jasmine-trade jasmine-crm jasmine-frontend; do
-  docker pull "ghcr.io/jipzeongit/$mod:$TAG"
-done
+git clone -b microservices https://github.com/JipZeonGit/Jasmine.git && cd Jasmine/ops/prod
+cp .env.example .env                      # 编辑密码和密钥
+chmod +x up.sh down.sh
+./up.sh                                   # 全自动四阶段部署
 ```
 
-### 步骤 3：启动中间件并等待就绪
+`up.sh` 自动完成：
+
+| 阶段 | 操作 |
+|------|------|
+| 1 | 拉取镜像 → 启动 MySQL/Redis/RabbitMQ/Nacos → 等待 healthy |
+| 2 | 创建 Nacos 命名空间 → 密码自愈（自定义密码→nacos/nacos回退→改密） → 导入 10 个 YAML 配置 |
+| 3 | 启动 jasmine-schema →  Flyway 对 4 个数据库分库迁移 → 等待完成 |
+| 4 | 启动所有业务服务 + 前端 → 刷新 nginx DNS |
+
+### 验证
 
 ```bash
-cd /opt/jasmine/ops/prod
-docker compose --env-file .env up -d mysql redis rabbitmq nacos
-
-# 等待三者全部 healthy（约 2-3 分钟）
-docker compose ps
-```
-
-### 步骤 4：创建 Nacos 命名空间并导入配置
-
-> Nacos 3.0.3 已开启鉴权，默认账号 `nacos / nacos`。
-
-```bash
-# 创建 prod 命名空间（Nacos 3.x 需要通过 MySQL 直接操作）
-docker exec jasmine-prod-mysql mysql -u<jasmine_app> -p<密码> nacos -e \
-  "INSERT IGNORE INTO tenant_info (kp, tenant_id, tenant_name, tenant_desc, create_source, gmt_create, gmt_modified)
-   VALUES ('1', 'prod', 'prod', 'Jasmine prod', 'empty', UNIX_TIMESTAMP()*1000, UNIX_TIMESTAMP()*1000)"
-
-# 导入所有微服务配置
-cd /opt/jasmine/ops/nacos-config
-NACOS_USERNAME=nacos NACOS_PASSWORD=nacos NACOS_AUTH_ENABLED=true bash import.sh 127.0.0.1:8848 prod
-```
-
-### 步骤 5：运行 Schema 迁移
-
-```bash
-cd /opt/jasmine/ops/prod
-
-# Schema 服务会对 jasmine_iam / product / trade / crm 四个库
-# 分别执行 Flyway 独立分库迁移（每个库有独立的 flyway_schema_history）
-docker compose --env-file .env up -d jasmine-schema
-
-# 等待显示 "exited (0)"（约 30 秒）
-docker compose ps jasmine-schema
-```
-
-### 步骤 6：启动所有业务服务
-
-```bash
-docker compose --env-file .env up -d
-
-# 等待全部 healthy（约 2 分钟）
-docker compose ps
-```
-
-预期输出：8 个容器均为 `Up (healthy)`：
-```
-jasmine-prod-crm         Up XX minutes (healthy)
-jasmine-prod-frontend    Up XX minutes (healthy)
-jasmine-prod-gateway     Up XX minutes (healthy)
-jasmine-prod-iam         Up XX minutes (healthy)
-jasmine-prod-mysql       Up XX minutes (healthy)
-jasmine-prod-nacos       Up XX minutes (healthy)
-jasmine-prod-product     Up XX minutes (healthy)
-jasmine-prod-trade       Up XX minutes (healthy)
-```
-
-### 步骤 7：验证
-
-```bash
-# 测试登录（默认账号 admin / 123456）
 curl -X POST http://localhost:8080/user/login \
   -H "Content-Type: application/json" \
   -d '{"username":"admin","password":"123456"}'
-
-# 预期返回:
 # {"code":20000,"message":"success","data":{"token":"eyJ..."}}
-
-# 浏览器访问 http://<服务器IP>/
 ```
+
+浏览器访问 `http://<服务器IP>/` 进入管理后台。
 
 ---
 
@@ -189,7 +112,7 @@ curl -X POST http://localhost:8080/user/login \
 |--------|---------|--------|
 | `jasmine_iam` | IAM | user, role, menu, user_role, role_menu, auth_refresh_token |
 | `jasmine_product` | Product | flower |
-| `jasmine_trade` | Trade | sales, sales_item, inventory, inventory_alert |
+| `jasmine_trade` | Trade | sales, sales_item, inventory, inventory_alert, event_outbox |
 | `jasmine_crm` | CRM | vip, appointment, site_message, event_outbox |
 
 ### Flyway 迁移脚本
@@ -198,7 +121,7 @@ curl -X POST http://localhost:8080/user/login \
 jasmine-schema/src/main/resources/db/migration/
 ├── iam/       V1~V3 (baseline → auth → hardening)
 ├── product/   V1~V3
-├── trade/     V1~V5
+├── trade/     V1~V6
 └── crm/       V1~V6
 ```
 
@@ -278,7 +201,7 @@ docker run --rm -v $(pwd)/data:/data alpine rm -rf /data/*
 |------|------|------|------|
 | 前端登录 | `admin` | `123456` | 系统管理员 |
 | 前端登录 | `Jasmine` | `Jasmine` | 普通用户 |
-| Nacos 控制台 | `nacos` | `nacos` | Nacos 管理员 |
+| Nacos 控制台 | `nacos` | 由 `.env` 自定义（up.sh 自动同步） | Nacos 管理员 |
 
 ---
 

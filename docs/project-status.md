@@ -1,241 +1,87 @@
 # 项目阶段状态
 
-这份文档用于记录 `Jasmine` 当前从 `PR0` 到最新阶段的升级进度，避免把大量阶段性说明直接堆进 `README.md`。
-
-## `PR0` 冻结旧系统
-
-- `main` 保持 legacy 可运行
-- `legacy-v1` 作为旧系统保留标签
-- `next` 作为升级主线
-
-状态：
-
-- 基本完成
-- 功能清单 / 接口清单 / 升级边界文档仍可继续补全
-
-## `PR1` 升级基线
-
-- 分环境配置
-- 敏感配置环境变量化
-- GitHub Actions 基础 build / test / package 思路
-
-状态：
-
-- 部分完成
-- 剩余内容已在 `PR5`、`PR6` 中继续收口
-
-## `PR2` 后端底座升级
-
-- JDK 21
-- Spring Boot 3.5.x
-- `javax -> jakarta`
-- Boot 3 对应依赖升级
-
-状态：
-
-- 基本完成
-
-## `PR3` 认证鉴权第一阶段
-
-- `SecurityFilterChain`
-- JWT Filter
-- Bearer 鉴权主链
-- 单体 RBAC
-
-状态：
-
-- 主链路完成
-- 深层欠账已在后续阶段继续收口
-
-## `PR4` 接口规范第一阶段
-
-- 用户主链路 DTO / VO
-- `@Valid`
-- 全局异常处理
-- 部分统一返回结构
-
-状态：
-
-- 主链路完成
-- 全量规范化已后移到后续阶段
-
-## `PR5` 基础设施收口
-
-- Flyway baseline
-- 基础健康检查
-- JWT 密钥环境变量化
-- 升级文档与运行文档补齐
-
-状态：
-
-- 已完成
-
-## `PR6` 测试基线现代化
-
-- Testcontainers MySQL
-- Testcontainers Redis
-- 集成测试基线现代化
-
-状态：
-
-- 已完成
-
-## `PR7` 认证鉴权第二阶段
-
-- refresh token / logout / 失效策略
-- token 生命周期设计
-- 认证文档补齐
-
-状态：
-
-- 已完成
-
-## `PR8` 接口规范第二阶段
-
-- DTO / VO 边界继续收口
-- 错误码统一
-- 接口返回继续规范化
-
-状态：
-
-- 已完成
-
-## `PR9` 日志与指标基线
-
-- 统一日志
-- `traceId` / `requestId`
-- Micrometer
-- Prometheus endpoint
-
-状态：
-
-- 已完成
-
-## `PR10` 数据库正式升级
-
-- MySQL 8.4 基线
-- 字符集 / 排序规则 / SQL 兼容性收口
-- 数据库迁移验证
-
-状态：
-
-- 已完成
-
-## `PR11` 核心业务模型重建
-
-- 花卉 / 库存 / 销售 / 会员 / 预约主模型重建
-- 业务主链重新梳理
-
-状态：
-
-- 已完成
-
-## `PR12` 模块化单体重组
-
-- 按业务域重组后端代码
-- 收口模块边界和目录结构
-
-状态：
-
-- 已完成
-
-## `PR12.5` Redis 收口
-
-- Redis 缓存边界明确
-- 菜单 / 角色 / 花卉等主数据缓存收口
-
-状态：
-
-- 已完成
-
-## `PR13` RabbitMQ 接入
-
-- RabbitMQ 拓扑接入
-- 预约 / 审计 / 销售 / 库存事件链路
-- 重试、死信、契约文档、行为测试
-
-状态：
-
-- 已完成
-
-## `PR13.5` Redis 与 MQ 稳定性收口
-
-- 库存原子更新
-- 请求级幂等
-- 缓存空值安全与热点保护
-- TTL 抖动
-- MQ 发布确认可观测性
-
-状态：
-
-- 已完成
-
-## `PR14` Docker / Ops / 部署整理
-
-- `ops/` 目录
-- 分环境 Compose
-- `ops/.env.example`
-- GitHub Actions 镜像构建
-- 部署 / 回滚文档
-
-状态：
-
-- 已完成
-
-## `PR15` 新前端全量迁移及美化
-
-- Vite + Vue 3 + Element Plus 全量替换旧前端
-- 系统级及所有业务页面迁移合并
-- 深度汉化修复（Element Plus 日期时间组件等）
-- 主视觉重构（生机活力阳光主题 + 毛玻璃特效）
-- 浅色/暗黑模式（Dark Mode）一键切换支持
-- Docker / CI 构建链并入新前端主干
-
-状态：
-
-- 已完成（PR15 ~ 17 全部工作）
-
-## PR18 高并发与一致性增强（第一版）
-
-- ✅ 新增 Outbox 本地消息表机制，解决业务事件发布可靠性闭环
-- ✅ 增强库存事件语义，补齐所有库存变更入口的事件发布
-- ✅ 落地库存预警真实下游，从日志模拟升级为可查询的预警读模型
-- ✅ 彻底解决 RabbitMQ Jackson 强转报错闭环及 Vue 动态路由刷新 404 Bug
-- ✅ 深度集成低库存预警前端能力（全局提醒悬浮窗及库存智能校验高亮）
-- ✅ 明确排除 Redis 分布式锁、秒杀、延迟消息等不紧急内容
-- 📝 PR18：完成业务事件可靠发布、库存事件语义完整、库存预警下游展现层全栈闭环
-
-状态：
-
-- 已完成（PR15 ~ 17 全部工作）
-
-## PR19 预约提醒延迟与聚合消息中心
-
-- ✅ 引入 RabbitMQ 原生 `per-message TTL` + 死信路由（DLX）机制，实现延迟消息弹射。
-- ✅ 解决距离不足一小时的紧急预约造成的 `DelayMs <= 0` 永生队列死锁问题（退化为即时投递）。
-- ✅ 增加时间戳幂等键，优雅解决改签场景下重发延时提醒并过滤幽灵消息的问题。
-- ✅ 前端重构 `<el-tabs>` 聚合消息中心，实现待办提醒与库存预警合并显示。
-- ✅ 修复跨页面变更及标记已读后的前端幽灵数字角标不同步问题。
-- 📝 PR19：彻底跑通基于延时死信架构的业务级消息定时提醒及前端闭环。
-
-状态：
-
-- 已完成
-
-## PR20 安全加固与消息隔离修复
-- 发布代码审查报告 `docs\upgrade\review\pr20-code-review.md`
-- 安全加固与消息隔离修复
-
-状态：
-
-- 已完成
-
-## 后续主线
-
-- **分支：`microservices` 微服务前置评估**（评估 Nacos / Gateway / 服务拆分的必要性与拆分边界）
-- **预约体系深化**：利用已跑通的延时死信架构，横向扩展“预约超时未到店自动取消”或“未确认自动作废”功能
-- **触达渠道扩展**：将现有的站内信聚合消息中心，接入真实的外部通知渠道（如微信订阅消息、短信或邮件）
-- **销售数据仓库**：基于 MQ 事件驱动，构建“销售日报/月报”的异步统计与读模型（CQRS）
-- **单据状态机**：引入成熟的状态机（State Machine）框架，彻底规范复杂业务单据的流转生命周期
-- **端到端体系**：持续完善全系统的自动化测试覆盖、可观测性监控与高可用防护策略
-
+当前主分支 `microservices`，已完成从单体到微服务架构的完整迁移。
+
+---
+
+## 当前架构
+
+```
+Jasmine 微服务（Spring Cloud 2025.0.0 + Nacos 3.0.3）
+
+  frontend (Vue 3 + Element Plus, Nginx:80)
+      │
+  gateway (Spring Cloud Gateway, :8080)
+      │
+  ┌─────┬─────────┬─────────┬─────────┐
+  │ IAM │ Product │  Trade  │   CRM   │
+  │9101 │  9102   │  9103   │  9104   │
+  └──┬──┴────┬────┴────┬────┴────┬────┘
+     │       │         │         │
+  jasmine  jasmine  jasmine  jasmine
+   _iam   _product  _trade    _crm      (独立数据库)
+     │       │         │         │
+  ┌──┴───────┴─────────┴─────────┴──────┐
+  │  MySQL 8.4  │  Redis 7.2  │  RabbitMQ 4.2  │
+  └──────────────────────────────────────┘
+```
+
+---
+
+## 核心功能
+
+| 模块 | 功能 | 状态 |
+|------|------|------|
+| 用户认证 | JWT 登录/刷新/登出、RBAC 权限 | ✅ |
+| 花卉管理 | 主数据 CRUD、库存快照 | ✅ |
+| 库存管理 | 采购入库/销售出库、库存预警 | ✅ |
+| 销售管理 | 销售单创建/查询、今日汇总 | ✅ |
+| 会员管理 | 会员注册/查询 | ✅ |
+| 预约管理 | 预约创建、延时提醒（站内信红点） | ✅ |
+| 站内信 | 消息中心、未读计数、已读标记 | ✅ |
+| 消息可靠性 | Outbox 本地消息表 + 死信队列 + 重试 | ✅ |
+
+---
+
+## 生产部署
+
+| 项 | 状态 |
+|-----|------|
+| Docker Compose 全栈编排 | ✅ |
+| `./up.sh` 一键部署（4 阶段自动化） | ✅ |
+| Nacos 3.0.3 鉴权开启（密码自愈） | ✅ |
+| Flyway 分库迁移（jasmine-schema 集中管理） | ✅ |
+| GitHub Actions 多架构镜像（amd64/arm64） | ✅ |
+| 优雅关闭 / 网关限流 / 前端幂等键 | ✅ |
+
+---
+
+## 微服务迁移历程
+
+详细记录见 [docs/upgrade/logs/microservices/](docs/upgrade/logs/microservices/)：
+
+| 阶段 | 内容 | 文档 |
+|------|------|------|
+| Phase0 | Maven 多模块拆分 | [phase0](docs/upgrade/logs/microservices/phase0-maven-restructure.md) |
+| Phase1 | Nacos 服务注册与配置中心接入 | [phase1](docs/upgrade/logs/microservices/phase1-nacos-integration.md) |
+| Phase2 | Gateway 路由与全局 JWT 鉴权 | [phase2](docs/upgrade/logs/microservices/phase2-gateway-routing.md) |
+| Phase3 | 服务间 RestClient 远程调用 | [phase3](docs/upgrade/logs/microservices/phase3-service-communication.md) |
+| Phase4 | 数据库按服务拆分 | [phase4](docs/upgrade/logs/microservices/phase4-database-split.md) |
+| Phase5 | 前端适配微服务架构 | [phase5](docs/upgrade/logs/microservices/phase5-frontend-adaptation.md) |
+| Phase6 | 架构加固（优雅关闭/限流/幂等） | [phase6](docs/upgrade/logs/microservices/phase3-phase6-remote-decoupling-and-hardening.md) |
+
+---
+
+## 后续计划
+
+- 预约超时自动取消
+- 销售数据仓库与 CQRS 读模型
+- 外部通知渠道（微信/短信/邮件）
+- 复杂单据状态机
+- 全链路可观测性（分布式追踪/指标/告警）
+
+---
+
+## 历史存档
+
+单体应用时期的 PR0~PR20 升级记录归档于 [docs/upgrade/logs/monolith/](docs/upgrade/logs/monolith/)。

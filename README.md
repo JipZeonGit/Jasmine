@@ -29,13 +29,13 @@
 | Java | 运行时 | 21 |
 | Spring Boot | 应用框架 | 3.5.13 |
 | Spring Cloud Gateway | API 网关（WebFlux） | 跟随 Spring Cloud |
-| Nacos | 配置中心 + 服务注册发现 | v2.4.3 |
+| Nacos | 配置中心 + 服务注册发现 | v3.0.3（鉴权开启） |
 | Spring Security | 认证鉴权 | 跟随 Spring Boot |
 | Spring Actuator | 健康检查 / 运行指标 | 跟随 Spring Boot |
 | Spring AMQP | RabbitMQ 集成 | 跟随 Spring Boot |
 | Spring Retry | MQ 消费重试 | 跟随 Spring Boot |
 | MyBatis-Plus | 持久层框架 | 3.5.14 |
-| Flyway | 数据库迁移（各服务独立） | 跟随 Spring Boot |
+| Flyway | 数据库迁移（jasmine-schema 集中管理） | 跟随 Spring Boot |
 | Redis | 缓存与幂等支撑 | Spring Data Redis |
 | JWT | 登录令牌 | 0.12.7 |
 | springdoc-openapi | Swagger / OpenAPI | 2.8.16 |
@@ -60,10 +60,10 @@
 | MySQL | 主数据库 | 8.4（生产）/ 8.0（WSL2 开发） |
 | Redis | 缓存 / 幂等 | 7.2 |
 | RabbitMQ | 消息队列 | 4.2-management |
-| Nacos | 配置中心 / 服务注册 | v2.4.3 |
+| Nacos | 配置中心 / 服务注册 | v3.0.3（生产鉴权开启） |
 | Docker | 镜像与容器运行 | 当前基线已接入 |
 | Docker Compose | 多服务编排 | 当前基线已接入 |
-| GitHub Actions | CI / 镜像构建 | 当前基线已接入 |
+| GitHub Actions | CI / 镜像构建（多架构） | 当前基线已接入 |
 
 ## 微服务模块
 
@@ -71,7 +71,7 @@
 |:---|:---|:---|
 | `jasmine-common-core` | Result、通用异常、DTO、JWT claims、通用工具 | — |
 | `jasmine-common` | Servlet 服务侧基础设施：MyBatis、Redis、MQ、Outbox、Gateway Token 防护过滤器、Swagger MVC | — |
-| `jasmine-schema` | 独立 Flyway schema bootstrap（遗留参考，各服务已自带迁移） | — |
+| `jasmine-schema` | 独立 Flyway 迁移工具，对 4 个业务数据库统一执行分库迁移 | — |
 | `jasmine-gateway` | WebFlux Gateway 入口，路由转发、JWT 鉴权、CORS 统一处理 | 8080 |
 | `jasmine-iam` | 用户、角色、菜单、JWT 签发与 RBAC | 9101 |
 | `jasmine-product` | 花卉主数据与库存原子变更门面 | 9102 |
@@ -89,7 +89,7 @@
 | jasmine-trade | `jasmine_trade` |
 | jasmine-crm | `jasmine_crm` |
 
-各服务启动时 Flyway 自动建表，dev compose 首次启动时 `init-databases.sql` 自动创建 4 个库并授权。
+`jasmine-schema` 服务统一执行 Flyway 分库迁移，`init-databases.sql` 自动创建 4 个独立库并授权。业务服务 `spring.flyway.enabled=false` 不自行迁移。
 
 ### 安全架构
 
@@ -101,22 +101,14 @@
 
 ## 应用架构与详细接口说明书
 
-- `docs/architecture/microservices/architecture-and-api-spec.md`
+- [架构与API规格](docs/architecture/microservices/architecture-and-api-spec.md)
 
 ## 项目阶段
 
-当前详细阶段状态已经单独整理到：
-
-- `docs/project-status.md`
-
-如果想快速了解升级路线与后续计划，建议优先阅读：
-
-- `docs/upgrade/roadmap/pr11-after-roadmap.md`
-
-微服务架构的迁移计划与各阶段实施记录：
-
-- `docs/upgrade/plan/microservices/microservice-migration-plan.md`
-- `docs/upgrade/logs/microservices/`（Phase0 ~ Phase5 全记录）
+- [项目状态](docs/project-status.md)
+- [升级路线](docs/upgrade/roadmap/pr11-after-roadmap.md)
+- [微服务迁移计划](docs/upgrade/plan/microservices/microservice-migration-plan.md)
+- [微服务阶段日志](docs/upgrade/logs/microservices/)（Phase0 ~ Phase6 全记录）
 
 ## 仓库结构
 
@@ -153,12 +145,14 @@ docker compose up -d
 
 ### 2. 导入 Nacos 配置
 
+dev 环境默认不开启鉴权，可直接导入：
+
 ```bash
 cd ops/nacos-config
-bash import.sh 127.0.0.1:8848 dev
+NACOS_AUTH_ENABLED=false bash import.sh 127.0.0.1:8848 dev
 ```
 
-脚本会自动判断 Nacos 是否开启鉴权（dev 默认关闭），dev 环境可直接匿名导入。
+> import.sh 支持 Nacos 3.x，自动处理密码自愈（自定义密码登录失败→nacos/nacos 回退→自动改密）。
 
 ### 3. 在本机以 dev profile 启动后端服务
 
@@ -263,7 +257,7 @@ deploy:
 - Product Swagger：`http://localhost:9102/swagger-ui/index.html`
 - Trade Swagger：`http://localhost:9103/swagger-ui/index.html`
 - CRM Swagger：`http://localhost:9104/swagger-ui/index.html`
-- Nacos 控制台：`http://localhost:8848/nacos`（默认 nacos/nacos）
+- Nacos 控制台：`http://localhost:8848/nacos`（生产密码由 .env 自定义，dev 默认 nacos/nacos）
 - RabbitMQ 管理台：`http://localhost:15673`
 
 如果开启了前端：
@@ -284,7 +278,7 @@ deploy:
 
 详细说明请优先阅读：
 
-- `docs/upgrade/logs/monolith/pr14-docker-ops-deploy.md`
+- [Docker/Ops 部署记录](docs/upgrade/logs/monolith/pr14-docker-ops-deploy.md)
 
 ### 环境变量准备
 
@@ -316,19 +310,19 @@ chmod +x ops/dev/up.sh ops/dev/down.sh
 ./ops/dev/up.sh
 ```
 
-### 生产环境 Compose
-
-适合：
-
-- NAS 部署
-- 服务器部署
-
-默认从 GHCR 拉镜像：
+### 生产环境一键部署
 
 ```bash
+cp ops/prod/.env.example ops/prod/.env   # 编辑密码和密钥
 chmod +x ops/prod/up.sh ops/prod/down.sh
-./ops/prod/up.sh
+./ops/prod/up.sh                         # 全自动：拉镜像→中间件→Nacos配置→Schema迁移→启动服务
 ```
+
+`up.sh` 自动化 4 阶段：
+1. 启动中间件并等待 Nacos healthy
+2. 创建命名空间、密码自愈（自定义密码 → nacos/nacos 回退 → 自动改密）、导入 YAML 配置
+3. 执行 Flyway 分库迁移（jasmine_iam/product/trade/crm）
+4. 启动所有业务服务 + 前端
 
 ### 管理入口
 
@@ -389,29 +383,25 @@ chmod +x ops/prod/up.sh ops/prod/down.sh
 
 ## 文档入口
 
-### 项目约束
-- `docs/project-constraints.md`
+- [项目约束](docs/project-constraints.md)
+- [项目状态](docs/project-status.md)
+- [升级路线](docs/upgrade/roadmap/pr11-after-roadmap.md)
+- [微服务迁移计划](docs/upgrade/plan/microservices/microservice-migration-plan.md)
 
-### 项目状态
-- `docs/project-status.md`
-
-如果要继续理解当前路线与阶段边界，建议优先看：
-
-- `docs/upgrade/roadmap/pr11-after-roadmap.md`
-- `docs/upgrade/plan/microservices/microservice-migration-plan.md`
-- `docs/upgrade/logs/microservices/phase0-maven-restructure.md`
-- `docs/upgrade/logs/microservices/phase1-nacos-integration.md`
-- `docs/upgrade/logs/microservices/phase2-gateway-routing.md`
-- `docs/upgrade/logs/microservices/phase3-service-communication.md`
-- `docs/upgrade/logs/microservices/phase4-database-split.md`
-- `docs/upgrade/logs/microservices/phase5-frontend-adaptation.md`
-- `docs/upgrade/logs/microservices/phase5-post-adaptation-fixes.md`
-- `docs/upgrade/logs/microservices/phase0-phase1-code-quality-fixes.md`
-- `docs/upgrade/logs/microservices/phase2-5-review-fixes.md`
-- `docs/upgrade/logs/microservices/phase3-5-timeout-circuitbreaker-cache-prefix.md`
-- `docs/upgrade/logs/microservices/phase3-phase6-remote-decoupling-and-hardening.md`
-- `docs/upgrade/review/microservices/phase0-phase1-code-review.md`
-- `docs/upgrade/logs/monolith/pr20-security-hardening-and-message-reliability.md`
+### 微服务各阶段记录
+- [Phase0 Maven 重构](docs/upgrade/logs/microservices/phase0-maven-restructure.md)
+- [Phase1 Nacos 接入](docs/upgrade/logs/microservices/phase1-nacos-integration.md)
+- [Phase2 网关路由](docs/upgrade/logs/microservices/phase2-gateway-routing.md)
+- [Phase3 服务间通信](docs/upgrade/logs/microservices/phase3-service-communication.md)
+- [Phase4 数据库拆分](docs/upgrade/logs/microservices/phase4-database-split.md)
+- [Phase5 前端适配](docs/upgrade/logs/microservices/phase5-frontend-adaptation.md)
+- [Phase5 适配修复](docs/upgrade/logs/microservices/phase5-post-adaptation-fixes.md)
+- [Phase6 架构加固](docs/upgrade/logs/microservices/phase3-phase6-remote-decoupling-and-hardening.md)
+- [Phase0-1 代码审查](docs/upgrade/review/microservices/phase0-phase1-code-review-2026-05-19.md)
+- [Phase0-1 质量修复](docs/upgrade/logs/microservices/phase0-phase1-code-quality-fixes.md)
+- [Phase2-5 审查修复](docs/upgrade/logs/microservices/phase2-5-review-fixes.md)
+- [Phase3-5 超时熔断缓存](docs/upgrade/logs/microservices/phase3-5-timeout-circuitbreaker-cache-prefix.md)
+- [安全加固与消息可靠性](docs/upgrade/logs/monolith/pr20-security-hardening-and-message-reliability.md)
 
 ## 说明
 
