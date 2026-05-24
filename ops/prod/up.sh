@@ -12,8 +12,12 @@
 # ==============================================================================
 set -euo pipefail
 
-SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+SCRIPT_DIR="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
 ENV_FILE="$SCRIPT_DIR/.env"
+
+# Docker Compose 兼容 (sudo 下 PATH 可能不同)
+dcomp() { docker compose "$@" 2>/dev/null || docker-compose "$@"; }
+dcomp_env() { dcomp_env "$@" 2>/dev/null || docker-compose -f "$SCRIPT_DIR/docker-compose.yml" "$@"; }
 
 # ---- 1. 载入 .env ----
 if [ -f "$ENV_FILE" ]; then
@@ -31,8 +35,8 @@ echo "  Jasmine 部署 - 阶段 1: 中间件"
 echo "========================================="
 
 # ---- 2. 拉取并启动中间件 ----
-docker compose --env-file "$ENV_FILE" pull
-docker compose --env-file "$ENV_FILE" up -d mysql redis rabbitmq nacos
+dcomp_env pull
+dcomp_env up -d mysql redis rabbitmq nacos
 
 # ---- 3. 等待 Nacos healthy ----
 echo ">>> 等待 Nacos 就绪..."
@@ -82,7 +86,7 @@ echo "  Jasmine 部署 - 阶段 3: Schema 迁移"
 echo "========================================="
 
 # ---- 7. 启动 Schema 服务并等待完成 ----
-docker compose --env-file "$ENV_FILE" up -d jasmine-schema
+dcomp_env up -d jasmine-schema
 echo ">>> 等待 Schema 迁移完成..."
 while true; do
   STATE=$(docker inspect --format='{{.State.Status}}' jasmine-prod-schema 2>/dev/null || echo "running")
@@ -104,7 +108,7 @@ echo "  Jasmine 部署 - 阶段 4: 启动所有服务"
 echo "========================================="
 
 # ---- 8. 全栈启动 ----
-docker compose --env-file "$ENV_FILE" up -d
+dcomp_env up -d
 
 # ---- 9. 刷新前端 nginx DNS 缓存 ----
 sleep 5
