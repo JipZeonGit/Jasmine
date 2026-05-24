@@ -19,7 +19,7 @@
 | 数据库 | MySQL 8.4（每服务独立库） |
 | 缓存 | Redis 7.2（生产）/ Caffeine 内存（开发） |
 | 消息队列 | RabbitMQ 4.2-management |
-| 注册与配置中心 | Nacos 2.4.x |
+| 注册与配置中心 | Nacos 3.0.3（生产鉴权开启） |
 | API 文档 | springdoc-openapi 2.8.16 |
 | 指标监控 | Micrometer + Prometheus |
 | 服务间调用 | Spring 6 RestClient + @HttpExchange |
@@ -64,7 +64,7 @@
     └───────────┘ └──────────┘ └─────────────┘
                          │
                    ┌─────▼─────┐
-                   │Nacos 2.4.x│
+                   │Nacos 3.0.3│
                    │注册中心+配置│
                    └───────────┘
 ```
@@ -75,7 +75,7 @@
 jasmine (父 POM, packaging=pom)
 ├── jasmine-common-core     // 纯核心库（Result/异常/DTO/JWT 工具）
 ├── jasmine-common          // Servlet 侧基础设施（安全/MQ/Outbox/缓存/幂等）
-├── jasmine-schema          // 独立 Flyway 迁移引导模块
+├── jasmine-schema          // 独立 Flyway 迁移模块（多数据源，按库分目录）
 ├── jasmine-gateway         // Spring Cloud Gateway（WebFlux, :8080）
 ├── jasmine-iam             // IAM 服务（:9101）
 ├── jasmine-product         // 花卉服务（:9102）
@@ -98,9 +98,11 @@ jasmine-common  （依赖 common-core）
 
 jasmine-gateway  （仅依赖 common-core，避免 MVC/DB/MQ 污染）
 
-jasmine-schema   （独立，仅 Flyway + MySQL）
+jasmine-schema   （独立 Flyway 迁移工具，多数据源：jasmine_iam/product/trade/crm）
 ```
 
+> Flyway 迁移由 `jasmine-schema` 按数据库分目录统一执行，业务服务 `spring.flyway.enabled=false`。
+> Outbox relay 定时扫描通过 `@EnableScheduling` + `@Scheduled(fixedDelay=5000)` 实现。
 > Phase 3 完成后，所有服务间调用均通过 `RestClient + @HttpExchange` 远程接口实现，
 > 不再有跨模块的 Maven 编译期依赖。各服务可独立编译、独立部署。
 
@@ -955,7 +957,7 @@ Payload: {
 
 - 后端：参数化 `Dockerfile`，基于 Eclipse Temurin JDK 21，`ARG MODULE` 构建任一模块
 - 前端：`web/Dockerfile`，Bun 构建 + Nginx Alpine 托管
-- 中间件：MySQL 8.4 + Redis 7.2 + RabbitMQ 4.2 + Nacos 2.4.x
+- 中间件：MySQL 8.4 + Redis 7.2 + RabbitMQ 4.2 + Nacos 3.0.3
 
 ### 12.2 环境编排
 
@@ -968,7 +970,7 @@ Payload: {
 | MySQL | mysql:8.0 | 13306:3306 | tmpfs 数据目录（WSL2 兼容） |
 | Redis | redis:7.2-alpine | 6379:6379 | 持久化：AOF |
 | RabbitMQ | rabbitmq:4.2-management | 5673:5672, 15673:15672 | vhost=/jasmine |
-| Nacos | nacos/nacos-server:v2.4.3 | 8848:8848, 9848:9848 | 单机模式，鉴权关闭 |
+| Nacos | nacos/nacos-server:v3.0.3 | 8848:8848, 9848:9848 | 单机模式，鉴权关闭 |
 
 MySQL 启动时通过 `init-databases.sql` 自动创建 5 个数据库（jasmine_iam, jasmine_product, jasmine_trade, jasmine_crm, nacos）。
 
@@ -991,9 +993,10 @@ MySQL 启动时通过 `init-databases.sql` 自动创建 5 个数据库（jasmine
 | frontend | jasmine-prod-frontend | 80 | Gateway 健康 |
 
 **生产特性**：
+- `./up.sh` 一键自动部署（4 阶段：中间件 → Nacos 配置导入+密码自愈 → Schema Flyway 分库迁移 → 业务服务启动）
 - 所有服务配置健康检查（`/actuator/health`）
 - 内存限制：每服务 512MB 上限，256MB 预留
-- Nacos 鉴权启用（需 `NACOS_AUTH_TOKEN` ≥ 32 字节）
+- Nacos 3.0.3 鉴权启用（需 `NACOS_AUTH_TOKEN` ≥ 32 字节）
 - Nacos 使用独立 `nacos` 数据库
 - 启动顺序：MySQL → (Redis, RabbitMQ, Nacos) → schema → 业务服务 → 前端
 - 仅 Gateway（8080）和前端（80）对外暴露
@@ -1038,8 +1041,8 @@ MySQL 启动时通过 `init-databases.sql` 自动创建 5 个数据库（jasmine
 ### 13.2 配置导入
 
 - 导入脚本：`ops/nacos-config/import.sh <nacos-addr> [namespace]`
-- 自动创建命名空间（如不存在）
-- 支持 Nacos 2.x 鉴权（通过 `/v1/auth/users/login` 获取 accessToken）
+- 自动创建命名空间（通过 docker exec MySQL 操作 `tenant_info` 表，兼容 Nacos 3.x）
+- 支持 Nacos 3.x 鉴权（`/v3/auth/user/login`），含密码自愈机制（自定义密码失败→nacos/nacos 回退→自动改密）
 - 使用 `curl --data-urlencode` 安全上传 YAML 内容
 
 ### 13.3 命名空间策略
