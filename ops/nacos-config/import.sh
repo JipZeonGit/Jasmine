@@ -34,28 +34,45 @@ echo "地址: $BASE | 命名空间: $NAMESPACE | 分组: $GROUP"
 echo ""
 
 # -----------------------------------------------------------
-# 鉴权：尝试登录获取 accessToken（auth 关闭时快速跳过）
+# 鉴权：尝试登录获取 accessToken
+#   1) 先用自定义密码登录
+#   2) 失败则用默认密码 nacos/nacos 登录并自愈修改密码
 # -----------------------------------------------------------
 ACCESS_TOKEN=""
+login_and_get_token() {
+  local user="$1" pass="$2"
+  local resp
+  for i in 1 2 3 4 5; do
+    resp="$(curl -sS -X POST "$BASE/v3/auth/user/login" \
+      --data-urlencode "username=$user" \
+      --data-urlencode "password=$pass" || true)"
+    if echo "$resp" | grep -q '"accessToken"'; then
+      echo "$resp" | sed -n 's/.*"accessToken"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p'
+      return 0
+    fi
+    echo ">>> 登录尝试 $i/5 失败: ${resp:-'(无内容)'}"
+    [ "$i" -lt 5 ] && sleep 3
+  done
+  return 1
+}
 
 if [ "${NACOS_AUTH_ENABLED:-true}" != "false" ]; then
-  echo ">>> 尝试登录 Nacos 获取 accessToken..."
-  for i in {1..5}; do
-    LOGIN_RESP="$(curl -sS -X POST "$BASE/v3/auth/user/login" \
-      --data-urlencode "username=$NACOS_USER" \
-      --data-urlencode "password=$NACOS_PASS" || true)"
-
-    if echo "$LOGIN_RESP" | grep -q '"accessToken"'; then
-      ACCESS_TOKEN="$(echo "$LOGIN_RESP" | sed -n 's/.*"accessToken"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')"
-      echo ">>> [OK] 登录成功"
-      break
+  echo ">>> 尝试用自定义密码登录 Nacos..."
+  ACCESS_TOKEN="$(login_and_get_token "$NACOS_USER" "$NACOS_PASS" || true)"
+  if [ -z "$ACCESS_TOKEN" ] && [ "$NACOS_PASS" != "nacos" ]; then
+    echo ">>> [自愈] 自定义密码失败，用默认密码 nacos/nacos 登录..."
+    DEFAULT_TOKEN="$(login_and_get_token "nacos" "nacos" || true)"
+    if [ -n "$DEFAULT_TOKEN" ]; then
+      echo ">>> [自愈] 正在将 Nacos 密码更新为自定义密码..."
+      curl -sS -X PUT "$BASE/v3/auth/user?accessToken=$DEFAULT_TOKEN" \
+        -d "username=nacos" -d "newPassword=$NACOS_PASS" > /dev/null 2>&1 || true
+      echo ">>> [自愈] 重新用自定义密码登录..."
+      ACCESS_TOKEN="$(login_and_get_token "$NACOS_USER" "$NACOS_PASS" || true)"
     fi
-
-    echo ">>> 登录尝试 $i/5 失败: ${LOGIN_RESP:-'(无内容)'}"
-    [ $i -lt 5 ] && sleep 3
-  done
-
-  if [ -z "$ACCESS_TOKEN" ]; then
+  fi
+  if [ -n "$ACCESS_TOKEN" ]; then
+    echo ">>> [OK] Nacos 鉴权登录成功"
+  else
     echo ">>> [警告] 登录失败，后续请求将以未鉴权方式发送..."
   fi
 else
