@@ -41,16 +41,17 @@ echo ""
 ACCESS_TOKEN=""
 login_and_get_token() {
   local user="$1" pass="$2"
-  local resp
+  local resp token
   for i in 1 2 3 4 5; do
     resp="$(curl -sS -X POST "$BASE/v3/auth/user/login" \
       --data-urlencode "username=$user" \
       --data-urlencode "password=$pass" || true)"
-    if echo "$resp" | grep -q '"accessToken"'; then
-      echo "$resp" | sed -n 's/.*"accessToken"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p'
+    token="$(echo "$resp" | sed -n 's/.*"accessToken"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')"
+    if [ -n "$token" ]; then
+      echo "$token"
       return 0
     fi
-    echo ">>> 登录尝试 $i/5 失败: ${resp:-'(无内容)'}"
+    echo ">>> 登录尝试 $i/5 失败: ${resp:0:80}..." >&2
     [ "$i" -lt 5 ] && sleep 3
   done
   return 1
