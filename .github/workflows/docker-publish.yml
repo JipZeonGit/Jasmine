@@ -121,7 +121,6 @@ jobs:
         with:
           context: .
           push: true
-          provenance: false
           platforms: linux/amd64,linux/arm64
           build-args: |
             MODULE=${{ matrix.module }}
@@ -168,7 +167,6 @@ jobs:
         with:
           context: ./web
           push: true
-          provenance: false
           platforms: linux/amd64,linux/arm64
           tags: ${{ steps.img.outputs.tags }}
           cache-from: type=gha,scope=frontend
