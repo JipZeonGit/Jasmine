@@ -111,7 +111,16 @@ create_namespace_via_mysql() {
 }
 
 echo ">>> 检查/创建命名空间: $NAMESPACE"
-create_namespace_via_mysql "$NAMESPACE"
+# 先通过 nacos API 检查是否已存在
+NS_CHECK=$(curl -s "$BASE/v1/console/namespaces${NS_QUERY:+?$NS_QUERY}" 2>/dev/null || echo "")
+if echo "$NS_CHECK" | grep -q "\"namespace\":\"$NAMESPACE\""; then
+  echo ">>> 命名空间已存在: $NAMESPACE"
+elif command -v mysql &>/dev/null; then
+  create_namespace_via_mysql "$NAMESPACE" || true
+else
+  echo ">>> [提示] 无法自动创建命名空间（需 mysql CLI 或手动创建）"
+  echo ">>> 若已通过 docker exec 等方式创建则可忽略，继续导入配置..."
+fi
 echo ""
 
 # -----------------------------------------------------------
