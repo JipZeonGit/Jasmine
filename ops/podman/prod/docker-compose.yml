@@ -94,7 +94,7 @@ services:
     ports:
       - "${MYSQL_PORT:-13306}:3306"
     volumes:
-      - ./data/mysql:/var/lib/mysql
+      - ./data/mysql:/var/lib/mysql:Z
       - ../../docker/prod/init-databases.sql:/docker-entrypoint-initdb.d/01-init-databases.sql:ro
       - ../../docker/prod/nacos-schema.sql:/docker-entrypoint-initdb.d/02-nacos-schema.sql:ro
     healthcheck:
@@ -114,7 +114,7 @@ services:
     ports:
       - "${REDIS_PORT:-6379}:6379"
     volumes:
-      - ./data/redis:/data
+      - ./data/redis:/data:Z
     healthcheck:
       test: ["CMD-SHELL", "redis-cli -a ${REDIS_PASSWORD:?REDIS_PASSWORD is required} ping | grep PONG || exit 1"]
       interval: 20s
@@ -135,8 +135,8 @@ services:
       - "${RABBITMQ_AMQP_PORT:-5673}:5672"
       - "${RABBITMQ_MANAGEMENT_PORT:-15673}:15672"
     volumes:
-      - ./data/rabbitmq:/var/lib/rabbitmq
-      - ./logs/rabbitmq:/var/log/rabbitmq
+      - ./data/rabbitmq:/var/lib/rabbitmq:Z
+      - ./logs/rabbitmq:/var/log/rabbitmq:Z
     healthcheck:
       test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
       interval: 20s
@@ -173,7 +173,7 @@ services:
       - "${NACOS_PORT:-8848}:8848"
       - "${NACOS_GRPC_PORT:-9848}:9848"
     volumes:
-      - ./data/nacos/logs:/home/nacos/logs
+      - ./data/nacos/logs:/home/nacos/logs:Z
       - ../../docker/prod/nacos-application.properties:/home/nacos/conf/application.properties:ro
     healthcheck:
       test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:8848/nacos/ -o /dev/null || exit 1"]
@@ -210,7 +210,7 @@ services:
     ports:
       - "${GATEWAY_PORT:-8080}:8080"
     volumes:
-      - ./logs/gateway:/app/logs
+      - ./logs/gateway:/app/logs:Z
     <<: *service-resources
     healthcheck:
       test: ["CMD-SHELL", "curl -sS http://127.0.0.1:8080/ -o /dev/null || exit 1"]
@@ -230,7 +230,7 @@ services:
       LOGGING_FILE_NAME: /app/logs/iam-service.log
       SPRING_DATASOURCE_URL: jdbc:mysql://$${MYSQL_HOST}:$${MYSQL_PORT:-3306}/jasmine_iam?useUnicode=true&characterEncoding=UTF-8&connectionCollation=utf8mb4_0900_ai_ci&serverTimezone=Asia/Shanghai
     volumes:
-      - ./logs/iam:/app/logs
+      - ./logs/iam:/app/logs:Z
     <<: *service-resources
     healthcheck:
       test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:9101/actuator/health | grep '\"status\":\"UP\"' || exit 1"]
@@ -250,7 +250,7 @@ services:
       LOGGING_FILE_NAME: /app/logs/product-service.log
       SPRING_DATASOURCE_URL: jdbc:mysql://$${MYSQL_HOST}:$${MYSQL_PORT:-3306}/jasmine_product?useUnicode=true&characterEncoding=UTF-8&connectionCollation=utf8mb4_0900_ai_ci&serverTimezone=Asia/Shanghai
     volumes:
-      - ./logs/product:/app/logs
+      - ./logs/product:/app/logs:Z
     <<: *service-resources
     healthcheck:
       test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:9102/actuator/health | grep '\"status\":\"UP\"' || exit 1"]
@@ -270,7 +270,7 @@ services:
       LOGGING_FILE_NAME: /app/logs/trade-service.log
       SPRING_DATASOURCE_URL: jdbc:mysql://$${MYSQL_HOST}:$${MYSQL_PORT:-3306}/jasmine_trade?useUnicode=true&characterEncoding=UTF-8&connectionCollation=utf8mb4_0900_ai_ci&serverTimezone=Asia/Shanghai
     volumes:
-      - ./logs/trade:/app/logs
+      - ./logs/trade:/app/logs:Z
     <<: *service-resources
     healthcheck:
       test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:9103/actuator/health | grep '\"status\":\"UP\"' || exit 1"]
@@ -290,7 +290,7 @@ services:
       LOGGING_FILE_NAME: /app/logs/crm-service.log
       SPRING_DATASOURCE_URL: jdbc:mysql://$${MYSQL_HOST}:$${MYSQL_PORT:-3306}/jasmine_crm?useUnicode=true&characterEncoding=UTF-8&connectionCollation=utf8mb4_0900_ai_ci&serverTimezone=Asia/Shanghai
     volumes:
-      - ./logs/crm:/app/logs
+      - ./logs/crm:/app/logs:Z
     <<: *service-resources
     healthcheck:
       test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:9104/actuator/health | grep '\"status\":\"UP\"' || exit 1"]
