@@ -43,14 +43,27 @@
 ops/
 ├── README.md                # 本手册
 ├── .env.example             # 全局环境变量模板
-├── prod/
-│   ├── docker-compose.yml   # 生产全栈编排
-│   ├── .env                 # 生产环境变量（需从 .env.example 创建）
-│   ├── nacos-application.properties  # Nacos 3.0.3 配置（鉴权开启）
-│   ├── init-databases.sql   # 创建 4 个微服务独立数据库 + nacos 库
-│   ├── nacos-schema.sql     # Nacos 官方表结构
-│   ├── up.sh / down.sh      # 启停脚本
-│   └── data/                # 持久化数据卷（自动创建）
+├── docker/                  # Docker 版（docker compose）
+│   ├── dev/                 # 本地开发：仅中间件
+│   │   ├── docker-compose.yml   # 开发中间件编排
+│   │   └── up.sh / down.sh      # 启停脚本
+│   └── prod/                # 生产：全栈
+│       ├── docker-compose.yml   # 生产全栈编排
+│       ├── .env                 # 生产环境变量（需从 .env.example 创建）
+│       ├── nacos-application.properties  # Nacos 3.0.3 配置（鉴权开启）
+│       ├── init-databases.sql   # 创建 4 个微服务独立数据库 + nacos 库
+│       ├── nacos-schema.sql     # Nacos 官方表结构
+│       ├── up.sh / down.sh      # 启停脚本
+│       └── data/                # 持久化数据卷（自动创建）
+├── podman/                  # Podman + docker compose 版
+│   └── prod/                # 生产：全栈（复用 docker/prod 的 SQL 与 Nacos 配置）
+│       ├── docker-compose.yml   # Podman 适配版全栈编排
+│       ├── up.sh / down.sh      # 启停脚本
+│       └── README.md            # Podman 部署说明
+├── examples/                # 独立参考示例（不参与主流程部署）
+│   └── rabbitmq/            #   仅单独启动 RabbitMQ（已被全栈编排内置取代）
+│       ├── docker-compose.yml
+│       └── .env.example
 └── nacos-config/
     ├── import.sh            # Nacos 3.0 配置导入脚本（鉴权自适应）
     ├── jasmine-common.yml   # 公共配置
@@ -76,7 +89,7 @@ ops/
 ### 一键部署
 
 ```bash
-git clone -b microservices https://github.com/JipZeonGit/Jasmine.git && cd Jasmine/ops/prod
+git clone -b microservices https://github.com/JipZeonGit/Jasmine.git && cd Jasmine/ops/docker/prod
 cp .env.example .env                      # 编辑密码和密钥
 chmod +x up.sh down.sh
 ./up.sh                                   # 全自动四阶段部署
@@ -151,7 +164,7 @@ jasmine-schema/src/main/resources/db/migration/
 
 ### 查看容器状态
 ```bash
-cd /opt/jasmine/ops/prod
+cd /opt/jasmine/ops/docker/prod
 docker compose ps
 ```
 
@@ -185,11 +198,11 @@ docker run --rm -v $(pwd)/data:/data alpine rm -rf /data/*
 
 | 服务 | 宿主机路径 | 内容 |
 |------|-----------|------|
-| MySQL | `./prod/data/mysql/` | 全部数据库物理文件 |
-| Redis | `./prod/data/redis/` | AOF 持久化文件 |
-| RabbitMQ | `./prod/data/rabbitmq/` | 消息和队列数据 |
-| Nacos | `./prod/data/nacos/logs/` | 系统运维日志 |
-| 微服务 | `./prod/logs/<服务名>/` | 业务运行日志 |
+| MySQL | `./docker/prod/data/mysql/` | 全部数据库物理文件 |
+| Redis | `./docker/prod/data/redis/` | AOF 持久化文件 |
+| RabbitMQ | `./docker/prod/data/rabbitmq/` | 消息和队列数据 |
+| Nacos | `./docker/prod/data/nacos/logs/` | 系统运维日志 |
+| 微服务 | `./docker/prod/logs/<服务名>/` | 业务运行日志 |
 
 备份建议：定期备份 `data/mysql/` 目录（包含了所有业务数据和 Nacos 配置数据）。
 

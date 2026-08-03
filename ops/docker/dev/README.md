@@ -5,8 +5,8 @@
 ## 1. 启动中间件
 
 ```bash
-cp ops/.env.example ops/dev/.env   # 第一次启动时复制并修改密码
-cd ops/dev
+cp ops/.env.example ops/docker/dev/.env   # 第一次启动时复制并修改密码
+cd ops/docker/dev
 docker compose up -d
 ```
 
@@ -53,7 +53,7 @@ $env:SPRING_PROFILES_ACTIVE='dev'
 ## 4. 关停 / 清理
 
 ```bash
-cd ops/dev
+cd ops/docker/dev
 docker compose down            # 仅停止
 docker compose down -v         # 停止并清掉 named volume（mysql/redis/rabbitmq/nacos 全部数据）
 ```

@@ -5,8 +5,8 @@
 #   或参考 prod 镜像
 #
 # 使用：
-#   1. 复制 ops/.env.example 为 ops/dev/.env 并填好密钥
-#   2. cd ops/dev && docker compose up -d
+#   1. 复制 ops/.env.example 为 ops/docker/dev/.env 并填好密钥
+#   2. cd ops/docker/dev && docker compose up -d
 #   3. 在本机以 dev profile 启动业务服务
 #      MYSQL_HOST=127.0.0.1 MYSQL_PORT=13306 \
 #      REDIS_HOST=127.0.0.1 REDIS_PORT=6379 \

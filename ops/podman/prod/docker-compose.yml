@@ -1,0 +1,319 @@
+# =============================================================================
+# Jasmine 生产全栈编排 —— Podman + Docker Compose 专用版
+#
+# 说明：
+#   - 本文件适配「本机为 Podman，但使用 docker compose CLI（非 podman compose）
+#     通过 Podman 的 Docker 兼容后端」的场景。
+#   - 与 ops/docker/prod/docker-compose.yml 功能等价（中间件 + Schema + 业务服务 + 前端），
+#     但针对 Podman 做了如下适配：
+#       1) 移除 deploy.resources（非 swarm 下 Docker Compose 会忽略并告警，
+#          Podman 后端亦不识别），仅保留 mem_limit（Podman 支持）；
+#       2) pull_policy 由 always 改为 missing（符合 Podman 的镜像拉取语义，
+#          镜像缺失时才拉取，避免每次启动强制联网）；
+#       3) 前端默认端口改为 8081 —— Podman rootless 无法绑定 <1024 的端口，
+#          如需绑定 80，请以 root 运行 Podman 或使用 rootful 容器；
+#       4) 沿用 ops/docker/prod 下的 SQL 与 Nacos properties（单一来源，不重复维护）。
+#   - 业务镜像（ghcr.io/jipzeongit/...）由 GitHub Actions 构建推送。
+#
+# 使用：
+#   1. cp ops/podman/prod/.env.example ops/podman/prod/.env 并填好密钥
+#   2. cd ops/podman/prod && ./up.sh   # 或: docker compose --env-file .env up -d
+#   3. ./down.sh                       # 停止
+#
+# 前置：Docker Compose CLI 能连通 Podman（见 README.md 第 4 节）
+# =============================================================================
+
+x-service-env: &service-env
+  SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-prod}
+  APP_CACHE_TYPE: ${APP_CACHE_TYPE:-redis}
+  APP_MQ_ENABLED: ${APP_MQ_ENABLED:-true}
+  GATEWAY_SHARED_TOKEN: ${GATEWAY_SHARED_TOKEN:?GATEWAY_SHARED_TOKEN is required}
+  JWT_SECRET: ${JWT_SECRET:?JWT_SECRET is required}
+  CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:?CORS_ALLOWED_ORIGINS is required}
+  MYSQL_HOST: mysql
+  MYSQL_PORT: 3306
+  MYSQL_USER: ${MYSQL_USER:?MYSQL_USER is required}
+  MYSQL_PASSWORD: ${MYSQL_PASSWORD:?MYSQL_PASSWORD is required}
+  REDIS_HOST: redis
+  REDIS_PORT: 6379
+  REDIS_PASSWORD: ${REDIS_PASSWORD:?REDIS_PASSWORD is required}
+  RABBITMQ_HOST: rabbitmq
+  RABBITMQ_PORT: 5672
+  RABBITMQ_USERNAME: ${RABBITMQ_USERNAME:?RABBITMQ_USERNAME is required}
+  RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:?RABBITMQ_PASSWORD is required}
+  RABBITMQ_VHOST: ${RABBITMQ_VHOST:-/jasmine}
+  NACOS_ADDR: nacos:8848
+  NACOS_NAMESPACE: ${NACOS_NAMESPACE:-prod}
+  NACOS_USERNAME: ${NACOS_USERNAME:-nacos}
+  NACOS_PASSWORD: ${NACOS_PASSWORD:-nacos}
+
+x-gateway-env: &gateway-env
+  SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-prod}
+  app.security.jwt-secret: ${JWT_SECRET:?JWT_SECRET is required}
+  app.security.gateway-shared-token: ${GATEWAY_SHARED_TOKEN:?GATEWAY_SHARED_TOKEN is required}
+  CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:?CORS_ALLOWED_ORIGINS is required}
+  REDIS_HOST: redis
+  REDIS_PORT: 6379
+  REDIS_PASSWORD: ${REDIS_PASSWORD:?REDIS_PASSWORD is required}
+  NACOS_ADDR: nacos:8848
+  NACOS_NAMESPACE: ${NACOS_NAMESPACE:-prod}
+  NACOS_USERNAME: ${NACOS_USERNAME:-nacos}
+  NACOS_PASSWORD: ${NACOS_PASSWORD:-nacos}
+
+x-service-depends-on: &service-depends-on
+  mysql:
+    condition: service_healthy
+  redis:
+    condition: service_healthy
+  rabbitmq:
+    condition: service_healthy
+  nacos:
+    condition: service_healthy
+  jasmine-schema:
+    condition: service_completed_successfully
+
+# Podman 也支持 mem_limit；deploy.resources 在非 swarm 下被忽略，故省略。
+x-service-resources: &service-resources
+  mem_limit: ${SERVICE_MEMORY_LIMIT:-512m}
+  mem_reservation: ${SERVICE_MEMORY_RESERVATION:-256m}
+
+services:
+  mysql:
+    image: mysql:8.4
+    container_name: jasmine-podman-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?MYSQL_ROOT_PASSWORD is required}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-jasmine}
+      MYSQL_USER: ${MYSQL_USER:?MYSQL_USER is required}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:?MYSQL_PASSWORD is required}
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_0900_ai_ci
+      - --default-time-zone=+08:00
+    ports:
+      - "${MYSQL_PORT:-13306}:3306"
+    volumes:
+      - ./data/mysql:/var/lib/mysql
+      - ../../docker/prod/init-databases.sql:/docker-entrypoint-initdb.d/01-init-databases.sql:ro
+      - ../../docker/prod/nacos-schema.sql:/docker-entrypoint-initdb.d/02-nacos-schema.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p$$MYSQL_ROOT_PASSWORD || exit 1"]
+      interval: 20s
+      timeout: 10s
+      retries: 10
+      # 首次启动需要完整初始化 datadir + 跑 init-databases.sql 创建 5 个库，
+      # 给足 180s 防止初始化中途被 healthcheck 判定为 unhealthy 触发 restart。
+      start_period: 180s
+
+  redis:
+    image: redis:7.2-alpine
+    container_name: jasmine-podman-redis
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes", "--requirepass", "${REDIS_PASSWORD:?REDIS_PASSWORD is required}"]
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - ./data/redis:/data
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli -a ${REDIS_PASSWORD:?REDIS_PASSWORD is required} ping | grep PONG || exit 1"]
+      interval: 20s
+      timeout: 10s
+      retries: 10
+      start_period: 20s
+
+  rabbitmq:
+    image: rabbitmq:4.2-management
+    container_name: jasmine-podman-rabbitmq
+    hostname: jasmine-podman-rabbitmq
+    restart: unless-stopped
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USERNAME:?RABBITMQ_USERNAME is required}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:?RABBITMQ_PASSWORD is required}
+      RABBITMQ_DEFAULT_VHOST: ${RABBITMQ_VHOST:-/jasmine}
+    ports:
+      - "${RABBITMQ_AMQP_PORT:-5673}:5672"
+      - "${RABBITMQ_MANAGEMENT_PORT:-15673}:15672"
+    volumes:
+      - ./data/rabbitmq:/var/lib/rabbitmq
+      - ./logs/rabbitmq:/var/log/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 20s
+      timeout: 10s
+      retries: 10
+      start_period: 30s
+
+  nacos:
+    image: nacos/nacos-server:v3.0.3
+    container_name: jasmine-podman-nacos
+    restart: unless-stopped
+    environment:
+      MODE: standalone
+      SPRING_DATASOURCE_PLATFORM: mysql
+      MYSQL_SERVICE_HOST: mysql
+      MYSQL_SERVICE_PORT: 3306
+      MYSQL_SERVICE_DB_NAME: nacos
+      MYSQL_SERVICE_USER: ${MYSQL_USER:?MYSQL_USER is required}
+      MYSQL_SERVICE_PASSWORD: ${MYSQL_PASSWORD:?MYSQL_PASSWORD is required}
+      MYSQL_SERVICE_DB_PARAM: characterEncoding=utf8&connectTimeout=1000&socketTimeout=3000&autoReconnect=true&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Shanghai
+      NACOS_AUTH_TOKEN: ${NACOS_AUTH_TOKEN:?NACOS_AUTH_TOKEN is required}
+      NACOS_AUTH_IDENTITY_KEY: ${NACOS_AUTH_IDENTITY_KEY:-serverIdentity}
+      NACOS_AUTH_IDENTITY_VALUE: ${NACOS_AUTH_IDENTITY_VALUE:?NACOS_AUTH_IDENTITY_VALUE is required}
+      NACOS_CORE_API_COMPATIBILITY_CONSOLE_ENABLED: "true"
+      NACOS_CORE_AUTH_ENABLED: "true"
+      NACOS_CORE_AUTH_CONSOLE_ENABLED: "true"
+      NACOS_CORE_AUTH_ADMIN_ENABLED: "true"
+      JVM_XMS: 256m
+      JVM_XMX: 256m
+    depends_on:
+      mysql:
+        condition: service_healthy
+    ports:
+      - "${NACOS_PORT:-8848}:8848"
+      - "${NACOS_GRPC_PORT:-9848}:9848"
+    volumes:
+      - ./data/nacos/logs:/home/nacos/logs
+      - ../../docker/prod/nacos-application.properties:/home/nacos/conf/application.properties:ro
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:8848/nacos/ -o /dev/null || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 15
+      start_period: 30s
+
+  jasmine-schema:
+    image: ${SCHEMA_IMAGE}:${SCHEMA_IMAGE_TAG}
+    pull_policy: missing
+    container_name: jasmine-podman-schema
+    restart: "no"
+    depends_on:
+      mysql:
+        condition: service_healthy
+    environment:
+      MYSQL_HOST: mysql
+      MYSQL_PORT: 3306
+      MYSQL_USER: ${MYSQL_USER:?MYSQL_USER is required}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:?MYSQL_PASSWORD is required}
+
+  jasmine-gateway:
+    image: ${GATEWAY_IMAGE}:${GATEWAY_IMAGE_TAG}
+    pull_policy: missing
+    container_name: jasmine-podman-gateway
+    restart: unless-stopped
+    depends_on:
+      nacos:
+        condition: service_healthy
+    environment:
+      <<: *gateway-env
+      LOGGING_FILE_NAME: /app/logs/jasmine-gateway.log
+    ports:
+      - "${GATEWAY_PORT:-8080}:8080"
+    volumes:
+      - ./logs/gateway:/app/logs
+    <<: *service-resources
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sS http://127.0.0.1:8080/ -o /dev/null || exit 1"]
+      interval: 20s
+      timeout: 10s
+      retries: 10
+      start_period: 60s
+
+  iam-service:
+    image: ${IAM_IMAGE}:${IAM_IMAGE_TAG}
+    pull_policy: missing
+    container_name: jasmine-podman-iam
+    restart: unless-stopped
+    depends_on: *service-depends-on
+    environment:
+      <<: *service-env
+      LOGGING_FILE_NAME: /app/logs/iam-service.log
+      SPRING_DATASOURCE_URL: jdbc:mysql://$${MYSQL_HOST}:$${MYSQL_PORT:-3306}/jasmine_iam?useUnicode=true&characterEncoding=UTF-8&connectionCollation=utf8mb4_0900_ai_ci&serverTimezone=Asia/Shanghai
+    volumes:
+      - ./logs/iam:/app/logs
+    <<: *service-resources
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:9101/actuator/health | grep '\"status\":\"UP\"' || exit 1"]
+      interval: 20s
+      timeout: 10s
+      retries: 10
+      start_period: 60s
+
+  product-service:
+    image: ${PRODUCT_IMAGE}:${PRODUCT_IMAGE_TAG}
+    pull_policy: missing
+    container_name: jasmine-podman-product
+    restart: unless-stopped
+    depends_on: *service-depends-on
+    environment:
+      <<: *service-env
+      LOGGING_FILE_NAME: /app/logs/product-service.log
+      SPRING_DATASOURCE_URL: jdbc:mysql://$${MYSQL_HOST}:$${MYSQL_PORT:-3306}/jasmine_product?useUnicode=true&characterEncoding=UTF-8&connectionCollation=utf8mb4_0900_ai_ci&serverTimezone=Asia/Shanghai
+    volumes:
+      - ./logs/product:/app/logs
+    <<: *service-resources
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:9102/actuator/health | grep '\"status\":\"UP\"' || exit 1"]
+      interval: 20s
+      timeout: 10s
+      retries: 10
+      start_period: 60s
+
+  trade-service:
+    image: ${TRADE_IMAGE}:${TRADE_IMAGE_TAG}
+    pull_policy: missing
+    container_name: jasmine-podman-trade
+    restart: unless-stopped
+    depends_on: *service-depends-on
+    environment:
+      <<: *service-env
+      LOGGING_FILE_NAME: /app/logs/trade-service.log
+      SPRING_DATASOURCE_URL: jdbc:mysql://$${MYSQL_HOST}:$${MYSQL_PORT:-3306}/jasmine_trade?useUnicode=true&characterEncoding=UTF-8&connectionCollation=utf8mb4_0900_ai_ci&serverTimezone=Asia/Shanghai
+    volumes:
+      - ./logs/trade:/app/logs
+    <<: *service-resources
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:9103/actuator/health | grep '\"status\":\"UP\"' || exit 1"]
+      interval: 20s
+      timeout: 10s
+      retries: 10
+      start_period: 60s
+
+  crm-service:
+    image: ${CRM_IMAGE}:${CRM_IMAGE_TAG}
+    pull_policy: missing
+    container_name: jasmine-podman-crm
+    restart: unless-stopped
+    depends_on: *service-depends-on
+    environment:
+      <<: *service-env
+      LOGGING_FILE_NAME: /app/logs/crm-service.log
+      SPRING_DATASOURCE_URL: jdbc:mysql://$${MYSQL_HOST}:$${MYSQL_PORT:-3306}/jasmine_crm?useUnicode=true&characterEncoding=UTF-8&connectionCollation=utf8mb4_0900_ai_ci&serverTimezone=Asia/Shanghai
+    volumes:
+      - ./logs/crm:/app/logs
+    <<: *service-resources
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:9104/actuator/health | grep '\"status\":\"UP\"' || exit 1"]
+      interval: 20s
+      timeout: 10s
+      retries: 10
+      start_period: 60s
+
+  frontend:
+    image: ${FRONTEND_IMAGE}:${FRONTEND_IMAGE_TAG}
+    pull_policy: missing
+    container_name: jasmine-podman-frontend
+    restart: unless-stopped
+    depends_on:
+      jasmine-gateway:
+        condition: service_healthy
+    ports:
+      # Podman rootless 无法绑定 <1024 端口，默认 8081；
+      # 如需 80，请用 root 运行 podman 或设置 FRONTEND_PORT=80 + rootful。
+      - "${FRONTEND_PORT:-8081}:80"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1/ || exit 1"]
+      interval: 20s
+      timeout: 10s
+      retries: 10
+      start_period: 20s

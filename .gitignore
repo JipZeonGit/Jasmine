@@ -33,18 +33,22 @@ build/
 .vscode/
 .agent/rules/debugger.md
 
-### Docker ###
+### Docker / 容器编排 ###
 .env
 ops/.env
-ops/dev/.env
-ops/prod/.env
-ops/dev/data/
-ops/dev/logs/
-ops/prod/data/
-ops/prod/logs/
-ops/rabbitmq/.env
-ops/rabbitmq/data/
-ops/rabbitmq/log/
+# 按运行时目录组织的 .env 与运行时数据/日志
+ops/docker/dev/.env
+ops/docker/dev/data/
+ops/docker/dev/logs/
+ops/docker/prod/.env
+ops/docker/prod/data/
+ops/docker/prod/logs/
+ops/podman/prod/.env
+ops/podman/prod/data/
+ops/podman/prod/logs/
+ops/examples/rabbitmq/.env
+ops/examples/rabbitmq/data/
+ops/examples/rabbitmq/log/
 
 ### Local scripts ###
 *.ps1

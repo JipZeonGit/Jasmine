@@ -124,11 +124,11 @@
 
 ### 1. 先用 dev compose 起中间件
 
-`ops/dev/docker-compose.yml` 仅启动 MySQL / Redis / RabbitMQ / Nacos 四个中间件。
+`ops/docker/dev/docker-compose.yml` 仅启动 MySQL / Redis / RabbitMQ / Nacos 四个中间件。
 
 ```bash
-cp ops/.env.example ops/dev/.env   # 第一次启动需复制并修改密码
-cd ops/dev
+cp ops/.env.example ops/docker/dev/.env   # 第一次启动需复制并修改密码
+cd ops/docker/dev
 docker compose up -d
 ```
 
@@ -269,11 +269,12 @@ deploy:
 当前 Docker 与部署基线已经统一收口到 `ops/`：
 
 - `ops/.env.example`
-- `ops/dev/docker-compose.yml`（仅中间件，MySQL tmpfs 适配 WSL2）
-- `ops/dev/init-databases.sql`（自动创建 4 个独立库）
-- `ops/dev/up.sh` / `ops/dev/down.sh`
-- `ops/prod/docker-compose.yml`（全栈：中间件 + 6 业务服务 + 前端）
-- `ops/prod/up.sh` / `ops/prod/down.sh`
+- `ops/docker/dev/docker-compose.yml`（仅中间件，MySQL tmpfs 适配 WSL2）
+- `ops/docker/dev/init-databases.sql`（自动创建 4 个独立库）
+- `ops/docker/dev/up.sh` / `ops/docker/dev/down.sh`
+- `ops/docker/prod/docker-compose.yml`（全栈：中间件 + 6 业务服务 + 前端）
+- `ops/docker/prod/up.sh` / `ops/docker/prod/down.sh`
+- `ops/podman/prod/docker-compose.yml`（Podman + docker compose 版全栈，复用上述 SQL/Nacos 配置）
 - `ops/nacos-config/`（Nacos 配置文件与导入脚本）
 
 详细说明请优先阅读：
@@ -306,16 +307,27 @@ cp ops/.env.example ops/.env
 启动：
 
 ```bash
-chmod +x ops/dev/up.sh ops/dev/down.sh
-./ops/dev/up.sh
+chmod +x ops/docker/dev/up.sh ops/docker/dev/down.sh
+./ops/docker/dev/up.sh
 ```
 
-### 生产环境一键部署
+### 生产环境一键部署（Docker）
 
 ```bash
-cp ops/prod/.env.example ops/prod/.env   # 编辑密码和密钥
-chmod +x ops/prod/up.sh ops/prod/down.sh
-./ops/prod/up.sh                         # 全自动：拉镜像→中间件→Nacos配置→Schema迁移→启动服务
+cp ops/docker/prod/.env.example ops/docker/prod/.env   # 编辑密码和密钥
+chmod +x ops/docker/prod/up.sh ops/docker/prod/down.sh
+./ops/docker/prod/up.sh                                # 全自动：拉镜像→中间件→Nacos配置→Schema迁移→启动服务
+```
+
+### 生产环境一键部署（Podman + docker compose）
+
+本机使用 Podman 作为容器运行时、用 `docker compose` CLI 驱动时，改用：
+
+```bash
+cd ops/podman/prod
+cp .env.example .env                # 编辑密码和密钥
+chmod +x up.sh down.sh
+./up.sh                             # 全自动：拉镜像→中间件→Nacos配置→Schema迁移→启动服务
 ```
 
 `up.sh` 自动化 4 阶段：

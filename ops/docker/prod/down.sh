@@ -1,5 +1,5 @@
 #!/bin/sh
-# Jasmine 一键停止脚本 (ops/prod/down.sh)
+# Jasmine 一键停止脚本 (ops/docker/prod/down.sh)
 set -eu
 
 SCRIPT_DIR="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
