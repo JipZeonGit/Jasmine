@@ -24,7 +24,7 @@
 | 指标监控 | Micrometer + Prometheus |
 | 服务间调用 | Spring 6 RestClient + @HttpExchange |
 | 熔断器 | Resilience4j |
-| 前端 | Vue 3.5 + Element Plus 2.13 + Vite 8.0 |
+| 前端 | Vue 3.5 + Element Plus 2.11.5 + Vite 8.0 |
 | 网关端口 | 8080 |
 | 前端端口 | 5173（开发）/ 80（生产） |
 
@@ -101,7 +101,10 @@ jasmine-gateway  （仅依赖 common-core，避免 MVC/DB/MQ 污染）
 jasmine-schema   （独立 Flyway 迁移工具，多数据源：jasmine_iam/product/trade/crm）
 ```
 
-> Flyway 迁移由 `jasmine-schema` 按数据库分目录统一执行，业务服务 `spring.flyway.enabled=false`。
+> Flyway 迁移采用双轨制：运行时由 `jasmine-schema` 在部署阶段用 Flyway 原生 API 按库分目录统一执行，
+> 业务服务的 `spring.flyway.enabled` 由 Nacos 共享配置 `jasmine-db-common.yml` 覆盖为 `false`，服务启动时不执行迁移；
+> 各业务服务保留的唯一脚本 `db/migration/V1__init.sql` 仅供 Testcontainers 集成测试建表使用（测试基类动态开启 flyway）。
+> 历史背景见 `docs/upgrade/logs/microservices/flyway-consolidation-cleanup.md`。
 > Outbox relay 定时扫描通过 `@EnableScheduling` + `@Scheduled(fixedDelay=5000)` 实现。
 > Phase 3 完成后，所有服务间调用均通过 `RestClient + @HttpExchange` 远程接口实现，
 > 不再有跨模块的 Maven 编译期依赖。各服务可独立编译、独立部署。
@@ -151,7 +154,7 @@ jasmine-schema   （独立 Flyway 迁移工具，多数据源：jasmine_iam/prod
 
 1. **请求头清洗**：无条件移除客户端伪造的 `X-User-Id`、`X-User-Name`、`X-Gateway-Token`
 2. **内部路径拦截**：`/internal/**` 直接返回 403 Forbidden
-3. **白名单放行**：`/user/login`、`/user/refresh`、`/actuator/**`、`/swagger-ui/**`、`/v3/api-docs/**` 仅注入 `X-Gateway-Token`
+3. **白名单放行**：`/user/login`、`/user/refresh`、`/actuator/health/**`、`/actuator/info`、`/actuator/prometheus`、`/swagger-ui/**`、`/swagger-ui.html`、`/v3/api-docs/**`、`/swagger-resources/**` 仅注入 `X-Gateway-Token`
 4. **JWT 验证**：从 `Authorization: Bearer <token>` 提取令牌，调用 `JwtUtil.parseAccessToken()` 验证签名、过期、类型
 5. **请求头注入**：验证通过后注入 `X-User-Id`（JWT `uid`）、`X-User-Name`（JWT `sub`）、`X-Gateway-Token`（共享密钥）
 
@@ -249,22 +252,29 @@ jasmine-schema   （独立 Flyway 迁移工具，多数据源：jasmine_iam/prod
 - `GET /{id}`：`UserBasicDTO`（id, username, realName），无 `Result` 包装
 - `GET /active-ids-by-roles`：`List<Integer>`，无 `Result` 包装
 
+#### 遗留空壳控制器（`/sys/**`）
+
+`UserRoleController`（`/sys/userRole`）与 `RoleMenuController`（`/sys/roleMenu`）为单体时代遗留的空壳控制器，内部无任何接口。
+网关路由与 IAM 授权规则中保留 `/sys/**` 路径（admin）仅为兼容遗留配置。
+
 ---
 
 ### 4.2 花卉服务 — 花卉主数据
 
 服务名：`product-service`，端口：9102，数据库：`jasmine_product`
 
+> 说明：product-service 未引入 Spring Security，本服务接口**无角色级授权**，凡通过网关 JWT 校验（已登录）的用户均可访问，下表认证要求已按实际行为标注。trade-service、crm-service 同理。
+
 #### FlowerController (`/flower`)
 
 | HTTP 方法 | 路径 | 说明 | 认证要求 |
 |:---|:---|:---|:---|
-| GET | `/flower/all` | 获取全部花卉 | admin/Boss/clerk |
-| POST | `/flower` | 新增花卉（初始库存为 0） | admin/Boss/clerk |
-| PUT | `/flower` | 修改花卉（保留现有库存） | admin/Boss/clerk |
-| GET | `/flower/{id}` | 根据 ID 查询花卉 | admin/Boss/clerk |
-| DELETE | `/flower/{id}` | 逻辑删除花卉（库存 > 0 时拒绝） | admin/Boss/clerk |
-| GET | `/flower/list` | 分页查询花卉 | admin/Boss/clerk |
+| GET | `/flower/all` | 获取全部花卉 | 已登录 |
+| POST | `/flower` | 新增花卉（初始库存为 0） | 已登录 |
+| PUT | `/flower` | 修改花卉（保留现有库存） | 已登录 |
+| GET | `/flower/{id}` | 根据 ID 查询花卉 | 已登录 |
+| DELETE | `/flower/{id}` | 逻辑删除花卉（库存 > 0 时拒绝） | 已登录 |
+| GET | `/flower/list` | 分页查询花卉 | 已登录 |
 
 **关键 DTO/VO**：
 - `FlowerSaveDTO`：id, name, unit, salePrice, costPrice, safeStock, status
@@ -300,13 +310,13 @@ jasmine-schema   （独立 Flyway 迁移工具，多数据源：jasmine_iam/prod
 
 | HTTP 方法 | 路径 | 说明 | 认证要求 |
 |:---|:---|:---|:---|
-| GET | `/sales/all` | 获取全部销售单 | admin/Boss/clerk |
-| GET | `/sales/today-summary` | 获取今日经营统计 | admin/Boss/clerk |
-| POST | `/sales` | 新增销售单（含幂等防重 + 库存扣减 + Outbox 事件） | admin/Boss/clerk |
-| PUT | `/sales` | 修改销售单（回滚旧库存 + 重建新库存） | admin/Boss/clerk |
-| GET | `/sales/{id}` | 根据 ID 查询销售单 | admin/Boss/clerk |
-| DELETE | `/sales/{id}` | 逻辑删除销售单（回滚库存） | admin/Boss/clerk |
-| GET | `/sales/list` | 分页查询销售单 | admin/Boss/clerk |
+| GET | `/sales/all` | 获取全部销售单 | 已登录 |
+| GET | `/sales/today-summary` | 获取今日经营统计 | 已登录 |
+| POST | `/sales` | 新增销售单（含幂等防重 + 库存扣减 + Outbox 事件） | 已登录 |
+| PUT | `/sales` | 修改销售单（回滚旧库存 + 重建新库存） | 已登录 |
+| GET | `/sales/{id}` | 根据 ID 查询销售单 | 已登录 |
+| DELETE | `/sales/{id}` | 逻辑删除销售单（回滚库存） | 已登录 |
+| GET | `/sales/list` | 分页查询销售单 | 已登录 |
 
 **关键 DTO/VO**：
 - `SalesSaveDTO`：id, vipId, date, remark, items（`List<SalesItemSaveDTO>`）
@@ -324,13 +334,13 @@ jasmine-schema   （独立 Flyway 迁移工具，多数据源：jasmine_iam/prod
 
 | HTTP 方法 | 路径 | 说明 | 认证要求 |
 |:---|:---|:---|:---|
-| GET | `/inventory/all` | 获取全部库存流水 | admin/Boss/clerk |
-| POST | `/inventory` | 新增库存动作（含幂等防重） | admin/Boss/clerk |
-| PUT | `/inventory` | 修改库存动作 | admin/Boss/clerk |
-| GET | `/inventory/{id}` | 根据 ID 查询库存流水 | admin/Boss/clerk |
-| DELETE | `/inventory/{id}` | 逻辑删除库存流水 | admin/Boss/clerk |
-| GET | `/inventory/list` | 分页查询库存流水 | admin/Boss/clerk |
-| GET | `/inventory/low-stock-count` | 获取低库存预警数量 | admin/Boss/clerk |
+| GET | `/inventory/all` | 获取全部库存流水 | 已登录 |
+| POST | `/inventory` | 新增库存动作（含幂等防重） | 已登录 |
+| PUT | `/inventory` | 修改库存动作 | 已登录 |
+| GET | `/inventory/{id}` | 根据 ID 查询库存流水 | 已登录 |
+| DELETE | `/inventory/{id}` | 逻辑删除库存流水 | 已登录 |
+| GET | `/inventory/list` | 分页查询库存流水 | 已登录 |
+| GET | `/inventory/low-stock-count` | 获取低库存预警数量 | 已登录 |
 
 **关键 DTO/VO**：
 - `InventorySaveDTO`：id, flowerId, bizType, quantity, unitCost, date, remark
@@ -352,8 +362,8 @@ jasmine-schema   （独立 Flyway 迁移工具，多数据源：jasmine_iam/prod
 
 | HTTP 方法 | 路径 | 说明 | 认证要求 |
 |:---|:---|:---|:---|
-| GET | `/inventory-alert/low-stock-count` | 获取低库存预警数量 | admin/Boss/clerk |
-| GET | `/inventory-alert/list` | 分页查询库存预警 | admin/Boss/clerk |
+| GET | `/inventory-alert/low-stock-count` | 获取低库存预警数量 | 已登录 |
+| GET | `/inventory-alert/list` | 分页查询库存预警 | 已登录 |
 
 **关键 DTO/VO**：
 - `InventoryAlertQueryDTO`：flowerName, alertStatus, pageNo, pageSize
@@ -363,18 +373,18 @@ jasmine-schema   （独立 Flyway 迁移工具，多数据源：jasmine_iam/prod
 
 ### 4.4 CRM 服务 — 客户关系管理
 
-服务名：`crm-service`，端口：9104，数据库：`jasmine_crm`
+服务名：`crm-service`，端口：9104，数据库：`jasmine_crm`（接口无角色级授权，见 4.2 说明）
 
 #### VipController (`/vip`)
 
 | HTTP 方法 | 路径 | 说明 | 认证要求 |
 |:---|:---|:---|:---|
-| GET | `/vip/all` | 获取全部会员 | admin/Boss |
-| POST | `/vip` | 新增会员（自动生成会员卡号 + 手机号唯一校验） | admin/Boss |
-| PUT | `/vip` | 修改会员（手机号唯一校验） | admin/Boss |
-| GET | `/vip/{id}` | 根据 ID 查询会员 | admin/Boss |
-| DELETE | `/vip/{id}` | 逻辑删除会员 | admin/Boss |
-| GET | `/vip/list` | 分页查询会员（支持姓名/卡号/手机号模糊搜索） | admin/Boss |
+| GET | `/vip/all` | 获取全部会员 | 已登录 |
+| POST | `/vip` | 新增会员（自动生成会员卡号 + 手机号唯一校验） | 已登录 |
+| PUT | `/vip` | 修改会员（手机号唯一校验） | 已登录 |
+| GET | `/vip/{id}` | 根据 ID 查询会员 | 已登录 |
+| DELETE | `/vip/{id}` | 逻辑删除会员 | 已登录 |
+| GET | `/vip/list` | 分页查询会员（支持姓名/卡号/手机号模糊搜索） | 已登录 |
 
 **关键 DTO/VO**：
 - `VipSaveDTO`：id, vid, name, sex, phone
@@ -385,12 +395,12 @@ jasmine-schema   （独立 Flyway 迁移工具，多数据源：jasmine_iam/prod
 
 | HTTP 方法 | 路径 | 说明 | 认证要求 |
 |:---|:---|:---|:---|
-| GET | `/appointment/all` | 获取全部预约 | admin/Boss |
-| POST | `/appointment` | 新增预约（含幂等防重 + 延时提醒事件） | admin/Boss |
-| PUT | `/appointment` | 修改预约（重新发布延时提醒） | admin/Boss |
-| GET | `/appointment/{id}` | 根据 ID 查询预约 | admin/Boss |
-| DELETE | `/appointment/{id}` | 逻辑删除预约 | admin/Boss |
-| GET | `/appointment/list` | 分页查询预约（支持会员姓名/手机号筛选） | admin/Boss |
+| GET | `/appointment/all` | 获取全部预约 | 已登录 |
+| POST | `/appointment` | 新增预约（含幂等防重 + 延时提醒事件） | 已登录 |
+| PUT | `/appointment` | 修改预约（重新发布延时提醒） | 已登录 |
+| GET | `/appointment/{id}` | 根据 ID 查询预约 | 已登录 |
+| DELETE | `/appointment/{id}` | 逻辑删除预约 | 已登录 |
+| GET | `/appointment/list` | 分页查询预约（支持会员姓名/手机号筛选） | 已登录 |
 
 **关键 DTO/VO**：
 - `AppointmentCreateDTO`：vipId, vid, phone, date, content（vipId/vid/phone 三选一）
@@ -775,6 +785,15 @@ public interface FlowerClient {
 
 **业务异常处理**：`BusinessException`（如库存不足）不触发熔断，直接传播；服务不可用异常触发熔断。
 
+**LoadBalancer 重试策略**（业务服务 `spring.cloud.loadbalancer.retry`）：
+
+| 配置项 | 值 | 说明 |
+|:---|:---|:---|
+| retry.enabled | true | 启用负载均衡重试 |
+| max-retries-on-same-service-instance | 0 | 同一实例不重试 |
+| max-retries-on-next-service-instance | 1 | 切换下一实例重试 1 次 |
+| retryable-status-codes | 500,502,503 | 仅这些状态码触发重试（422 业务失败不重试，与熔断策略配套） |
+
 ---
 
 ## 八、安全架构
@@ -815,14 +834,23 @@ Request → Gateway: JwtAuthGlobalFilter
 
 ### 8.3 授权策略
 
+**RBAC 仅由 iam-service 强制执行**（唯一依赖 `spring-boot-starter-security` 并配置 `SecurityFilterChain` 的模块）。
+product/trade/crm 等业务服务未引入 Spring Security，**无角色级授权**，凡通过网关 JWT 校验（已登录）的请求即可访问其业务接口，
+纵深防御依赖网关 `/internal/**` 拦截与 `InternalEndpointGuardFilter` 的 `X-Gateway-Token` 校验。
+
+iam-service 内部授权规则（`MySecurityConfig`，自上而下匹配）：
+
 | 路径模式 | 允许角色 |
 |:---|:---|
-| `/user/login`, `/user/refresh`, `/actuator/**`, `/swagger-ui/**` | 公开 |
-| `/user/info`, `/user/logout`, `/user/changePassword`, `/site-message/**` | 已登录 |
-| `/user/**`, `/role/**`, `/menu/**`, `/sys/**` | admin |
-| `/vip/**`, `/appointment/**` | admin, Boss |
-| `/flower/**`, `/sales/**`, `/inventory/**`, `/inventory-alert/**` | admin, Boss, clerk |
+| `OPTIONS /**`、`/internal/**` | 公开（内部接口另由 `InternalEndpointGuardFilter` 校验网关令牌） |
+| `/user/login`、`/user/refresh`、`/actuator/health/**`、`/actuator/info`、`/actuator/prometheus`、`/error`、`/swagger-ui/**`、`/swagger-ui.html`、`/v3/api-docs/**`、`/swagger-resources/**` | 公开 |
+| `/user/info`、`/user/logout`、`/user/changePassword` | 已登录 |
+| `/user/**`、`/role/**`、`/menu/**`、`/sys/**` | admin |
 | 其他 | 拒绝 |
+
+> 该配置中还保留了 `/vip/**`、`/appointment/**` → admin,Boss，`/flower/**`、`/sales/**`、`/inventory/**`、`/inventory-alert/**` → admin,Boss,clerk，
+> `/site-message/**` → 已登录 等规则，但这些端点分别位于 crm/product/trade 服务，在 iam-service 内不存在，
+> 属于无实际效果的防御性残留配置；上述接口在实际运行中对所有已登录用户开放。
 
 ### 8.4 令牌存储策略
 
@@ -918,6 +946,10 @@ Payload: {
 | Pinia | 3.0.3 | 状态管理 |
 | Element Plus | 2.11.5 | 组件库 |
 | Axios | 1.13.1 | HTTP 请求 |
+| dayjs | 1.11.18 | 日期处理 |
+| js-cookie | 3.0.5 | Cookie 操作 |
+| nprogress | 0.2.0 | 顶部加载进度条 |
+| @element-plus/icons-vue | 2.3.1 | 图标库 |
 | Vite | 8.0.4 | 构建工具 |
 | Bun | 1.3.12 | 本地开发与依赖管理 |
 | TypeScript | 6.0.2 | 类型安全 |
@@ -936,6 +968,7 @@ Payload: {
 | 销售管理 | `views/sales/SalesManageView.vue` | Sales |
 | 会员管理 | `views/vip/VipManageView.vue` | Vip |
 | 预约管理 | `views/appointment/AppointmentManageView.vue` | Appointment |
+| 404 页面 | `views/error/NotFoundView.vue` | — |
 
 ### 11.3 路由守卫与动态菜单
 
@@ -1012,11 +1045,16 @@ MySQL 启动时通过 `init-databases.sql` 自动创建 5 个数据库（jasmine
 
 ### 12.4 CI/CD
 
-- GitHub Actions：`.github/workflows/docker-publish.yml`
-- 触发条件：push 到 `main`/`microservices`、`v*` 标签、手动触发
+**基础检查工作流** `.github/workflows/backend-ci.yml`：
+- 触发条件：pull_request
+- 步骤：Maven 编译检查 → 快速单元测试（跳过 IT）→ Testcontainers 集成测试并打包（`mvn verify`）
+
+**镜像发布工作流** `.github/workflows/docker-publish.yml`：
+- 前置门禁：复用 `backend-ci.yml`，基础检查失败则不构建镜像
+- 触发条件：push 到 `main`/`microservices`、`v*` 标签、手动触发（可传入 modules 缩小构建范围）
 - 构建策略：矩阵并行构建 6 个后端模块 + 1 个前端模块
 - 镜像仓库：`ghcr.io/jipzeongit/jasmine-*`
-- 标签策略：`<branch>-latest`、`sha-<7字符>`、版本标签
+- 标签策略：`latest`（main 分支）/ `<branch>-latest`、`sha-<7字符>`、版本标签
 - 缓存：BuildKit GHA cache
 
 ---
