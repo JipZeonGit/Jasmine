@@ -17,7 +17,10 @@ import java.util.List;
  * 商品服务远程调用客户端。
  * <p>
  * 基于 Spring 6 HTTP Interface + RestClient，通过 Spring Cloud LoadBalancer 实现服务发现。
- * adjustStock 用 ResponseEntity 接收，业务失败的 422 不会抛异常，由调用方统一处理。
+ * <p>
+ * adjustStock 虽然声明返回 ResponseEntity，但 RestClient 默认对 4xx 直接抛
+ * HttpClientErrorException，业务失败的 422 不会进入 ResponseEntity 分支。
+ * 由 {@link RemoteProductStockFacade#doAdjustStock} 统一捕获并转回 BusinessException。
  */
 @HttpExchange(url = "/internal/flower", contentType = "application/json")
 public interface FlowerClient {

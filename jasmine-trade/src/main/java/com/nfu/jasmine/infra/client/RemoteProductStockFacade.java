@@ -10,7 +10,10 @@ import org.slf4j.LoggerFactory;
 import org.springframework.cloud.client.circuitbreaker.CircuitBreaker;
 import org.springframework.cloud.client.circuitbreaker.CircuitBreakerFactory;
 import org.springframework.context.annotation.Primary;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Component;
+import org.springframework.web.client.HttpClientErrorException;
 
 import java.math.BigDecimal;
 
@@ -59,10 +62,33 @@ public class RemoteProductStockFacade implements ProductStockFacade {
         request.setUpdateCostPrice(updateCostPrice);
         request.setReason(insufficientMessage);
 
-        StockAdjustResult result = flowerClient.adjustStock(request).getBody();
+        ResponseEntity<StockAdjustResult> response;
+        try {
+            response = flowerClient.adjustStock(request);
+        } catch (HttpClientErrorException e) {
+            // provider 对库存不足等业务失败返回 422 + StockAdjustResult.fail body，
+            // 但 RestClient 默认对 4xx 抛 HttpClientErrorException，不会进入 ResponseEntity 分支。
+            // 这里把 422 转回 BusinessException，让断路器 fallback 透传业务消息而非降级为"服务不可用"。
+            // 其他 4xx（如 404 花卉不存在）按非业务失败处理，交给断路器 fallback 降级。
+            if (e.getStatusCode().value() == HttpStatus.UNPROCESSABLE_ENTITY.value()) {
+                StockAdjustResult result = null;
+                try {
+                    result = e.getResponseBodyAs(StockAdjustResult.class);
+                } catch (RuntimeException parseEx) {
+                    // 防御性兜底：bodyConvertFunction 未设置或 body 不可解析时，
+                    // 不暴露技术异常给前端，使用兜底文案
+                    log.debug("422 响应体解析失败，使用兜底文案 flowerId={}", flowerId, parseEx);
+                }
+                String msg = result != null && result.getMessage() != null
+                        ? result.getMessage() : "库存调整失败！";
+                throw new BusinessException(msg);
+            }
+            throw e;
+        }
 
+        StockAdjustResult result = response.getBody();
         if (result == null || !Boolean.TRUE.equals(result.getSuccess())) {
-            // 4xx 业务失败：库存不足、参数非法等，直接抛出业务异常
+            // 防御性兜底：provider 返回 200 但 success=false/null（当前契约不会出现，但保留以防回归）
             String msg = result != null && result.getMessage() != null ? result.getMessage() : "库存调整失败！";
             throw new BusinessException(msg);
         }

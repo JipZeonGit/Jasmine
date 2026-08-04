@@ -10,7 +10,7 @@
 > - 🟠 3.3 分布式追踪 → **未引入 Zipkin**（按业务量判断暂不需要），改为先修复 traceId 跨服务断链（2026-08-04 完成，见 `logs/microservices/phase7-traceid-propagation-and-roadmap-sync.md`）
 >
 > 因此下文各小节的"问题/修复方案"仍作为历史审查记录保留，**实际进度以第六节路线图的 ✅ 标记与上述更新为准**。
-> 仍在待办的真实缺口集中在：契约测试（详见 `plan/microservices/post-phase6-cleanup-plan.md`）；Phase 7.2 死配置清理、Phase 7.3 iam 单测补齐均已于 2026-08-04 完成。
+> 仍在待办的真实缺口集中在：契约测试（详见 `plan/microservices/post-phase6-cleanup-plan.md`）；Phase 7.2 死配置清理、Phase 7.3 iam 单测补齐、Phase 7.4 跨服务契约测试均已于 2026-08-04 完成，并修复了测试中发现的 adjustStock 422 契约漂移 Bug（Facade 层捕获 HttpClientErrorException 转 BusinessException）。
 
 ---
 
@@ -267,8 +267,11 @@ location /config.js {
     │   └── UserServiceImplTest (13) / RoleServiceImplTest (6) / MenuServiceImplTest (5) / JwtUtilTest (+4)
     │       覆盖 login/refreshToken/changePassword/updateUser/deleteUser 全分支 + 菜单树构建 + JWT 安全拒绝路径
     │
-    ├── ⏳ Phase 7.4 — 跨服务契约测试（真实缺口）
-    │   └── @RestClientTest（trade→product / trade→crm / crm→iam）
+    ├── ✅ Phase 7.4 — 跨服务契约测试（2026-08-04）
+    │   └── FlowerClientContractTest (5) / VipClientContractTest (4) / UserClientContractTest (2) / CrmUserClientContractTest (2)
+    │       手搓 RestClient + MockRestServiceServer，锁定 4 个跨服务客户端的 HTTP 契约
+    │       发现 adjustStock 422 契约漂移（RestClient 默认抛异常，非 ResponseEntity）
+    │       → 同日修复：Facade 层捕获 HttpClientErrorException，422 转 BusinessException 透传业务消息
     │
     ├── ⏸ Phase 7.5~7.8 — 可观测性补强（按需，触发条件出现再评估）
     │   ├── 7.5 ⏸ Micrometer Tracing + Zipkin —— 暂缓
