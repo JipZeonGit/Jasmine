@@ -24,14 +24,16 @@ import org.testcontainers.utility.DockerImageName;
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 public abstract class AbstractIntegrationTest {
 
+    // 镜像版本必须与运行时部署（ops/docker|podman/prod/docker-compose.yml）保持一致，
+    // 避免测试环境与生产行为漂移（如 Redis 7.2 vs 7.4 的命令语义差异）。
     @Container
-    private static final MySQLContainer<?> MYSQL_CONTAINER = new MySQLContainer<>(DockerImageName.parse("mysql:8.4.8"))
+    private static final MySQLContainer<?> MYSQL_CONTAINER = new MySQLContainer<>(DockerImageName.parse("mysql:8.4"))
             .withDatabaseName("jasmine")
             .withUsername("jasmine")
             .withPassword("jasmine");
 
     @Container
-    private static final GenericContainer<?> REDIS_CONTAINER = new GenericContainer<>(DockerImageName.parse("redis:7.4-alpine"))
+    private static final GenericContainer<?> REDIS_CONTAINER = new GenericContainer<>(DockerImageName.parse("redis:7.2-alpine"))
             .withExposedPorts(6379);
 
     @Container
