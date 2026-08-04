@@ -8,8 +8,8 @@
 #     但针对 Podman 做了如下适配：
 #       1) 移除 deploy.resources（非 swarm 下 Docker Compose 会忽略并告警，
 #          Podman 后端亦不识别），仅保留 mem_limit（Podman 支持）；
-#       2) pull_policy 由 always 改为 missing（符合 Podman 的镜像拉取语义，
-#          镜像缺失时才拉取，避免每次启动强制联网）；
+#       2) 业务镜像 pull_policy: always（tag 固定为 microservices-latest，
+#          必须每次强制拉取最新版；中间件保持默认 missing 避免每次强制联网）；
 #       3) 前端默认端口改为 8081 —— Podman rootless 无法绑定 <1024 的端口，
 #          如需绑定 80，请以 root 运行 Podman 或使用 rootful 容器；
 #       4) 沿用 ops/docker/prod 下的 SQL 与 Nacos properties（单一来源，不重复维护）。
@@ -184,7 +184,7 @@ services:
 
   jasmine-schema:
     image: ${SCHEMA_IMAGE}:${SCHEMA_IMAGE_TAG}
-    pull_policy: missing
+    pull_policy: always
     container_name: jasmine-podman-schema
     restart: "no"
     depends_on:
@@ -198,7 +198,7 @@ services:
 
   jasmine-gateway:
     image: ${GATEWAY_IMAGE}:${GATEWAY_IMAGE_TAG}
-    pull_policy: missing
+    pull_policy: always
     container_name: jasmine-podman-gateway
     restart: unless-stopped
     depends_on:
@@ -221,7 +221,7 @@ services:
 
   iam-service:
     image: ${IAM_IMAGE}:${IAM_IMAGE_TAG}
-    pull_policy: missing
+    pull_policy: always
     container_name: jasmine-podman-iam
     restart: unless-stopped
     depends_on: *service-depends-on
@@ -241,7 +241,7 @@ services:
 
   product-service:
     image: ${PRODUCT_IMAGE}:${PRODUCT_IMAGE_TAG}
-    pull_policy: missing
+    pull_policy: always
     container_name: jasmine-podman-product
     restart: unless-stopped
     depends_on: *service-depends-on
@@ -261,7 +261,7 @@ services:
 
   trade-service:
     image: ${TRADE_IMAGE}:${TRADE_IMAGE_TAG}
-    pull_policy: missing
+    pull_policy: always
     container_name: jasmine-podman-trade
     restart: unless-stopped
     depends_on: *service-depends-on
@@ -281,7 +281,7 @@ services:
 
   crm-service:
     image: ${CRM_IMAGE}:${CRM_IMAGE_TAG}
-    pull_policy: missing
+    pull_policy: always
     container_name: jasmine-podman-crm
     restart: unless-stopped
     depends_on: *service-depends-on
@@ -301,7 +301,7 @@ services:
 
   frontend:
     image: ${FRONTEND_IMAGE}:${FRONTEND_IMAGE_TAG}
-    pull_policy: missing
+    pull_policy: always
     container_name: jasmine-podman-frontend
     restart: unless-stopped
     depends_on:
