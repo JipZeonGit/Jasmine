@@ -143,7 +143,7 @@ jasmine-schema   （独立 Flyway 迁移工具，多数据源：jasmine_iam/prod
 
 | 路由 ID | URI | 路径谓词 | 目标服务 |
 |:---|:---|:---|:---|
-| `iam-service` | `lb://iam-service` | `/user/**`, `/role/**`, `/menu/**`, `/sys/**` | IAM 服务 |
+| `iam-service` | `lb://iam-service` | `/user/**`, `/role/**`, `/menu/**` | IAM 服务 |
 | `product-service` | `lb://product-service` | `/flower/**` | 花卉服务 |
 | `trade-service` | `lb://trade-service` | `/sales/**`, `/inventory/**`, `/inventory-alert/**` | 交易服务 |
 | `crm-service` | `lb://crm-service` | `/vip/**`, `/appointment/**`, `/site-message/**` | CRM 服务 |
@@ -251,11 +251,6 @@ jasmine-schema   （独立 Flyway 迁移工具，多数据源：jasmine_iam/prod
 **响应**：
 - `GET /{id}`：`UserBasicDTO`（id, username, realName），无 `Result` 包装
 - `GET /active-ids-by-roles`：`List<Integer>`，无 `Result` 包装
-
-#### 遗留空壳控制器（`/sys/**`）
-
-`UserRoleController`（`/sys/userRole`）与 `RoleMenuController`（`/sys/roleMenu`）为单体时代遗留的空壳控制器，内部无任何接口。
-网关路由与 IAM 授权规则中保留 `/sys/**` 路径（admin）仅为兼容遗留配置。
 
 ---
 
@@ -845,12 +840,8 @@ iam-service 内部授权规则（`MySecurityConfig`，自上而下匹配）：
 | `OPTIONS /**`、`/internal/**` | 公开（内部接口另由 `InternalEndpointGuardFilter` 校验网关令牌） |
 | `/user/login`、`/user/refresh`、`/actuator/health/**`、`/actuator/info`、`/actuator/prometheus`、`/error`、`/swagger-ui/**`、`/swagger-ui.html`、`/v3/api-docs/**`、`/swagger-resources/**` | 公开 |
 | `/user/info`、`/user/logout`、`/user/changePassword` | 已登录 |
-| `/user/**`、`/role/**`、`/menu/**`、`/sys/**` | admin |
+| `/user/**`、`/role/**`、`/menu/**` | admin |
 | 其他 | 拒绝 |
-
-> 该配置中还保留了 `/vip/**`、`/appointment/**` → admin,Boss，`/flower/**`、`/sales/**`、`/inventory/**`、`/inventory-alert/**` → admin,Boss,clerk，
-> `/site-message/**` → 已登录 等规则，但这些端点分别位于 crm/product/trade 服务，在 iam-service 内不存在，
-> 属于无实际效果的防御性残留配置；上述接口在实际运行中对所有已登录用户开放。
 
 ### 8.4 令牌存储策略
 

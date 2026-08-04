@@ -53,25 +53,13 @@ public class MySecurityConfig {
                         .requestMatchers(
                                 "/user/info",
                                 "/user/logout",
-                                "/user/changePassword",
-                                "/site-message/**"
+                                "/user/changePassword"
                         ).authenticated()
                         .requestMatchers(
                                 "/user/**",
                                 "/role/**",
-                                "/menu/**",
-                                "/sys/**"
+                                "/menu/**"
                         ).hasRole("admin")
-                        .requestMatchers(
-                                "/vip/**",
-                                "/appointment/**"
-                        ).hasAnyRole("admin", "Boss")
-                        .requestMatchers(
-                                "/flower/**",
-                                "/sales/**",
-                                "/inventory/**",
-                                "/inventory-alert/**"
-                        ).hasAnyRole("admin", "Boss", "clerk")
                         .anyRequest().denyAll()
                 )
                 .exceptionHandling(exception -> exception

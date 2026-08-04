@@ -10,7 +10,7 @@
 > - 🟠 3.3 分布式追踪 → **未引入 Zipkin**（按业务量判断暂不需要），改为先修复 traceId 跨服务断链（2026-08-04 完成，见 `logs/microservices/phase7-traceid-propagation-and-roadmap-sync.md`）
 >
 > 因此下文各小节的"问题/修复方案"仍作为历史审查记录保留，**实际进度以第六节路线图的 ✅ 标记与上述更新为准**。
-> 仍在待办的真实缺口集中在：契约测试、iam 单测与死配置清理（详见 `plan/microservices/post-phase6-cleanup-plan.md`）。
+> 仍在待办的真实缺口集中在：iam 单测与契约测试（详见 `plan/microservices/post-phase6-cleanup-plan.md`）；Phase 7.2 死配置清理已于 2026-08-04 完成。
 
 ---
 
@@ -257,9 +257,11 @@ location /config.js {
     │   ├── InternalClientFactory 出站拦截器：从 MDC 取 traceId 透传到下游
     │   └── 配套单测 8 个（TraceIdGlobalFilterTest / TraceContextPropagatingInterceptorTest）
     │
-    ├── ⏳ Phase 7.2 — iam 死配置与空壳清理（低成本做减法，优先做）
-    │   ├── iam SecurityFilterChain 中针对其他服务端点的死规则
-    │   └── /sys/** 下两个空壳控制器（UserRoleController / RoleMenuController）
+    ├── ✅ Phase 7.2 — iam 死配置与空壳清理（2026-08-04）
+    │   ├── iam SecurityFilterChain 中针对其他服务端点的死规则（/site-message、/vip、
+    │   │   /appointment、/flower、/sales、/inventory、/inventory-alert）已删除
+    │   ├── /sys/** 下两个空壳控制器 + 4 个空壳 Service + 空 UserRoleMapper.xml 已删除
+    │   └── 网关 jasmine-gateway.yml 的 /sys/** 路由谓词同步清理
     │
     ├── ⏳ Phase 7.3 — iam 单测补齐（真实缺口）
     │   └── UserServiceImpl / RoleServiceImpl / MenuServiceImpl / JwtUtil

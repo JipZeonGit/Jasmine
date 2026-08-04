@@ -11,7 +11,7 @@ spring:
         - id: iam-service
           uri: lb://iam-service
           predicates:
-            - Path=/user/**,/role/**,/menu/**,/sys/**
+            - Path=/user/**,/role/**,/menu/**
           filters:
             - name: RequestRateLimiter
               args:
