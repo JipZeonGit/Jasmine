@@ -95,8 +95,8 @@ services:
       - "${MYSQL_PORT:-13306}:3306"
     volumes:
       - ./data/mysql:/var/lib/mysql:Z
-      - ../../docker/prod/init-databases.sql:/docker-entrypoint-initdb.d/01-init-databases.sql:ro
-      - ../../docker/prod/nacos-schema.sql:/docker-entrypoint-initdb.d/02-nacos-schema.sql:ro
+      - ../../docker/prod/init-databases.sql:/docker-entrypoint-initdb.d/01-init-databases.sql:ro,Z
+      - ../../docker/prod/nacos-schema.sql:/docker-entrypoint-initdb.d/02-nacos-schema.sql:ro,Z
     healthcheck:
       test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p$$MYSQL_ROOT_PASSWORD || exit 1"]
       interval: 20s

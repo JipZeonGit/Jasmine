@@ -6,6 +6,9 @@ import com.nfu.jasmine.common.enums.ResultCode;
 import com.nfu.jasmine.common.exception.BusinessException;
 import com.nfu.jasmine.flower.model.entity.Flower;
 import com.nfu.jasmine.flower.persistence.mapper.FlowerMapper;
+import com.nfu.jasmine.infra.cache.CacheNames;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Caching;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
@@ -15,6 +18,9 @@ import java.math.BigDecimal;
  * <p>
  * 所有库存增减最终都收口到 compare-and-set SQL：先读取当前库存，再按预期库存做原子更新，
  * 更新失败说明并发期间库存已被别的事务改动，此时重试读取并重新计算，避免丢失更新。
+ * <p>
+ * 注意：本服务直接走 mapper 更新 stock，绕过了 FlowerServiceImpl，因此必须在成功后
+ * 显式失效 FLOWER_LIST / FLOWER_DETAIL 缓存，否则售出/入库后前端列表页会读到陈旧库存。
  */
 @Service
 public class FlowerStockService implements ProductStockFacade {
@@ -27,6 +33,10 @@ public class FlowerStockService implements ProductStockFacade {
     }
 
     @Override
+    @Caching(evict = {
+            @CacheEvict(value = CacheNames.FLOWER_LIST, allEntries = true),
+            @CacheEvict(value = CacheNames.FLOWER_DETAIL, key = "#flowerId")
+    })
     public ProductStockFacade.StockChangeResult adjustStock(Integer flowerId, int delta, BigDecimal costPrice, boolean updateCostPrice, String insufficientMessage) {
         for (int attempt = 0; attempt < MAX_RETRY_TIMES; attempt++) {
             Flower flower = requireFlower(flowerId);
@@ -73,6 +83,7 @@ public class FlowerStockService implements ProductStockFacade {
         dto.setPrice(flower.getSalePrice());
         dto.setCost(flower.getCostPrice());
         dto.setStatus(flower.getStatus());
+        dto.setCurrentStock(flower.getCurrentStock());
         return dto;
     }
 }
