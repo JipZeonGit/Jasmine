@@ -13,7 +13,7 @@ import java.time.Duration;
 /**
  * 服务间 HTTP 客户端工厂。
  * <p>
- * 封装 RestClient 创建、超时配置、网关令牌注入等公共逻辑，
+ * 封装 RestClient 创建、超时配置、网关令牌注入、traceId 传播等公共逻辑，
  * 各服务的 ClientConfig 只需声明 Bean 方法，调用 {@link #createClient} 即可。
  */
 @Component
@@ -37,6 +37,7 @@ public class InternalClientFactory {
         RestClient restClient = builder
                 .baseUrl(baseUrl)
                 .requestFactory(createRequestFactory())
+                .requestInterceptor(new TraceContextPropagatingInterceptor())
                 .defaultHeader("X-Gateway-Token", gatewaySharedToken)
                 .build();
         HttpServiceProxyFactory factory = HttpServiceProxyFactory.builderFor(

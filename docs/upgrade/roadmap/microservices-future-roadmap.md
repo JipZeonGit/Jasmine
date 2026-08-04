@@ -3,6 +3,15 @@
 > 本文档基于 `microservices` 分支 Phase 0~5 完成后的代码基线进行架构审查，识别当前架构中存在的问题、遗留的阶段性工作，并规划后续演进路线。
 > 审查范围涵盖：服务边界完整性、横切关注点、基础设施、部署运维、前端适配。
 
+> **状态更新（2026-08-04）**：本文档原为审查时点（Phase 0~5）的快照。其下列出的多数 🔴严重/🟠高优先级问题**已在本轮之前陆续落地**：
+> - 🔴 2.1 服务间编译期耦合 → 已解除（Phase 3.1/3.2/3.3 完成，见 `logs/microservices/phase3-phase6-remote-decoupling-and-hardening.md`）
+> - 🟠 3.1 优雅关闭 / 3.2 网关限流 / 3.4 前端幂等键 → 已落地（Phase 6.1/6.2/6.3）
+> - 🟡 4.1 全局异常处理器补充（Timeout / CallNotPermitted）→ 已落地（Phase 6.4）
+> - 🟠 3.3 分布式追踪 → **未引入 Zipkin**（按业务量判断暂不需要），改为先修复 traceId 跨服务断链（2026-08-04 完成，见 `logs/microservices/phase7-traceid-propagation-and-roadmap-sync.md`）
+>
+> 因此下文各小节的"问题/修复方案"仍作为历史审查记录保留，**实际进度以第六节路线图的 ✅ 标记与上述更新为准**。
+> 仍在待办的真实缺口集中在：契约测试、iam 单测与死配置清理（详见 `plan/microservices/post-phase6-cleanup-plan.md`）。
+
 ---
 
 ## 一、审查结果总览
@@ -214,45 +223,69 @@ location /config.js {
 
 ## 六、后续实施路线图
 
+> 进度标记：✅ 已完成 / ⏳ 待办 / ⏸ 暂缓（按业务量判断暂不需要，触发条件出现再评估）
+
 ```
 当前基线（Phase 0~5 完成）
     │
-    ├── 🔴 Phase 3.1 — trade→product 远程依赖清理（1~2 天）
+    ├── ✅ Phase 3.1 — trade→product 远程依赖清理（1~2 天）
     │   ├── 验证 RemoteProductStockFacade 覆盖所有调用点
     │   ├── 移除 Maven 依赖 + 包扫描 + 实体直接引用
     │   └── 共享 DTO 迁移到 common-core
     │
-    ├── 🔴 Phase 3.2 — trade→crm 远程化（2~3 天）
+    ├── ✅ Phase 3.2 — trade→crm 远程化（2~3 天）
     │   ├── crm-service 暴露 /internal/vip/** 内部接口
     │   ├── trade-service 新增 VipClient + RemoteVipReadFacade
     │   └── 移除 trade 对 crm 的编译期依赖
     │
-    ├── 🔴 Phase 3.3 — crm→iam 远程化（1~2 天）
-    │   ├── iam-service 补充 /internal/user/batch-by-roles
+    ├── ✅ Phase 3.3 — crm→iam 远程化（1~2 天）
+    │   ├── iam-service 补充 /internal/user/active-ids-by-roles
     │   ├── 替换 AppointmentReminderListener 中的 UserMapper 直接调用
     │   └── 移除 crm 对 iam 的编译期依赖
     │
-    ├── 🟠 Phase 6 — 架构加固（3~5 天）
+    ├── ✅ Phase 6 — 架构加固（3~5 天）
     │   ├── 6.1 优雅关闭配置（server.shutdown=graceful + 生命周期监听）
     │   ├── 6.2 网关限流（RequestRateLimiter + Redis）
     │   ├── 6.3 前端幂等键（Axios 拦截器注入 UUID）
-    │   ├── 6.4 异常处理器补充（Timeout/CircuitBreaker 等）
-    │   └── 6.5 RestClient 重试策略
+    │   ├── 6.4 异常处理器补充（Timeout / CallNotPermitted）
+    │   └── 6.5 ⏸ RestClient 应用层 Spring Retry —— 暂缓
+    │           现有 Resilience4j 熔断 + LoadBalancer 实例切换重试已覆盖；
+    │           出现真实瞬时失败再补
     │
-    ├── 🟡 Phase 7 — 可观测性增强（3~5 天）
-    │   ├── 7.1 接入 Micrometer Tracing + Zipkin
-    │   ├── 7.2 配置 Grafana dashboard + Prometheus 告警规则
-    │   ├── 7.3 Loki 日志聚合
-    │   └── 7.4 生产日志文件持久化 + 轮转
+    ├── ✅ Phase 7.1 — traceId 跨服务传播修复（2026-08-04）
+    │   ├── 网关 TraceIdGlobalFilter：入口生成/复用 traceId，写入下游请求头与响应头
+    │   ├── InternalClientFactory 出站拦截器：从 MDC 取 traceId 透传到下游
+    │   └── 配套单测 8 个（TraceIdGlobalFilterTest / TraceContextPropagatingInterceptorTest）
+    │
+    ├── ⏳ Phase 7.2 — iam 死配置与空壳清理（低成本做减法，优先做）
+    │   ├── iam SecurityFilterChain 中针对其他服务端点的死规则
+    │   └── /sys/** 下两个空壳控制器（UserRoleController / RoleMenuController）
+    │
+    ├── ⏳ Phase 7.3 — iam 单测补齐（真实缺口）
+    │   └── UserServiceImpl / RoleServiceImpl / MenuServiceImpl / JwtUtil
+    │       （当前 0 单测，是 RBAC/JWT 安全核心）
+    │
+    ├── ⏳ Phase 7.4 — 跨服务契约测试（真实缺口）
+    │   └── @RestClientTest（trade→product / trade→crm / crm→iam）
+    │
+    ├── ⏸ Phase 7.5~7.8 — 可观测性补强（按需，触发条件出现再评估）
+    │   ├── 7.5 ⏸ Micrometer Tracing + Zipkin —— 暂缓
+    │   │       先靠 Phase 7.1 的 traceId 日志关联（已覆盖 80% 价值），
+    │   │       真出现跨服务排障瓶颈再上 Zipkin
+    │   ├── 7.6 ⏸ Grafana dashboard + Prometheus scrape job —— 可选
+    │   │       metrics 端点已暴露，加 scrape + 一份社区 dashboard 成本低
+    │   ├── 7.7 ⏸ Loki 日志聚合 —— 暂缓
+    │   │       单节点 Compose，docker logs 够用
+    │   └── 7.8 ✅ 生产日志文件持久化（卷挂载）—— 已落地
     │
     ├── 🟢 Phase 8 — 部署演进（可选，按需）
-    │   ├── K8s 部署清单（Helm Chart）
+    │   ├── ⏸ K8s 部署清单（Helm Chart）—— 服务数>10/团队>5人再评估
     │   ├── 前端运行时配置机制
     │   └── 蓝绿发布 / 滚动更新策略
     │
     └── 🟡 Phase 9 — 长期演进（按需评估）
-        ├── Sentinel 流量控制（如业务量增长）
-        ├── Seata 分布式事务（如 trade 内部 sales+inventory 拆分）
+        ├── ⏸ Sentinel 流量控制（如业务量增长）
+        ├── ⏸ Seata 分布式事务（如 trade 内部 sales+inventory 拆分）
         ├── 读写分离 / 分库分表（ShardingSphere）
         └── 事件驱动架构深化（Kafka 替代 RabbitMQ，如业务量剧增）
 ```

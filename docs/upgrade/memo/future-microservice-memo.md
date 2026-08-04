@@ -1,5 +1,14 @@
 # 微服务前瞻备忘录
 
+> **状态（2026-08-04 更新）**：本文档为 PR11 时期的微服务前瞻设想，**多数判断已过时**。
+> 微服务迁移已在 `microservices` 分支落地（Phase 0~6 完成），下述"当前主线仍为模块化单体"、"PR12~PR19 完成后再评估"等前置条件**全部已满足或被绕过**。
+> 真实进度与当前架构形态请以以下文档为准：
+> - 当前架构：`docs/architecture/microservices/architecture-and-api-spec.md`
+> - 迁移规划（含本文档过时点逐条核对）：`docs/upgrade/plan/microservices/microservice-migration-plan.md` 第一节
+> - 后续路线图：`docs/upgrade/roadmap/microservices-future-roadmap.md`
+>
+> 本文保留作为历史设想记录，**不再作为决策依据**。下文内容未改动。
+
 ## 说明
 
 本文档只用于记录 `PR12` 之后、更靠后的技术前瞻与候选方向。
