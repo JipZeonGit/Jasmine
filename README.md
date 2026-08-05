@@ -1,7 +1,7 @@
 # Jasmine
 
 > **分支说明**：
-> 当前 `microservices` 分支已完成微服务迁移 Phase0 ~ Phase6：Maven 多模块拆分、Nacos 配置/注册接入、Gateway 路由与鉴权、服务间远程调用（RestClient + 共享密钥）、数据库按服务独立拆分、前端适配与安全加固、**服务间编译期耦合彻底解除（Phase3）**、**架构加固：优雅关闭 / 网关限流 / 前端幂等键 / 异常处理器（Phase6）**。
+> 当前 `microservices` 分支已完成微服务迁移 Phase0 ~ Phase7.6：Maven 多模块拆分、Nacos 配置/注册接入、Gateway 路由与鉴权、服务间远程调用（RestClient + 共享密钥）、数据库按服务独立拆分、前端适配与安全加固、**服务间编译期耦合彻底解除（Phase3）**、**架构加固：优雅关闭 / 网关限流 / 前端幂等键 / 异常处理器（Phase6）**、**Phase 7 收尾：traceId 跨服务传播 / iam 死配置清理 / iam 单测补齐 / 跨服务契约测试 + adjustStock 422 修复 / product·crm·trade 业务 Service 单测补齐**。
 
 一个面向花店门店场景的管理系统，当前包含：
 
@@ -19,6 +19,7 @@
 - 微服务 Phase0~Phase5 全阶段完成（模块拆分 → Nacos → Gateway → 服务通信 → 数据库拆分 → 前端适配与安全加固）
 - 微服务 Phase3 远程化完成（trade→product / trade→crm / crm→iam 编译期耦合彻底解除，各服务独立可部署）
 - 微服务 Phase6 架构加固完成（优雅关闭 / 网关限流 / 前端幂等键 / 异常处理器补充）
+- 微服务 Phase7 收尾完成（traceId 跨服务传播 / iam 死配置清理 / iam 单测补齐 / 跨服务契约测试 + adjustStock 422 契约漂移修复 / product·crm·trade 业务 Service 单测补齐，累计 121 个单测）
 
 ## 当前技术栈
 
@@ -63,6 +64,7 @@
 | Nacos | 配置中心 / 服务注册 | v3.0.3（生产鉴权开启） |
 | Docker | 镜像与容器运行 | 当前基线已接入 |
 | Docker Compose | 多服务编排 | 当前基线已接入 |
+| Podman | Docker 兼容的 rootless 容器运行时（Fedora / SELinux Enforcing 场景） | 与 Docker 方案并存，见 ops/podman/prod/ |
 | GitHub Actions | CI / 镜像构建（多架构） | 当前基线已接入 |
 
 ## 微服务模块
@@ -93,9 +95,9 @@
 
 ### 安全架构
 
-- **网关层**：Gateway 统一进行 JWT 鉴权，向下游透传 `X-User-Id` / `X-User-Name` / `X-Gateway-Token`；配置 `RequestRateLimiter` 按 IP 限流
+- **网关层**：Gateway 统一进行 JWT 鉴权，向下游透传 `X-User-Id` / `X-User-Name` / `X-Gateway-Token`；配置 `RequestRateLimiter` 按 IP 限流；`TraceIdGlobalFilter` 在入口生成/复用 traceId 并透传到下游（Phase 7.1）
 - **下游服务层**：`InternalEndpointGuardFilter` 拦截所有业务请求，强制校验 `X-Gateway-Token` 共享密钥，阻止绕过网关直连微服务端口的越权攻击
-- **服务间通信**：RestClient 调用内部接口时自动附加 `X-Gateway-Token`，下游服务校验通过后放行
+- **服务间通信**：RestClient 调用内部接口时自动附加 `X-Gateway-Token` 与 `X-Trace-Id`，下游服务校验通过后放行，traceId 贯穿所有服务日志
 - **放行白名单**：`/actuator/**`、`/swagger-ui/**`、`/v3/api-docs/**`、`/error`
 - **优雅关闭**：所有服务配置 `server.shutdown: graceful`，30 秒超时
 
@@ -108,7 +110,7 @@
 - [项目状态](docs/project-status.md)
 - [升级路线](docs/upgrade/roadmap/pr11-after-roadmap.md)
 - [微服务迁移计划](docs/upgrade/plan/microservices/microservice-migration-plan.md)
-- [微服务阶段日志](docs/upgrade/logs/microservices/)（Phase0 ~ Phase6 全记录）
+- [微服务阶段日志](docs/upgrade/logs/microservices/)（Phase0 ~ Phase7.6 全记录）
 
 ## 仓库结构
 
@@ -264,18 +266,26 @@ deploy:
 
 - 前端开发地址：`http://localhost:5173`
 
-## Docker / Ops 基线
+## Docker / Podman / Ops 基线
 
-当前 Docker 与部署基线已经统一收口到 `ops/`：
+当前 Docker 与 Podman 两套部署基线并存，已统一收口到 `ops/`：
 
 - `ops/.env.example`
 - `ops/docker/dev/docker-compose.yml`（仅中间件，MySQL tmpfs 适配 WSL2）
 - `ops/docker/dev/init-databases.sql`（自动创建 4 个独立库）
 - `ops/docker/dev/up.sh` / `ops/docker/dev/down.sh`
-- `ops/docker/prod/docker-compose.yml`（全栈：中间件 + 6 业务服务 + 前端）
+- `ops/docker/prod/docker-compose.yml`（Docker 全栈：中间件 + 6 业务服务 + 前端，前端对外端口 80）
 - `ops/docker/prod/up.sh` / `ops/docker/prod/down.sh`
-- `ops/podman/prod/docker-compose.yml`（Podman + docker compose 版全栈，复用上述 SQL/Nacos 配置）
+- `ops/podman/prod/docker-compose.yml`（Podman + docker compose 版全栈，复用上述 SQL/Nacos 配置，前端对外端口 8081）
+- `ops/podman/prod/.env`（Podman 专属环境变量，CORS_ALLOWED_ORIGINS 需含 `http://localhost:8081`）
 - `ops/nacos-config/`（Nacos 配置文件与导入脚本）
+
+> **Docker vs Podman 差异**：
+> - **镜像 / 服务 / 依赖**：两套方案完全一致，差异仅在运行时与卷挂载策略
+> - **容器名前缀**：Docker 用 `jasmine-prod-*`，Podman 用 `jasmine-podman-*`，两套可并存于同一主机
+> - **前端端口**：Docker 80，Podman 8081
+> - **SELinux**：Fedora SELinux Enforcing 下 Podman 必须用 `:ro,Z` / `:Z` 标志挂载卷，否则容器无权读 host 文件；Docker 方案默认不要求
+> - **运行模式**：Podman 用 rootless + docker compose CLI（`DOCKER_HOST` 指向用户级 podman socket）
 
 详细说明请优先阅读：
 
@@ -373,15 +383,23 @@ chmod +x up.sh down.sh
 
 ## 测试说明
 
-当前仓库测试分为两类：
+当前仓库测试分为三层：
 
-### 单元测试
+### 单元测试（121 个用例，纯 Mockito，~10 秒跑完）
 
 ```bash
 ./mvnw test -DskipITs=true
 ```
 
-### 集成测试
+覆盖范围：
+- iam：UserServiceImpl / RoleServiceImpl / MenuServiceImpl / JwtUtil（28 个）
+- product：FlowerStockService / FlowerServiceImpl（13 个）
+- trade：InventoryServiceImpl / SalesServiceImpl / RemoteProductStockFacade（30 个）
+- crm：AppointmentServiceImpl / VipReadFacadeImpl / AppointmentReminderListener（27 个）
+- gateway：JwtAuthGlobalFilter / TraceIdGlobalFilter（12 个）
+- 跨服务契约测试（Phase 7.4）：FlowerClient / VipClient / UserClient / CrmUserClient（13 个，`@RestClientTest` + `MockRestServiceServer`）
+
+### 集成测试（Testcontainers）
 
 ```bash
 ./mvnw verify -DskipUTs=true
@@ -389,8 +407,9 @@ chmod +x up.sh down.sh
 
 说明：
 
-- 集成测试使用 Testcontainers
+- 集成测试使用 Testcontainers，镜像版本与生产 compose 对齐（MySQL 8.4 / Redis 7.2 / RabbitMQ 4.2）
 - MySQL / Redis / RabbitMQ 都已纳入集成测试基线
+- 两个端到端 IT（SalesFlowIT / InventoryFlowIT）当前 `@Disabled`，按需开启
 - 无 Docker 的本地环境中，相关集成测试会按预期跳过
 
 ## 文档入口
@@ -409,18 +428,23 @@ chmod +x up.sh down.sh
 - [Phase5 前端适配](docs/upgrade/logs/microservices/phase5-frontend-adaptation.md)
 - [Phase5 适配修复](docs/upgrade/logs/microservices/phase5-post-adaptation-fixes.md)
 - [Phase6 架构加固](docs/upgrade/logs/microservices/phase3-phase6-remote-decoupling-and-hardening.md)
+- [Phase 7.1 traceId 跨服务传播与路线图同步](docs/upgrade/logs/microservices/phase7-traceid-propagation-and-roadmap-sync.md)
+- [Phase 7.4 跨服务契约测试](docs/upgrade/logs/microservices/phase7.4-contract-tests.md)
+- [Phase 7.6 product/crm/trade 业务 Service 单测覆盖](docs/upgrade/logs/microservices/phase7.6-service-unit-test-coverage.md)
 - [Phase0-1 代码审查](docs/upgrade/review/microservices/phase0-phase1-code-review-2026-05-19.md)
 - [Phase0-1 质量修复](docs/upgrade/logs/microservices/phase0-phase1-code-quality-fixes.md)
 - [Phase2-5 审查修复](docs/upgrade/logs/microservices/phase2-5-review-fixes.md)
 - [Phase3-5 超时熔断缓存](docs/upgrade/logs/microservices/phase3-5-timeout-circuitbreaker-cache-prefix.md)
 - [安全加固与消息可靠性](docs/upgrade/logs/monolith/pr20-security-hardening-and-message-reliability.md)
+- [微服务架构改进路线图](docs/upgrade/roadmap/microservices-future-roadmap.md)
 
 ## 说明
 
 - 当前 `web/` 已作为正式前端迁移主线
-- 当前微服务迁移 Phase0 ~ Phase6 已全部完成，各服务独立可部署，全链路可用
+- 当前微服务迁移 Phase0 ~ Phase7.6 已全部完成，各服务独立可部署，全链路可用，121 个单测 + 4 个跨服务契约测试守护
 - 当前 `PR18` 高并发增强与 `PR19` 延时提醒架构已平稳落地
 - 当前 `PR20` 代码审查、安全加固与消息隔离修复已完成
+- Phase 7.5/7.7（Zipkin / Grafana / Loki 等可观测性增强）按业务量评估暂缓，触发条件出现再评估
 - 后续主线将继续推进：
   - 预约超时自动取消
   - 销售数据仓库与异步读模型（CQRS）
