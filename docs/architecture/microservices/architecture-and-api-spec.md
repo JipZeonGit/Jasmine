@@ -1,6 +1,7 @@
 # Jasmine 微服务架构与详细接口说明书
 
-> 本文档基于 `microservices` 分支 Phase 0~6 完成后的代码基线编写，用于全面记录当前微服务架构的形态、服务拆分、接口清单、数据模型、事件驱动机制与基础设施配置。
+> 本文档基于 `microservices` 分支 Phase 7.6 完成后的代码基线编写，用于全面记录当前微服务架构的形态、服务拆分、接口清单、数据模型、事件驱动机制与基础设施配置。
+> 最近一次更新（2026-08-05）：Phase 7.1 traceId 跨服务传播 / Phase 7.2 iam 死配置清理 / Phase 7.3 iam 单测补齐 / Phase 7.4 跨服务契约测试 + adjustStock 422 修复 / Phase 7.6 product/crm/trade 业务 Service 单测补齐。
 
 ---
 
@@ -26,7 +27,7 @@
 | 熔断器 | Resilience4j |
 | 前端 | Vue 3.5 + Element Plus 2.11.5 + Vite 8.0 |
 | 网关端口 | 8080 |
-| 前端端口 | 5173（开发）/ 80（生产） |
+| 前端端口 | 5173（开发）/ 80（Docker 生产）/ 8081（Podman 生产） |
 
 ---
 
@@ -167,16 +168,27 @@ jasmine-schema   （独立 Flyway 迁移工具，多数据源：jasmine_iam/prod
 | 已认证路径 | 设置（来自 JWT） | 设置（来自 JWT） | 设置 |
 | 受保护路径无令牌 | N/A（401） | N/A | N/A |
 
-### 3.3 CORS 配置
+### 3.3 TraceId 全局过滤器（Phase 7.1）
+
+`TraceIdGlobalFilter`（`order = -200`，先于 JWT 过滤器执行）负责跨服务追踪链路串联：
+
+1. **入口生成/复用**：从入站请求头 `X-Trace-Id` 读取，缺失则生成 UUID；同时写入 MDC 供网关日志使用
+2. **下游注入**：在转发到下游服务的请求头中写入 `X-Trace-Id`，让所有服务共享同一 traceId
+3. **响应回传**：在响应头中回写 `X-Trace-Id`，前端可在 Network 面板直接看到，方便排查
+4. **下游出站传播**：业务服务的 `InternalClientFactory` 通过 `TraceContextPropagatingInterceptor` 从 MDC 取 traceId 透传到下游请求
+
+> Phase 7.1 之前 traceId 仅在各服务内部生成，跨服务调用时丢失，导致排障时无法串联调用链。Phase 7.1 在网关入口和出站客户端两层修复了断链。
+
+### 3.4 CORS 配置
 
 `GatewayCorsConfig` 使用响应式 `CorsWebFilter` 统一处理跨域：
 
-- 允许来源：`http://localhost:8888`、`http://localhost:5173`、`http://127.0.0.1:5173`、`http://localhost`
+- 允许来源：`http://localhost:8888`、`http://localhost:5173`、`http://127.0.0.1:5173`、`http://localhost`、`http://localhost:8081`、`http://127.0.0.1:8081`（后两项为 Podman 生产前端访问，Phase 7.1 部署时补入）
 - 允许凭证：是
 - 允许方法：全部
 - 预检缓存：3600 秒
 
-### 3.4 下游服务安全防线
+### 3.5 下游服务安全防线
 
 - **`InternalEndpointGuardFilter`**（jasmine-common 模块）：所有业务端点必须携带有效的 `X-Gateway-Token`，否则返回 403。仅 `/actuator/**`、`/swagger-ui/**`、`/v3/api-docs/**`、`/error` 豁免
 - **`CurrentUserProvider`**（jasmine-common 模块）：从网关传递的 `X-User-Id`/`X-User-Name` 请求头中提取当前用户信息
@@ -766,6 +778,7 @@ public interface FlowerClient {
 - Gateway 对 `/internal/**` 返回 403 Forbidden
 - 响应不使用 `Result` 包装，直接返回 DTO
 - 服务间调用自动附带 `X-Gateway-Token` 请求头
+- **traceId 透传**（Phase 7.1）：`InternalClientFactory` 在创建 RestClient 时统一插入 `TraceContextPropagatingInterceptor`，从 MDC 取当前 traceId 写入出站请求的 `X-Trace-Id` 头，下游服务的 `RequestTraceFilter` 读到后写入自己的 MDC，实现"一次请求，一个 traceId，贯穿所有服务日志"
 
 ### 7.4 超时与熔断策略
 
@@ -788,6 +801,49 @@ public interface FlowerClient {
 | max-retries-on-same-service-instance | 0 | 同一实例不重试 |
 | max-retries-on-next-service-instance | 1 | 切换下一实例重试 1 次 |
 | retryable-status-codes | 500,502,503 | 仅这些状态码触发重试（422 业务失败不重试，与熔断策略配套） |
+
+### 7.5 adjustStock 422 契约漂移修复（Phase 7.4）
+
+provider 端 `FlowerInternalController.adjustStock()` 对业务失败（库存不足等）返回 `422 + StockAdjustResult.fail(message)`，意图是让 LoadBalancer/断路器不要当成"服务不可用"来重试或熔断。
+
+但 consumer 端 `RestClient` 默认对 4xx 响应直接抛 `HttpClientErrorException`，**根本走不到 `.getBody()`**。异常上抛到 `RemoteProductStockFacade` 的断路器 fallback，`throwable instanceof BusinessException` 为 false，于是错误命中"商品服务暂时不可用，请稍后重试"降级路径。
+
+**用户可见后果**：卖超库存时前端收到"商品服务暂时不可用"而非"红玫瑰库存不足"；且断路器会错误累计失败次数，频繁的库存不足可能误触发熔断。
+
+**修复方案**（Phase 7.4）：在 `RemoteProductStockFacade.doAdjustStock()` 加 `catch (HttpClientErrorException)`，422 时解析响应 body 提取 `StockAdjustResult`，转 `BusinessException` 抛出，让断路器 fallback 透传业务消息而非降级。其他 4xx 仍上抛触发熔断。
+
+```java
+try {
+    ResponseEntity<StockAdjustResult> response = flowerClient.adjustStock(request);
+    // ... 正常路径
+} catch (HttpClientErrorException e) {
+    if (e.getStatusCode() == HttpStatus.UNPROCESSABLE_ENTITY) {
+        StockAdjustResult result = e.getResponseBodyAs(StockAdjustResult.class);
+        String msg = result != null && result.getMessage() != null
+                ? result.getMessage() : "库存调整失败！";
+        throw new BusinessException(msg);
+    }
+    throw e;  // 其他 4xx 仍走熔断降级
+}
+```
+
+> **实现细节坑**（已记录在 `phase7.4-contract-tests.md`）：
+> 1. `e.getStatusCode() == HttpStatus.UNPROCESSABLE_ENTITY` 不可靠 —— Spring 6.2 的 `HttpClientErrorException.create()` 用 `DefaultResponseClientStatus` 包装 statusCode，引用比较失败，必须用 `.value() ==` 比较数值
+> 2. `getResponseBodyAs()` 在测试中抛 `IllegalStateException: Function to convert body not set` —— 手搓 `HttpClientErrorException.create()` 不会自动注入 `bodyConvertFunction`，测试需手动调用 `setBodyConvertFunction()` 注入 Jackson 解析逻辑
+> 3. 主代码 catch 范围用 `RuntimeException` 兜底覆盖 `IllegalStateException`、Jackson 解析异常等
+
+### 7.6 契约测试守护（Phase 7.4）
+
+四个跨服务客户端均配有 `@RestClientTest` + `MockRestServiceServer` 契约测试，锁定 HTTP 请求路径、方法、序列化和响应解析行为：
+
+| 客户端 | 测试类 | 用例数 | 锁定行为 |
+|:---|:---|---:|:---|
+| FlowerClient | FlowerClientContractTest | 5 | getFlowerById / getFlowersByIds / getFlowerIdsByName / adjustStock 成功 / adjustStock 422 抛异常 |
+| VipClient | VipClientContractTest | 4 | getVipById / getVipsByIds 正常和空列表 / existsById |
+| UserClient | UserClientContractTest | 2 | getUserById 成功 / 404 |
+| CrmUserClient | CrmUserClientContractTest | 2 | getActiveUserIdsByRoles 多值参数 / 无匹配 |
+
+provider 修改 `/internal/**` 接口路径或响应格式时，consumer 端契约测试会立即报红，避免契约漂移潜伏到生产。
 
 ---
 
@@ -834,6 +890,8 @@ product/trade/crm 等业务服务未引入 Spring Security，**无角色级授�
 纵深防御依赖网关 `/internal/**` 拦截与 `InternalEndpointGuardFilter` 的 `X-Gateway-Token` 校验。
 
 iam-service 内部授权规则（`MySecurityConfig`，自上而下匹配）：
+
+> Phase 7.2 已清理 7 条针对其他服务端点的死规则（`/site-message`、`/vip`、`/appointment`、`/flower`、`/sales`、`/inventory`、`/inventory-alert`），iam 的 SecurityFilterChain 现在只管自己的域。
 
 | 路径模式 | 允许角色 |
 |:---|:---|
@@ -971,7 +1029,8 @@ Payload: {
 ### 11.4 API 基路径
 
 - 开发环境：`/prod-api` → Vite 代理 → `http://localhost:8080`（Gateway）
-- 生产环境：Nginx 反向代理 `/prod-api/` → `jasmine-gateway:8080`
+- Docker 生产：Nginx 反向代理 `/prod-api/` → `jasmine-gateway:8080`，前端容器对外映射 80 端口
+- Podman 生产：Nginx 反向代理 `/prod-api/` → `jasmine-gateway:8080`，前端容器对外映射 8081 端口
 
 ---
 
@@ -998,7 +1057,7 @@ Payload: {
 
 MySQL 启动时通过 `init-databases.sql` 自动创建 5 个数据库（jasmine_iam, jasmine_product, jasmine_trade, jasmine_crm, nacos）。
 
-#### 生产环境（`ops/prod/docker-compose.yml`）
+#### 生产环境 - Docker（`ops/docker/prod/docker-compose.yml`）
 
 全栈部署，包含 7 个服务 + 前端：
 
@@ -1016,7 +1075,7 @@ MySQL 启动时通过 `init-databases.sql` 自动创建 5 个数据库（jasmine
 | crm-service | jasmine-prod-crm | 9104（内部） | 同上 |
 | frontend | jasmine-prod-frontend | 80 | Gateway 健康 |
 
-**生产特性**：
+**Docker 生产特性**：
 - `./up.sh` 一键自动部署（4 阶段：中间件 → Nacos 配置导入+密码自愈 → Schema Flyway 分库迁移 → 业务服务启动）
 - 所有服务配置健康检查（`/actuator/health`）
 - 内存限制：每服务 512MB 上限，256MB 预留
@@ -1024,6 +1083,23 @@ MySQL 启动时通过 `init-databases.sql` 自动创建 5 个数据库（jasmine
 - Nacos 使用独立 `nacos` 数据库
 - 启动顺序：MySQL → (Redis, RabbitMQ, Nacos) → schema → 业务服务 → 前端
 - 仅 Gateway（8080）和前端（80）对外暴露
+
+#### 生产环境 - Podman（`ops/podman/prod/docker-compose.yml`）
+
+与 Docker 生产方案镜像/服务/依赖完全一致，差异在运行时与卷挂载策略：
+
+| 服务 | 容器名 | 端口 | 说明 |
+|:---|:---|:---|:---|
+| 中间件 4 件套 | jasmine-podman-{mysql,redis,rabbitmq,nacos} | 同 Docker | 容器名前缀不同，避免与 Docker 方案冲突 |
+| jasmine-schema | jasmine-podman-schema | — | 同 Docker |
+| 4 个业务服务 | jasmine-podman-{iam,product,trade,crm} | 9101~9104（内部） | 同 Docker |
+| frontend | jasmine-podman-frontend | **8081** | 对外端口从 80 改为 8081，避免与 Docker 方案冲突 |
+
+**Podman 生产特性**（Docker 方案之外新增）：
+- 使用 Podman rootless + docker compose CLI（`DOCKER_HOST` 指向用户级 podman socket，rootless 操作）
+- **SELinux 卷挂载**：所有 read-only 挂载使用 `:ro,Z` 标志自动设置 `container_file_t` 上下文，避免 Fedora SELinux Enforcing 阻止容器访问 host 文件（Docker 方案默认不要求此标志）
+- **CORS_ALLOWED_ORIGINS**：网关 CORS 白名单额外包含 `http://localhost:8081` 和 `http://127.0.0.1:8081`，匹配 Podman 前端映射端口（Docker 方案用 80 端口，无需此条目）
+- 其他配置（健康检查、内存限制、Nacos 鉴权、启动顺序）与 Docker 方案一致
 
 ### 12.3 Dockerfile 配置
 
@@ -1113,7 +1189,57 @@ MySQL 启动时通过 `init-databases.sql` 自动创建 5 个数据库（jasmine
 
 ---
 
-## 十五、关键设计决策摘要
+## 十五、测试架构
+
+### 15.1 测试分层
+
+| 层级 | 类型 | 运行命令 | 用例数 | 用途 |
+|:---|:---|:---|---:|:---|
+| 单元测试 | `*Test`（Mockito） | `./mvnw test -DskipITs=true` | 121 | 纯 JVM，Mock 依赖，验证业务逻辑分支 |
+| 集成测试 | `*IT`（Testcontainers） | `./mvnw verify -DskipUTs=true` | 2（另 2 个 @Disabled） | 启动 MySQL/Redis/RabbitMQ 容器，验证端到端流程 |
+| 契约测试 | `@RestClientTest` | 含在单测中 | 13 | `MockRestServiceServer` 锁定跨服务 HTTP 契约 |
+
+### 15.2 单元测试覆盖矩阵（Phase 7.3 + 7.6 完成后）
+
+| 模块 | 测试类 | 用例数 | 覆盖范围 |
+|:---|:---|---:|:---|
+| jasmine-gateway | JwtAuthGlobalFilterTest | 7 | JWT 验证链 + 请求头注入/清洗 |
+| jasmine-gateway | TraceIdGlobalFilterTest | 4 | traceId 生成/复用/响应回传（Phase 7.1） |
+| jasmine-gateway | GatewayContextSmokeTest | 1 | 网关上下文烟雾测试 |
+| jasmine-iam | UserServiceImplTest | 13 | login/refreshToken/changePassword/updateUser/deleteUser |
+| jasmine-iam | RoleServiceImplTest | 6 | 角色 CRUD + 菜单关联 |
+| jasmine-iam | MenuServiceImplTest | 5 | 菜单树构建 |
+| jasmine-iam | JwtUtilTest | 4 | JWT 签发/解析/过期/类型校验 |
+| jasmine-product | FlowerStockServiceTest | 8 | CAS 库存扣减 + 缓存失效注解 |
+| jasmine-product | FlowerServiceImplTest | 5 | 花卉 CRUD 委托（Phase 7.6） |
+| jasmine-trade | InventoryServiceImplTest | 14 | save/update（同花卉+换花卉）/delete + 查询（Phase 7.6） |
+| jasmine-trade | SalesServiceImplTest | 9 | saveSales + updateSales（回滚重建）/ deleteSales |
+| jasmine-trade | RemoteProductStockFacadeTest | 7 | 断路器降级 + 422 转 BusinessException（Phase 7.4） |
+| jasmine-trade | 4 个 *ContractTest | 13 | 跨服务 HTTP 契约（Phase 7.4） |
+| jasmine-crm | AppointmentServiceImplTest | 8 | create/update + 延时提醒事件（Phase 7.6） |
+| jasmine-crm | VipReadFacadeImplTest | 14 | resolve 三分支 + findIdsByNameOrPhone（Phase 7.6） |
+| jasmine-crm | AppointmentReminderListenerTest | 5 | MQ 消费 + 站内信批量写入 |
+| jasmine-crm | CrmUserClientContractTest | 2 | crm→iam HTTP 契约 |
+| **合计** | | **121** | |
+
+### 15.3 测试设计约定
+
+- **纯 Mockito 单测**：`@ExtendWith(MockitoExtension.class)`，不依赖 Spring 容器，启动快（全量 ~10 秒）
+- **ServiceImpl 基类处理**：MyBatis-Plus 的 `ServiceImpl` 通过 `ReflectionTestUtils.setField(service, "baseMapper", mapper)` 注入 baseMapper
+- **不验证注解行为**：`@Cacheable`/`@Caching`/`@Transactional` 等注解行为依赖 Spring 容器，单元测试只验证委托路径，注解行为由集成测试验证
+- **MyBatis-Plus 3.5.9 重载歧义坑**：`insert(Collection<T>)` / `updateById(Collection<T>)` 与单参版本重载，`any()` 匹配器有歧义，必须用 `any(SpecificClass.class)` 明确类型
+
+### 15.4 集成测试
+
+两个端到端 IT 测试当前 `@Disabled`（需启动完整中间件，CI 资源消耗大，按需开启）：
+- `SalesFlowIT`：销售单创建 → 库存扣减 → MQ 事件 → 库存预警更新
+- `InventoryFlowIT`：库存调整 → MQ 事件 → 库存预警更新
+
+CI workflow [`backend-ci.yml`](file:///home/jipzeongit/Code/Projects/Jasmine/.github/workflows/backend-ci.yml) 默认跑 `./mvnw -B test -DskipITs=true`（快速单测）+ `./mvnw -B verify -DskipUTs=true`（Testcontainers 集成测试并打包）。
+
+---
+
+## 十六、关键设计决策摘要
 
 | 决策 | 选择 | 理由 |
 |:---|:---|:---|
@@ -1127,3 +1253,7 @@ MySQL 启动时通过 `init-databases.sql` 自动创建 5 个数据库（jasmine
 | MQ | RabbitMQ（不引入 Kafka） | 已深度使用，拓扑可直接复用 |
 | 配置中心 | Nacos | Spring Cloud Alibaba 生态，注册中心 + 配置中心一体 |
 | Outbox | 每服务独立 Outbox 表 + Relay | 保证事件不丢失，支持延时消息 |
+| traceId 跨服务传播 | 网关 TraceIdGlobalFilter + 出站 TraceContextPropagatingInterceptor（Phase 7.1） | 用最小代价修复日志断链，覆盖 80% 价值，不引入 Zipkin 全链路追踪 |
+| adjustStock 422 业务失败语义 | provider 返 422 + body，consumer 捕获 HttpClientErrorException 转回 BusinessException（Phase 7.4） | 让业务失败透传业务消息，不误触发断路器降级 |
+| 契约测试 | @RestClientTest + MockRestServiceServer 手搓（Phase 7.4） | 不引入 Spring Cloud Contract/Pact 等重型框架，13 个用例已锁定 4 个客户端的 HTTP 契约 |
+| 测试分层 | 纯 Mockito 单测 + Testcontainers 集成测试 | 单测快（~10s）跑全量 121 个，集成测试按需开启 |
