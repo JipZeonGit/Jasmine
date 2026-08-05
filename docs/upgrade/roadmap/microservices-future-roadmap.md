@@ -273,15 +273,21 @@ location /config.js {
     │       发现 adjustStock 422 契约漂移（RestClient 默认抛异常，非 ResponseEntity）
     │       → 同日修复：Facade 层捕获 HttpClientErrorException，422 转 BusinessException 透传业务消息
     │
-    ├── ⏸ Phase 7.5~7.8 — 可观测性补强（按需，触发条件出现再评估）
+    ├── ✅ Phase 7.6 — product/crm/trade 业务 Service 单测补齐（2026-08-05）
+    │   └── InventoryServiceImplTest (14) / SalesServiceImplTest (+5=9) / AppointmentServiceImplTest (8)
+    │       / FlowerServiceImplTest (5) / VipReadFacadeImplTest (14)
+    │       覆盖三大模块所有 🔴 高风险写操作（库存调整 / 销售单 CRUD / 预约 CRUD）
+    │       单测总数从 75 增至 121，0 回归
+    │
+    ├── ⏸ Phase 7.5/7.7~7.9 — 可观测性补强（按需，触发条件出现再评估）
     │   ├── 7.5 ⏸ Micrometer Tracing + Zipkin —— 暂缓
     │   │       先靠 Phase 7.1 的 traceId 日志关联（已覆盖 80% 价值），
     │   │       真出现跨服务排障瓶颈再上 Zipkin
-    │   ├── 7.6 ⏸ Grafana dashboard + Prometheus scrape job —— 可选
+    │   ├── 7.7 ⏸ Grafana dashboard + Prometheus scrape job —— 可选
     │   │       metrics 端点已暴露，加 scrape + 一份社区 dashboard 成本低
-    │   ├── 7.7 ⏸ Loki 日志聚合 —— 暂缓
+    │   ├── 7.8 ⏸ Loki 日志聚合 —— 暂缓
     │   │       单节点 Compose，docker logs 够用
-    │   └── 7.8 ✅ 生产日志文件持久化（卷挂载）—— 已落地
+    │   └── 7.9 ✅ 生产日志文件持久化（卷挂载）—— 已落地
     │
     ├── 🟢 Phase 8 — 部署演进（可选，按需）
     │   ├── ⏸ K8s 部署清单（Helm Chart）—— 服务数>10/团队>5人再评估
