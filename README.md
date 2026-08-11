@@ -189,15 +189,28 @@ NACOS_AUTH_ENABLED=false bash import.sh 127.0.0.1:8848 dev
 
 ### 4. 启动前端
 
+前端支持 **Bun**（推荐）和 **Node.js + npm** 两种运行时，按本地环境选择其一即可。
+
+#### 方式一：Bun（推荐）
+
 ```bash
 cd web
 bun install
 bun run dev
 ```
 
-前端 Vite dev proxy 已配置为 `http://localhost:8080`（Gateway 端口），所有 API 请求经 Gateway 路由到各下游服务。
+#### 方式二：Node.js + npm
 
-> 如果环境没有 Bun，可以使用 pnpm 或 npm 替代：`pnpm install && pnpm dev` 或 `npm install && npm run dev`。
+```bash
+cd web
+npm install
+npm run dev
+```
+
+> `dev` 和 `preview` 脚本本身是纯 `vite` 命令，两种运行时均可直接使用。
+> `build` 脚本因使用了 `bun x`，Node.js 环境下请改用 `npm run build:node`（效果完全一致）。
+
+前端 Vite dev proxy 已配置为 `http://localhost:8080`（Gateway 端口），所有 API 请求经 Gateway 路由到各下游服务。
 
 ### 微服务镜像构建与 Arm 64 适配说明
 
@@ -229,6 +242,21 @@ docker buildx build --platform linux/amd64,linux/arm64 -f Dockerfile --build-arg
 ```
 
 根目录只保留一个参数化 `Dockerfile`，通过 `ARG MODULE` 构建指定 Maven 模块，避免多 Dockerfile 漂移。Dockerfile 内已开启 BuildKit cache mount 与依赖缓存复用 `~/.m2`。
+
+##### 前端 Dockerfile 说明
+
+前端提供两个并行的 Dockerfile，最终产物完全一致（Nginx + 静态文件），构建运行时不同：
+
+| 文件 | 构建运行时 | 说明 |
+|:---|:---|:---|
+| `web/Dockerfile` | Bun 1.3.12 | **主方案**，CI 自动构建使用此文件 |
+| `web/Dockerfile.node` | Node.js 24.19.0 LTS | 预留的替代方案，适用于无 Bun 环境或偏好 Node.js 的场景 |
+
+两者生产的镜像内均不含 Bun 或 Node.js，只有 `nginx:stable-alpine` + `dist/` 静态文件，性能零差异。如需本地用 Node.js 构建前端镜像：
+
+```bash
+docker build -f web/Dockerfile.node -t jasmine-frontend:dev ./web
+```
 
 #### 3. 生产环境 ARM64 适配注意事项
 - **JVM 参数稳定性**：配置中的 ZGC 垃圾回收器 (`-XX:+UseZGC`) 在 Java 21 环境下对 ARM64 具备优秀的成熟度支持。
@@ -304,8 +332,11 @@ cp ops/.env.example ops/.env
 - MySQL 账号密码
 - Redis 密码
 - RabbitMQ 账号密码
+- Nacos 密码
 - JWT 密钥
 - GHCR 镜像标签
+
+> ⚠️ **Nacos 3.x 密码限制**：登录 API 不支持含特殊字符的密码（如 `+` `/` `%` `#` `@` `!` `=` 等），会导致 Nacos 返回 500 鉴权失败。密码请仅使用大小写字母和数字，推荐生成命令：`openssl rand -hex 16`。
 
 ### 开发环境 Compose
 
@@ -348,7 +379,7 @@ chmod +x up.sh down.sh
 
 ### 管理入口
 
-- 前端：`http://<host>:${FRONTEND_PORT}`
+- 前端首页：`http://<host>:${FRONTEND_PORT}`（Docker 默认 `80`，Podman 默认 `8081`）
 - Gateway 健康检查：`http://<host>:${GATEWAY_PORT}/actuator/health`
 - 各业务服务健康检查：容器内 `9101` / `9102` / `9103` / `9104`
 - RabbitMQ 管理台：`http://<host>:${RABBITMQ_MANAGEMENT_PORT}`
@@ -422,20 +453,20 @@ chmod +x up.sh down.sh
 ### 微服务各阶段记录
 - [Phase0 Maven 重构](docs/upgrade/logs/microservices/phase0-maven-restructure.md)
 - [Phase1 Nacos 接入](docs/upgrade/logs/microservices/phase1-nacos-integration.md)
+- [Phase0-1 代码审查](docs/upgrade/review/microservices/phase0-phase1-code-review-2026-05-19.md)
+- [Phase0-1 质量修复](docs/upgrade/logs/microservices/phase0-phase1-code-quality-fixes.md)
 - [Phase2 网关路由](docs/upgrade/logs/microservices/phase2-gateway-routing.md)
 - [Phase3 服务间通信](docs/upgrade/logs/microservices/phase3-service-communication.md)
 - [Phase4 数据库拆分](docs/upgrade/logs/microservices/phase4-database-split.md)
 - [Phase5 前端适配](docs/upgrade/logs/microservices/phase5-frontend-adaptation.md)
 - [Phase5 适配修复](docs/upgrade/logs/microservices/phase5-post-adaptation-fixes.md)
+- [Phase2-5 审查修复](docs/upgrade/logs/microservices/phase2-5-review-fixes.md)
+- [Phase3-5 超时熔断缓存](docs/upgrade/logs/microservices/phase3-5-timeout-circuitbreaker-cache-prefix.md)
 - [Phase6 架构加固](docs/upgrade/logs/microservices/phase3-phase6-remote-decoupling-and-hardening.md)
+- [安全加固与消息可靠性](docs/upgrade/logs/monolith/pr20-security-hardening-and-message-reliability.md)
 - [Phase 7.1 traceId 跨服务传播与路线图同步](docs/upgrade/logs/microservices/phase7-traceid-propagation-and-roadmap-sync.md)
 - [Phase 7.4 跨服务契约测试](docs/upgrade/logs/microservices/phase7.4-contract-tests.md)
 - [Phase 7.6 product/crm/trade 业务 Service 单测覆盖](docs/upgrade/logs/microservices/phase7.6-service-unit-test-coverage.md)
-- [Phase0-1 代码审查](docs/upgrade/review/microservices/phase0-phase1-code-review-2026-05-19.md)
-- [Phase0-1 质量修复](docs/upgrade/logs/microservices/phase0-phase1-code-quality-fixes.md)
-- [Phase2-5 审查修复](docs/upgrade/logs/microservices/phase2-5-review-fixes.md)
-- [Phase3-5 超时熔断缓存](docs/upgrade/logs/microservices/phase3-5-timeout-circuitbreaker-cache-prefix.md)
-- [安全加固与消息可靠性](docs/upgrade/logs/monolith/pr20-security-hardening-and-message-reliability.md)
 - [微服务架构改进路线图](docs/upgrade/roadmap/microservices-future-roadmap.md)
 
 ## 说明

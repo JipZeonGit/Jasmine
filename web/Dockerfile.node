@@ -1,0 +1,20 @@
+# syntax=docker/dockerfile:1
+# Node.js LTS 版本 — 与 Dockerfile (Bun) 并行的替代构建方案
+FROM --platform=$BUILDPLATFORM node:24.19.0-alpine AS build-stage
+
+WORKDIR /app
+
+COPY package.json ./
+RUN npm install
+
+COPY . .
+RUN npm run build:node
+
+FROM nginx:stable-alpine AS production-stage
+
+COPY --from=build-stage /app/dist /usr/share/nginx/html
+COPY default.conf /etc/nginx/conf.d/default.conf
+
+EXPOSE 80
+
+CMD ["nginx", "-g", "daemon off;"]
