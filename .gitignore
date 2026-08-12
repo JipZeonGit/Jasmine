@@ -36,6 +36,7 @@ build/
 
 ### ZCode ###
 .zcode/
+.mimosa/
 
 ### Docker / 容器编排 ###
 .env

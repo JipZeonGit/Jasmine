@@ -33,7 +33,7 @@
 		<mybatis-plus.version>3.5.14</mybatis-plus.version>
 		<springdoc.version>2.8.16</springdoc.version>
 		<jjwt.version>0.12.7</jjwt.version>
-		<fastjson2.version>2.0.7</fastjson2.version>
+		<fastjson2.version>2.0.63</fastjson2.version>
 		<skipUTs>false</skipUTs>
 		<skipITs>false</skipITs>
 	</properties>
