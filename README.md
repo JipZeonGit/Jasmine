@@ -28,8 +28,9 @@
 | 技术 | 说明 | 当前版本 |
 |:---|:---|:---|
 | Java | 运行时 | 21 |
-| Spring Boot | 应用框架 | 3.5.13 |
-| Spring Cloud Gateway | API 网关（WebFlux） | 跟随 Spring Cloud |
+| Spring Boot | 应用框架 | 3.5.16 |
+| Spring Cloud | 微服务框架 | 2025.0.3 |
+| Spring Cloud Gateway | API 网关（WebFlux） | 跟随 Spring Cloud (4.3.5) |
 | Nacos | 配置中心 + 服务注册发现 | v3.0.3（鉴权开启） |
 | Spring Security | 认证鉴权 | 跟随 Spring Boot |
 | Spring Actuator | 健康检查 / 运行指标 | 跟随 Spring Boot |
@@ -41,6 +42,7 @@
 | JWT | 登录令牌 | 0.12.7 |
 | springdoc-openapi | Swagger / OpenAPI | 2.8.16 |
 | Micrometer Prometheus | 指标导出 | 跟随 Spring Boot |
+| Fastjson2 | JSON 序列化（安全过滤器用） | 2.0.63 |
 
 ### 前端
 
@@ -52,7 +54,8 @@
 | Element Plus | 组件库 | 2.13.7 |
 | Axios | HTTP 请求 | 1.15.0 |
 | Vite | 构建工具链 | 8.0.8 |
-| Bun | 本地开发与依赖管理 | 1.3.12 |
+| Bun | 本地开发与依赖管理（推荐） | 1.3.12 |
+| Node.js + npm | 本地开发与依赖管理（Bun 替代方案，CI / Dockerfile.node 使用） | 24.19.0 LTS |
 
 ### 中间件与部署
 
