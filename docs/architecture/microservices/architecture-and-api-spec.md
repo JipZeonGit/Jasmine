@@ -12,8 +12,8 @@
 | 项目名称 | Jasmine（花店门店管理系统） |
 | 基础包名 | `com.nfu.jasmine` |
 | Java 版本 | 21 |
-| Spring Boot | 3.5.13 |
-| Spring Cloud | 2025.0.0 |
+| Spring Boot | 3.5.16 |
+| Spring Cloud | 2025.0.3 |
 | Spring Cloud Alibaba | 2025.0.0.0 |
 | 持久层 | MyBatis-Plus 3.5.14 |
 | 安全框架 | Spring Security + JWT (0.12.7) + Spring Cloud Gateway |
